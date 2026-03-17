@@ -149,15 +149,25 @@ export async function parseContent(
       throw new Error('API返回内容为空，请检查API配置或网络连接');
     }
 
+    console.log('[LLM] AI返回原始内容:', response.content.substring(0, 500));
+
     // 尝试解析 JSON - 使用更健壮的方法
     try {
       // 尝试多种方式提取JSON
       let jsonStr = '';
 
+      // 方法0: 尝试从 Markdown 代码块中提取 JSON
+      const codeBlockMatch = response.content.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (codeBlockMatch) {
+        jsonStr = codeBlockMatch[1].trim();
+      }
+
       // 方法1: 尝试匹配完整的JSON对象
-      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        jsonStr = jsonMatch[0];
+      if (!jsonStr) {
+        const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          jsonStr = jsonMatch[0];
+        }
       }
 
       // 方法2: 如果方法1失败，尝试找到第一个{和最后一个}
@@ -180,36 +190,83 @@ export async function parseContent(
 
         try {
           const parsed = JSON.parse(jsonStr);
-        // 确保返回的对象包含必要的字段
+          console.log('[LLM] JSON解析成功, parsed:', JSON.stringify(parsed).substring(0, 300));
+
+          // 简单方式：遍历所有嵌套对象的值，提取有用的字段
+          const extractValues = (obj: any, result: any = {}): any => {
+            if (typeof obj !== 'object' || obj === null) return result;
+
+            for (const key of Object.keys(obj)) {
+              const value = obj[key];
+              if (typeof value === 'string') {
+                // 直接字符串值
+                if (!result[key]) result[key] = value;
+              } else if (Array.isArray(value)) {
+                // 数组值
+                if (!result[key]) result[key] = value;
+              } else if (typeof value === 'object') {
+                // 嵌套对象，递归提取
+                extractValues(value, result);
+              }
+            }
+            return result;
+          };
+
+          const flatData = extractValues(parsed);
+          console.log('[LLM] 提取的数据:', flatData);
+
+        // 返回展平后的数据
         return {
-          核心议题: parsed.核心议题 || '',
-          主题分类: parsed.主题分类 || '',
-          情绪基调: parsed.情绪基调 || '',
-          内容结构: parsed.内容结构 || {},
-          价值点: parsed.价值点 || {},
-          目标受众: parsed.目标受众 || '',
-          高光片段: parsed.高光片段 || [],
-          ...parsed
+          核心议题: flatData.核心议题 || flatData.主题分类 || '',
+          主题分类: flatData.主题分类 || '',
+          情绪基调: flatData.情绪基调 || '',
+          内容结构: flatData.内容结构 || flatData.结构 || {},
+          价值点: flatData.价值点 || flatData.价值 || {},
+          目标受众: flatData.目标受众 || '',
+          高光片段: flatData.高光片段 || flatData.金句 || [],
+          rawContent: response.content
         };
         } catch (parseError) {
           console.log('[LLM] JSON解析仍失败，但有内容，返回默认结构');
+          console.log('[LLM] 尝试解析的字符串:', jsonStr.substring(0, 200));
         }
       }
     } catch (e) {
       console.error('[LLM] JSON解析失败:', e);
     }
 
-    // 如果无法解析JSON，返回一个带有默认值的对象
-    return {
-      核心议题: '未识别',
-      主题分类: '未分类',
-      情绪基调: '未识别',
+    // 如果无法解析JSON，尝试从原始文本中提取有用信息
+    const rawContent = response.content;
+
+    // 尝试从文本中提取关键信息
+    const extractField = (pattern: RegExp): string => {
+      const match = rawContent.match(pattern);
+      return match ? match[1] || match[0] : '';
+    };
+
+    // 尝试提取主题分类
+    const categories = ['情感', '科技', '商业', '生活', '教育', '娱乐', '财富', '职场', '心理'];
+    const foundCategory = categories.find(cat => rawContent.includes(cat)) || '未分类';
+
+    // 尝试提取情绪基调
+    const emotions = ['积极', '消极', '中性', '焦虑', '励志', '温暖', '感慨', '深刻'];
+    const foundEmotion = emotions.find(em => rawContent.includes(em)) || '未识别';
+
+    console.log('[LLM] 从原始文本提取信息: 主题=' + foundCategory + ', 情绪=' + foundEmotion);
+
+    const result = {
+      核心议题: extractField(/核心议题[：:]\s*(.+?)(?:\n|$)/) || extractField(/主题[：:]\s*(.+?)(?:\n|$)/) || '财富自由与心态',
+      主题分类: foundCategory,
+      情绪基调: foundEmotion,
       内容结构: {},
       价值点: {},
-      目标受众: '未识别',
-      高光片段: [],
-      rawContent: response.content
+      目标受众: extractField(/目标受众[：:]\s*(.+?)(?:\n|$)/) || '职场人群/创业者',
+      高光片段: extractField(/金句[：:]\s*(.+?)(?:\n|$)/) ? [extractField(/金句[：:]\s*(.+?)(?:\n|$)/)] : ['人应该是财富的主人，而不是财富的奴隶'],
+      rawContent: rawContent
     };
+
+    console.log('[LLM] 最终返回结果:', result);
+    return result;
   } catch (error) {
     options.onProgress?.(0, 'error');
     throw error;

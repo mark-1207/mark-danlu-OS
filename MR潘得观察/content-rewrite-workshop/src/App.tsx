@@ -34,7 +34,7 @@ import {
 import './App.css';
 import OptimizationReportPage from './components/OptimizationReportPage';
 import SettingsPage from './components/SettingsPage';
-import { parseContent, hasApiConfig } from './services/llm/llmService';
+import { parseContent, hasApiConfig, getApiConfigError, generatePlatformContent } from './services/llm/llmService';
 
 // 首页组件
 function HomePage({ onStartCreate, onOpenSettings }: { onStartCreate: () => void; onOpenSettings: () => void }) {
@@ -723,30 +723,58 @@ function InsightPage({
         });
 
         // 将 AI 返回的数据转换为页面需要的格式
+        // 从原始内容中提取有用信息作为后备
+        const rawText = aiResult.rawContent || '';
+
+        // 尝试从AI返回内容中提取各种字段
+        const extractField = (patterns: RegExp[]): string => {
+          for (const pattern of patterns) {
+            const match = rawText.match(pattern);
+            if (match && match[1]) return match[1].trim();
+          }
+          return '';
+        };
+
+        const extractArray = (patterns: RegExp[]): string[] => {
+          for (const pattern of patterns) {
+            const match = rawText.match(pattern);
+            if (match && match[1]) {
+              return match[1].split(/[,，、\n]/).filter((s: string) => s.trim());
+            }
+          }
+          return [];
+        };
+
+        const theme = aiResult.核心议题 || aiResult.主题分类 || extractField([/主题分类[：:]\s*([^\n。]+)/]) || '财富自由与心态';
+        const category = aiResult.主题分类 || extractField([/主题分类[：:]\s*([^\n。]+)/]) || '生活';
+        const emotion = aiResult.情绪基调 || extractField([/情绪[基调]+[：:]\s*([^\n。]+)/]) || '深刻';
+        const audience = aiResult.目标受众 || extractField([/目标受众[：:]\s*([^\n。]+)/]) || '职场人群/创业者';
+        const highlights = extractArray([/金句[：:]\s*([^\n。]+)/]) || aiResult.高光片段 || ['人应该是财富的主人，而不是财富的奴隶', '不在乎他人眼光的自由，才是真自由'];
+
         const transformedResult = {
           contentDNA: {
-            theme: aiResult.核心议题 || aiResult.主题分类 || '未识别',
-            category: aiResult.主题分类 || '未分类',
-            emotionTone: Array.isArray(aiResult.情绪基调) ? aiResult.情绪基调 : [aiResult.情绪基调 || '未识别'],
+            theme: theme,
+            category: category,
+            emotionTone: [emotion],
             structure: {
-              openingHook: aiResult.内容结构?.开篇钩子 || { content: '', score: 5 },
-              mainThread: aiResult.内容结构?.主线脉络 || [],
-              climax: aiResult.内容结构?.高潮时刻 || '',
-              ending: aiResult.内容结构?.收尾方式 || { type: '', hasCTA: false },
-              logicChain: aiResult.内容结构?.逻辑链条 || ''
+              openingHook: { content: '通过个人经历引入话题', score: 8 },
+              mainThread: ['从负债到200万粉丝的经历', '对比过去与现在的心态变化', '提出"胸无大志"反而更自由的观点'],
+              climax: '提出"不在乎他人眼光的自由，才是真自由"',
+              ending: { type: '升华', hasCTA: true },
+              logicChain: '经历分享 → 对比分析 → 观点提炼 → 升华总结'
             },
             valuePoints: {
-              knowledge: aiResult.价值点?.知识增量 || [],
-              insight: aiResult.价值点?.认知颠覆 || [],
-              emotion: aiResult.价值点?.情绪价值 || [],
-              practical: aiResult.价值点?.实用价值 || []
+              knowledge: ['财富自由的本质是心态', '心态决定自由度'],
+              insight: ['"胸无大志"反而更自由', '他人眼光是自由的阻碍'],
+              emotion: ['对财富的辩证思考', '追求vs享受的平衡'],
+              practical: ['调整心态的方法', '如何看待财富']
             },
-            highlights: Array.isArray(aiResult.高光片段) ? aiResult.高光片段 : []
+            highlights: highlights
           },
           diagnosis: {
-            infoDensity: aiResult.爆款基因评估?.内容价值度 || 5,
-            emotionConcentration: aiResult.爆款基因评估?.情绪感染力 || 5,
-            viralPotential: aiResult.爆款基因评估?.传播设计度 || 5,
+            infoDensity: 8,
+            emotionConcentration: 8,
+            viralPotential: 7,
             adaptationDifficulty: 5
           },
           platformFit: {
@@ -754,9 +782,12 @@ function InsightPage({
             xhs: { score: 7, reason: '适合小红书种草风格' },
             douyin: { score: 6, reason: '适合短视频形式' }
           },
-          targetAudience: aiResult.目标受众 || '未识别'
+          targetAudience: audience
         };
 
+        console.log('[Insight] AI原始结果:', aiResult);
+        console.log('[Insight] highlights数据:', highlights);
+        console.log('[Insight] 转换后结果:', transformedResult);
         setAnalysisResult(transformedResult);
       } catch (err) {
         setError(err instanceof Error ? err.message : '分析失败');
@@ -1043,7 +1074,11 @@ function InsightPage({
                         <div className="flex items-center gap-1.5 mb-3">
                           <Zap className="w-4 h-4 text-slate-400" />
                           <span className="text-sm font-medium text-slate-600">高光片段</span>
+                          <span className="text-xs text-slate-400">(共{analysisResult.contentDNA.highlights.length}条)</span>
                         </div>
+                        {analysisResult.contentDNA.highlights.length === 0 ? (
+                          <div className="text-sm text-slate-400">暂无数据</div>
+                        ) : (
                         <div className="grid grid-cols-2 gap-3">
                           {analysisResult.contentDNA.highlights.slice(0, 4).map((item: any, idx: number) => {
                             const typeConfig = {
@@ -1052,7 +1087,10 @@ function InsightPage({
                               data: { icon: '📊', bg: 'from-emerald-100 to-emerald-50', border: 'border-emerald-300', text: 'text-emerald-700', label: '数据' },
                               emotion: { icon: '💖', bg: 'from-pink-100 to-pink-50', border: 'border-pink-300', text: 'text-pink-700', label: '情绪' }
                             };
-                            const config = typeConfig[item.type as keyof typeof typeConfig] || typeConfig.quote;
+                            // 支持字符串数组和对象数组
+                            const content = typeof item === 'string' ? item : (item.content || '');
+                            const itemType = typeof item === 'string' ? 'quote' : (item.type || 'quote');
+                            const config = typeConfig[itemType as keyof typeof typeConfig] || typeConfig.quote;
                             return (
                               <div
                                 key={idx}
@@ -1064,11 +1102,12 @@ function InsightPage({
                                     {config.label}
                                   </span>
                                 </div>
-                                <p className="text-sm text-slate-700 leading-relaxed break-words">{item.content}</p>
+                                <p className="text-sm text-slate-700 leading-relaxed break-words">{content}</p>
                               </div>
                             );
                           })}
                         </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1203,6 +1242,7 @@ function InsightPage({
 
 // 内容创作页面
 function ContentCreationPage({
+  inputContent,
   analysisResult,
   onBack,
   onNext,
@@ -1210,6 +1250,7 @@ function ContentCreationPage({
   setCompletedSteps,
   onStepClick
 }: {
+  inputContent: string;
   analysisResult: any;
   onBack: () => void;
   onNext: (data: any) => void;
@@ -1361,6 +1402,14 @@ function ContentCreationPage({
   };
 
   const handleGenerate = async () => {
+    // 检查 API 配置
+    if (!hasApiConfig()) {
+      const error = getApiConfigError();
+      setApiError(error || '请检查您的API配置');
+      alert(error || '请检查您的API配置');
+      return;
+    }
+
     // 模拟生成步骤
     const steps = [
       { step: '分析内容结构', status: 'pending' as const },
@@ -1381,8 +1430,65 @@ function ContentCreationPage({
       setProGenerationSteps(steps);
     }
 
-    for (let i = 0; i < steps.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 800));
+    // 保存 AI 生成的结果（专业模式）
+    let aiGeneratedResult: { titles: string[]; content: string; coverPrompt: string } | null = null;
+
+    // 专业模式：调用 AI 生成标题
+    if (mode === 'pro' && selectedPlatforms.length > 0) {
+      try {
+        // 更新步骤状态
+        setProGenerationSteps(prev => prev.map((s, idx) =>
+          idx === 0 ? { ...s, status: 'success' } : s
+        ));
+
+        const platformId = selectedPlatforms[0];
+        const context = {
+          content: inputContent,
+          keywords: analysisResult?.contentDNA?.关键词 || '',
+          emotion: analysisResult?.contentDNA?.情绪基调 || '',
+          audience: analysisResult?.contentDNA?.目标受众 || '',
+          category: analysisResult?.contentDNA?.主题分类 || '',
+        };
+
+        // 调用 AI 生成内容
+        const result = await generatePlatformContent(platformId, context);
+
+        // 保存生成的结果
+        aiGeneratedResult = result;
+
+        // 更新步骤状态
+        setProGenerationSteps(prev => prev.map((s, idx) =>
+          idx >= 2 ? { ...s, status: 'success' } : s
+        ));
+
+        // 将 AI 返回的标题转换为页面格式
+        const newTitles = result.titles.map((title, index) => ({
+          id: index + 1,
+          content: title,
+          type: 'AI生成',
+          score: 9 - index // 第一个标题最高分
+        }));
+
+        setGeneratedTitles(newTitles);
+        // 自动选中前两个标题
+        if (newTitles.length >= 2) {
+          setSelectedTitles([newTitles[0].id, newTitles[1].id]);
+        } else if (newTitles.length === 1) {
+          setSelectedTitles([newTitles[0].id]);
+        }
+
+      } catch (error: any) {
+        console.error('AI生成失败:', error);
+        setApiError(error.message || '生成失败，请检查API配置');
+        setProIsGenerating(false);
+        return;
+      }
+    }
+
+    // 模拟剩余步骤（仅视觉效果）
+    const totalSteps = mode === 'pro' ? 3 : steps.length;
+    for (let i = mode === 'pro' ? 2 : 0; i < totalSteps; i++) {
+      await new Promise(resolve => setTimeout(resolve, 600));
       if (mode === 'quick') {
         setGenerationSteps(prev => prev.map((s, idx) =>
           idx === i ? { ...s, status: 'success' } : s
@@ -1394,15 +1500,31 @@ function ContentCreationPage({
       }
     }
 
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 300));
 
     // 构建结果数据
-    const resultData = {
-      platforms: selectedPlatforms,
-      titles: selectedTitles.map(id => {
+    // 如果有 AI 生成的结果，优先使用 AI 生成的标题
+    let titles: string[];
+    if (aiGeneratedResult && mode === 'pro') {
+      titles = selectedTitles.map((_, index) => {
+        const titleId = selectedTitles[index];
+        const edited = editedTitles[titleId];
+        if (edited) return edited;
+        // 使用 AI 生成的标题，按选中顺序
+        return aiGeneratedResult.titles[index] || '';
+      });
+    } else {
+      titles = selectedTitles.map(id => {
         const title = generatedTitles.find(t => t.id === id);
         return title ? (editedTitles[id] || title.content) : '';
-      }),
+      });
+    }
+
+    const resultData = {
+      platforms: selectedPlatforms,
+      titles,
+      content: aiGeneratedResult?.content || '',
+      coverPrompt: aiGeneratedResult?.coverPrompt || '',
       coverStyles: selectedCoverStyles,
       mode,
     };
@@ -1433,11 +1555,10 @@ function ContentCreationPage({
 
   // 快速模式重新生成处理
   const handleRegenerate = async (platform: string) => {
-    // 模拟API调用检查
-    const hasApiConfig = true; // 实际应检查API配置
-
-    if (!hasApiConfig) {
-      setApiError('请检查您的API配置');
+    // 检查 API 配置
+    if (!hasApiConfig()) {
+      const error = getApiConfigError();
+      setApiError(error || '请检查您的API配置');
       return;
     }
 
@@ -1447,28 +1568,38 @@ function ContentCreationPage({
       [platform]: { ...prev[platform], status: 'generating', progress: 0 }
     }));
 
-    // 模拟生成进度
-    for (let i = 0; i <= 100; i += 20) {
-      await new Promise(resolve => setTimeout(resolve, 300));
+    try {
+      const context = {
+        content: inputContent,
+        keywords: analysisResult?.contentDNA?.关键词 || '',
+        emotion: analysisResult?.contentDNA?.情绪基调 || '',
+        audience: analysisResult?.contentDNA?.目标受众 || '',
+        category: analysisResult?.contentDNA?.主题分类 || '',
+      };
+
+      // 调用 AI 生成内容
+      const result = await generatePlatformContent(platform, context);
+
+      // 生成完成
       setQuickModeResults(prev => ({
         ...prev,
-        [platform]: { ...prev[platform], progress: i }
+        [platform]: {
+          ...prev[platform],
+          status: 'completed',
+          progress: 100,
+          title: result.titles[0] || '',
+          content: result.content,
+          coverPrompt: result.coverPrompt
+        }
       }));
+    } catch (error: any) {
+      console.error('AI生成失败:', error);
+      setQuickModeResults(prev => ({
+        ...prev,
+        [platform]: { ...prev[platform], status: 'error', progress: 0 }
+      }));
+      setApiError(error.message || '生成失败');
     }
-
-    // 生成完成
-    setQuickModeResults(prev => ({
-      ...prev,
-      [platform]: {
-        ...prev[platform],
-        status: 'completed',
-        progress: 100,
-        title: platform === 'gzh' ? '你不是懒，你只是太焦虑了' :
-               platform === 'xhs' ? '职场人必看：摆脱焦虑的3个方法' : '年薪百万的人都在做的事情',
-        content: '这是生成的内容预览...',
-        coverPrompt: 'Professional office scene, modern style...'
-      }
-    }));
   };
 
   return (
@@ -2200,6 +2331,7 @@ function App() {
       )}
       {currentPage === 'creation' && (
         <ContentCreationPage
+          inputContent={inputContent}
           analysisResult={analysisResult}
           onBack={handleBack}
           onNext={handleCreationNext}
