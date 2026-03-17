@@ -26,6 +26,7 @@ import {
   Radar,
   ResponsiveContainer
 } from 'recharts';
+import { optimizeContent, hasApiConfig } from '../services/llm/llmService';
 
 // 类型定义
 interface QualityReport {
@@ -460,65 +461,64 @@ export default function OptimizationReportPage({
 
   // 一键优化处理
   const handleOptimize = async () => {
+    // 检查 API 配置
+    if (!hasApiConfig()) {
+      alert('请先在设置中配置AI供应商');
+      return;
+    }
+
     setIsLoading(true);
 
-    // 模拟AI优化过程
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    try {
+      // 构建质检报告文本
+      const currentData = platformsData[currentPlatform];
+      const qualityReport = currentData.qualityReport;
 
-    // 生成优化后的内容
-    const optimizedTitle = currentPlatform === 'gzh'
-      ? '你不是懒，你只是太焦虑了（深度优化版）'
-      : currentPlatform === 'xhs'
-      ? '🔥职场人必看！3个方法彻底告别拖延'
-      : '💰年薪百万的人从不拖延的秘密';
+      // 调用 AI 一键优化
+      const optimizedText = await optimizeContent(
+        currentData.content,
+        { checklist: qualityReport.checklist, optimizationSuggestions: qualityReport.optimizationSuggestions },
+        {
+          onProgress: () => {
+            // 可以在此处更新进度状态
+          }
+        }
+      );
 
-    const optimizedContent = currentPlatform === 'gzh'
-      ? `凌晨1点，我又一次刷完了短视频设定的闹钟，才发现自己答应自己的计划又双叕没完成。
+      // 解析优化后的内容（假设 AI 返回的是完整内容，可能包含标题）
+      // 简单处理：如果内容中包含换行，先尝试提取标题
+      const lines = optimizedText.trim().split('\n');
+      let optimizedTitle = currentData.title;
+      let optimizedContent = optimizedText;
 
-「你不是懒，你只是太焦虑了。」
+      // 尝试识别标题（如果第一行比较短，可能是标题）
+      if (lines.length > 0 && lines[0].length < 50) {
+        optimizedTitle = lines[0].replace(/^#+\s*/, '').trim();
+        optimizedContent = lines.slice(1).join('\n').trim();
+      }
 
-这句话可能戳中了很多人的痛点。TED演讲中，Tim Urban用幽默的方式揭示了拖延症背后的真相：我们的大脑里住着一只「即时满足猴子」，它总是拽着我们追求短暂的快乐，而忘记了长期的目标。
-
-科学研究表明，拖延症的本质不是懒惰，而是情绪调节失败。当我们面对一项任务时，大脑会自动评估难度和可能的失败风险。如果感觉压力过大，就会本能地逃避。
-
-正如作家马克·吐温所说：「 eaten the frog」——如果你必须吃掉一只青蛙，那就先吃掉它。不要等待完美的时机，现在就是最好的开始。
-
-三个实战方法，帮你战胜拖延：
-
-① 设定「最小行动」
-不要一开始就追求完美。先写50个字，先做5个俯卧撑。最小行动能降低心理阻力，让大脑愿意开始。
-
-② 拆解任务，建立「完成感」
-把大任务拆成小任务。每完成一个，就给自己一个正反馈。大脑会分泌多巴胺，形成正向循环。
-
-③ 允许不完美，完成>完美
-完美主义是拖延的帮凶。接受自己可能会做得不够好，先完成再迭代。
-
-正如企业家杰克·韦尔奇所说：「完成好过完美。」
-
-拖延不是你的错，但改变是你的选择。从今天开始，哪怕只是迈出一小步，也比原地踏步强。
-
-你准备好改变了吗？`
-      : currentData.content;
-
-    // 更新数据
-    setPlatformsData(prev => ({
-      ...prev,
-      [currentPlatform]: {
-        ...prev[currentPlatform],
-        isOptimized: true,
-        optimizedVersion: {
-          title: optimizedTitle,
-          content: optimizedContent,
-          qualityReport: generateMockQualityReport(currentPlatform),
+      // 更新数据
+      setPlatformsData(prev => ({
+        ...prev,
+        [currentPlatform]: {
+          ...prev[currentPlatform],
+          isOptimized: true,
+          optimizedVersion: {
+            title: optimizedTitle,
+            content: optimizedContent,
+            qualityReport: generateMockQualityReport(currentPlatform),
+          },
         },
-      },
-    }));
+      }));
 
-    setIsLoading(false);
-
-    // 显示对比浮层
-    setShowCompareModal(true);
+      // 显示对比浮层
+      setShowCompareModal(true);
+    } catch (error: any) {
+      console.error('优化失败:', error);
+      alert(error.message || '优化失败，请重试');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // 选择优化后的内容

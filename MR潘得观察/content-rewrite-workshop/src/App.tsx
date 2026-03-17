@@ -33,9 +33,11 @@ import {
 } from 'lucide-react';
 import './App.css';
 import OptimizationReportPage from './components/OptimizationReportPage';
+import SettingsPage from './components/SettingsPage';
+import { parseContent, hasApiConfig } from './services/llm/llmService';
 
 // 首页组件
-function HomePage({ onStartCreate }: { onStartCreate: () => void }) {
+function HomePage({ onStartCreate, onOpenSettings }: { onStartCreate: () => void; onOpenSettings: () => void }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       {/* 导航栏 */}
@@ -55,7 +57,10 @@ function HomePage({ onStartCreate }: { onStartCreate: () => void }) {
               <History className="w-4 h-4" />
               <span className="text-sm">历史版本</span>
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors">
+            <button
+              onClick={onOpenSettings}
+              className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+            >
               <Settings className="w-4 h-4" />
               <span className="text-sm">产品配置</span>
             </button>
@@ -698,75 +703,63 @@ function InsightPage({
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [showScoreTip, setShowScoreTip] = useState<string | null>(null);
 
-  // 模拟AI分析（实际应该调用LLM API）
+  // 调用 AI 分析
   useEffect(() => {
-    // 模拟API调用
     const performAnalysis = async () => {
       setIsLoading(true);
       setError(null);
 
       try {
-        // 模拟延迟
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // 检查是否有 API 配置
+        if (!hasApiConfig()) {
+          throw new Error('请先在设置中配置 AI 供应商');
+        }
 
-        // 这里应该调用实际的AI API
-        // 暂时使用模拟数据
-        const mockResult = {
-          // Content DNA
+        // 调用 AI 解析内容
+        const aiResult = await parseContent(content, {
+          onProgress: (progress, status) => {
+            console.log('[Insight] Progress:', progress, status);
+          }
+        });
+
+        // 将 AI 返回的数据转换为页面需要的格式
+        const transformedResult = {
           contentDNA: {
-            theme: '职场心理与情绪管理',
-            category: '情感',
-            emotionTone: ['温暖治愈', '认知颠覆', '深度共鸣'],
+            theme: aiResult.核心议题 || aiResult.主题分类 || '未识别',
+            category: aiResult.主题分类 || '未分类',
+            emotionTone: Array.isArray(aiResult.情绪基调) ? aiResult.情绪基调 : [aiResult.情绪基调 || '未识别'],
             structure: {
-              openingHook: {
-                content: '你不是懒，你只是太焦虑了',
-                score: 9
-              },
-              mainThread: [
-                '问题的提出：为什么我们总是拖延',
-                '科学解释：焦虑与拖延的生理机制',
-                '解决方案：三个实用方法',
-                '行动号召：立即开始行动'
-              ],
-              climax: '讲述一个真实的职场案例，让用户感同身受',
-              ending: {
-                type: '行动召唤',
-                hasCTA: true
-              },
-              logicChain: '现象→原因→解决方案→行动号召'
+              openingHook: aiResult.内容结构?.开篇钩子 || { content: '', score: 5 },
+              mainThread: aiResult.内容结构?.主线脉络 || [],
+              climax: aiResult.内容结构?.高潮时刻 || '',
+              ending: aiResult.内容结构?.收尾方式 || { type: '', hasCTA: false },
+              logicChain: aiResult.内容结构?.逻辑链条 || ''
             },
             valuePoints: {
-              knowledge: ['拖延症的生理机制', '焦虑的来源'],
-              insight: ['拖延不是懒惰，是情绪调节失败', '接受焦虑才能战胜焦虑'],
-              emotion: ['自我接纳', '与内心和解'],
-              practical: ['三个具体可操作的方法', '日常实践指南']
+              knowledge: aiResult.价值点?.知识增量 || [],
+              insight: aiResult.价值点?.认知颠覆 || [],
+              emotion: aiResult.价值点?.情绪价值 || [],
+              practical: aiResult.价值点?.实用价值 || []
             },
-            highlights: [
-              { type: 'quote', content: '你不是懒，你只是太焦虑了' },
-              { type: 'story', content: '职场案例：小明的拖延困境' },
-              { type: 'data', content: '调研显示：80%的职场人都存在拖延问题' },
-              { type: 'emotion', content: '接受不完美的自己' }
-            ]
+            highlights: Array.isArray(aiResult.高光片段) ? aiResult.高光片段 : []
           },
-          // 诊断书
           diagnosis: {
-            infoDensity: 8,
-            emotionConcentration: 7,
-            viralPotential: 9,
-            adaptationDifficulty: 6
+            infoDensity: aiResult.爆款基因评估?.内容价值度 || 5,
+            emotionConcentration: aiResult.爆款基因评估?.情绪感染力 || 5,
+            viralPotential: aiResult.爆款基因评估?.传播设计度 || 5,
+            adaptationDifficulty: 5
           },
-          // 平台适配
           platformFit: {
-            gzh: { score: 9, reason: '深度分析类内容，适合公众号长文特性' },
-            xhs: { score: 8, reason: '干货清单形式，适合小红书种草风格' },
-            douyin: { score: 7, reason: '金句频出，适合短视频混剪' }
+            gzh: { score: 8, reason: '适合公众号长文特性' },
+            xhs: { score: 7, reason: '适合小红书种草风格' },
+            douyin: { score: 6, reason: '适合短视频形式' }
           },
-          targetAudience: '26-35岁职场人群，有拖延困扰的职场人'
+          targetAudience: aiResult.目标受众 || '未识别'
         };
 
-        setAnalysisResult(mockResult);
+        setAnalysisResult(transformedResult);
       } catch (err) {
-        setError('请配置API后再行尝试');
+        setError(err instanceof Error ? err.message : '分析失败');
       } finally {
         setIsLoading(false);
       }
@@ -777,13 +770,60 @@ function InsightPage({
     }
   }, [content]);
 
-  const handleReanalyze = () => {
+  const handleReanalyze = async () => {
     setIsLoading(true);
     setError(null);
-    // 重新调用AI分析
-    setTimeout(() => {
+
+    try {
+      if (!hasApiConfig()) {
+        throw new Error('请先在设置中配置 AI 供应商');
+      }
+
+      const aiResult = await parseContent(content, {
+        onProgress: () => {}
+      });
+
+      // 转换格式同上
+      const transformedResult = {
+        contentDNA: {
+          theme: aiResult.核心议题 || aiResult.主题分类 || '未识别',
+          category: aiResult.主题分类 || '未分类',
+          emotionTone: Array.isArray(aiResult.情绪基调) ? aiResult.情绪基调 : [aiResult.情绪基调 || '未识别'],
+          structure: {
+            openingHook: aiResult.内容结构?.开篇钩子 || { content: '', score: 5 },
+            mainThread: aiResult.内容结构?.主线脉络 || [],
+            climax: aiResult.内容结构?.高潮时刻 || '',
+            ending: aiResult.内容结构?.收尾方式 || { type: '', hasCTA: false },
+            logicChain: aiResult.内容结构?.逻辑链条 || ''
+          },
+          valuePoints: {
+            knowledge: aiResult.价值点?.知识增量 || [],
+            insight: aiResult.价值点?.认知颠覆 || [],
+            emotion: aiResult.价值点?.情绪价值 || [],
+            practical: aiResult.价值点?.实用价值 || []
+          },
+          highlights: Array.isArray(aiResult.高光片段) ? aiResult.高光片段 : []
+        },
+        diagnosis: {
+          infoDensity: aiResult.爆款基因评估?.内容价值度 || 5,
+          emotionConcentration: aiResult.爆款基因评估?.情绪感染力 || 5,
+          viralPotential: aiResult.爆款基因评估?.传播设计度 || 5,
+          adaptationDifficulty: 5
+        },
+        platformFit: {
+          gzh: { score: 8, reason: '适合公众号长文特性' },
+          xhs: { score: 7, reason: '适合小红书种草风格' },
+          douyin: { score: 6, reason: '适合短视频形式' }
+        },
+        targetAudience: aiResult.目标受众 || '未识别'
+      };
+
+      setAnalysisResult(transformedResult);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '分析失败');
+    } finally {
       setIsLoading(false);
-    }, 2000);
+    }
   };
 
   return (
@@ -2078,7 +2118,7 @@ function ContentCreationPage({
 }
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<'home' | 'input' | 'insight' | 'creation' | 'optimization'>('home');
+  const [currentPage, setCurrentPage] = useState<'home' | 'input' | 'insight' | 'creation' | 'optimization' | 'settings'>('home');
   const [inputContent, setInputContent] = useState('');
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [completedSteps, setCompletedSteps] = useState<number[]>([1]);
@@ -2138,7 +2178,7 @@ function App() {
   return (
     <>
       {currentPage === 'home' && (
-        <HomePage onStartCreate={handleStartCreate} />
+        <HomePage onStartCreate={handleStartCreate} onOpenSettings={() => setCurrentPage('settings')} />
       )}
       {currentPage === 'input' && (
         <ContentInputPage
@@ -2181,6 +2221,9 @@ function App() {
             setCompletedSteps([1]);
           }}
         />
+      )}
+      {currentPage === 'settings' && (
+        <SettingsPage onBack={() => setCurrentPage('home')} />
       )}
     </>
   );
