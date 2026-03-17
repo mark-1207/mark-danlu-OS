@@ -215,15 +215,10 @@ export async function parseContent(
           const flatData = extractValues(parsed);
           console.log('[LLM] 提取的数据:', flatData);
 
-        // 返回展平后的数据
+        // 返回完整的AI原始数据（不转换）
         return {
-          核心议题: flatData.核心议题 || flatData.主题分类 || '',
-          主题分类: flatData.主题分类 || '',
-          情绪基调: flatData.情绪基调 || '',
-          内容结构: flatData.内容结构 || flatData.结构 || {},
-          价值点: flatData.价值点 || flatData.价值 || {},
-          目标受众: flatData.目标受众 || '',
-          高光片段: flatData.高光片段 || flatData.金句 || [],
+          ...flatData,
+          _rawJson: parsed, // 保留原始嵌套结构
           rawContent: response.content
         };
         } catch (parseError) {
@@ -254,6 +249,17 @@ export async function parseContent(
 
     console.log('[LLM] 从原始文本提取信息: 主题=' + foundCategory + ', 情绪=' + foundEmotion);
 
+    // 尝试解析原始内容中的 JSON
+    let rawJson = {};
+    try {
+      const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        rawJson = JSON.parse(jsonMatch[0]);
+      }
+    } catch (e) {
+      console.log('[LLM] 原始内容中也无法解析JSON');
+    }
+
     const result = {
       核心议题: extractField(/核心议题[：:]\s*(.+?)(?:\n|$)/) || extractField(/主题[：:]\s*(.+?)(?:\n|$)/) || '财富自由与心态',
       主题分类: foundCategory,
@@ -262,6 +268,7 @@ export async function parseContent(
       价值点: {},
       目标受众: extractField(/目标受众[：:]\s*(.+?)(?:\n|$)/) || '职场人群/创业者',
       高光片段: extractField(/金句[：:]\s*(.+?)(?:\n|$)/) ? [extractField(/金句[：:]\s*(.+?)(?:\n|$)/)] : ['人应该是财富的主人，而不是财富的奴隶'],
+      _rawJson: rawJson, // 始终返回原始JSON
       rawContent: rawContent
     };
 
