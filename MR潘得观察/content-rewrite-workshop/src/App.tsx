@@ -24,6 +24,7 @@ import {
   Clock,
   Lightbulb,
   RefreshCw,
+  HelpCircle,
 } from 'lucide-react';
 import OptimizationReportPage from './components/OptimizationReportPage';
 import SettingsPage from './components/SettingsPage';
@@ -702,6 +703,7 @@ function ContentCreationPage({
   onStepClick: (step: number) => void;
 }) {
   const [mode, setMode] = useState<'quick' | 'pro' | null>('quick');
+  const [showTips, setShowTips] = useState(false);
   const [proIsGenerating, setProIsGenerating] = useState(false);
 
   // 专业模式生成完成后的回调
@@ -837,9 +839,35 @@ function ContentCreationPage({
             </div>
 
             {/* 模式选择标题 */}
-            <div className="mb-5">
-              <h2 className="text-lg font-semibold text-slate-800">选择创作模式</h2>
-              <div className="h-px bg-gradient-to-r from-slate-200 to-transparent mt-3"></div>
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">选择创作模式</h2>
+                <div className="h-px bg-gradient-to-r from-slate-200 to-transparent mt-3"></div>
+              </div>
+              <button
+                onClick={() => setShowTips(!showTips)}
+                className="group relative flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 hover:bg-blue-50 text-slate-400 hover:text-blue-500 transition-colors"
+              >
+                <HelpCircle className="w-5 h-5" />
+                {/* Tooltip */}
+                <div className={`absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-200 p-4 z-20 transition-all ${showTips ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                      <Lightbulb className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="text-sm">
+                      <p className="font-medium text-slate-700 mb-1">使用建议</p>
+                      <p className="text-slate-500">
+                        {mode === 'quick'
+                          ? '快速模式：输入原文 → AI分析 → 一键生成三平台内容，适合追求效率的用户'
+                          : mode === 'pro'
+                          ? '专业模式：输入原文 → 挑选标题 → 精调内容 → 生成最终文案，适合深度用户'
+                          : '快速模式适合新手小白，专业模式适合有经验的用户深度定制'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </button>
             </div>
 
             {/* 模式选择 */}
@@ -954,25 +982,6 @@ function ContentCreationPage({
                   </div>
                 </div>
               </button>
-            </div>
-
-            {/* 使用提示 */}
-            <div className="bg-gradient-to-r from-slate-50 to-blue-50/30 rounded-xl p-4 border border-slate-200/60">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Lightbulb className="w-4 h-4 text-blue-600" />
-                </div>
-                <div className="text-sm">
-                  <p className="font-medium text-slate-700 mb-1">使用建议</p>
-                  <p className="text-slate-500">
-                    {mode === 'quick'
-                      ? '快速模式：输入原文 → AI分析 → 一键生成三平台内容，适合追求效率的用户'
-                      : mode === 'pro'
-                      ? '专业模式：输入原文 → 挑选标题 → 精调内容 → 生成最终文案，适合深度用户'
-                      : '快速模式适合新手小白，专业模式适合有经验的用户深度定制'}
-                  </p>
-                </div>
-              </div>
             </div>
 
             {/* 模式内容 - 使用独立组件 */}
