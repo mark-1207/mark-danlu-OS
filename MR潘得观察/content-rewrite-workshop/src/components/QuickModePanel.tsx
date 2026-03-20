@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import {
   Zap,
   Wand2,
@@ -52,69 +52,6 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
 
   // 判断生成进度是否全部完成
   const isAllStepsCompleted = generationSteps.length > 0 && generationSteps.every(s => s.status === 'success');
-
-  // 进度模拟函数：初始化并模拟各平台进度
-  const simulateGeneration = useCallback(async () => {
-    // 初始化各平台状态
-    const initialResults = {
-      gzh: { title: '', content: '', coverPrompt: '', progress: 0, status: 'generating' as const },
-      xhs: { title: '', content: '', coverPrompt: '', progress: 0, status: 'generating' as const },
-      douyin: { title: '', content: '', coverPrompt: '', progress: 0, status: 'generating' as const },
-    };
-    setResults(initialResults);
-
-    // 各平台配置：延迟时间（毫秒）和单步增量
-    const platformConfig = [
-      { key: 'gzh', delay: 500, increment: 2 },
-      { key: 'xhs', delay: 1200, increment: 2.5 },
-      { key: 'douyin', delay: 2000, increment: 3 },
-    ];
-
-    const intervalIds: number[] = [];
-
-    platformConfig.forEach(({ key, delay, increment }) => {
-      // 使用 void 来表示有意不使用返回值
-      void setTimeout(() => {
-        const intervalId = window.setInterval(() => {
-          setResults(prev => {
-            const current = prev[key];
-            if (!current) return prev;
-
-            const newProgress = Math.min(current.progress + increment, 100);
-
-            if (newProgress >= 100) {
-              window.clearInterval(intervalId);
-              return {
-                ...prev,
-                [key]: {
-                  ...current,
-                  progress: 100,
-                  status: 'completed' as const,
-                  title: key === 'gzh' ? '一键生成：公众号爆款文案' :
-                         key === 'xhs' ? '一键生成：小红书种草笔记' :
-                         '一键生成：抖音短视频脚本',
-                  content: key === 'gzh' ? '【公众号爆款内容示例】\n\n在这个充满挑战的时代，我们常常会感到迷茫和焦虑...（AI生成内容）' :
-                          key === 'xhs' ? '【小红书种草笔记】\n\n姐妹们！今天必须给你们安利这个...（AI生成内容）' :
-                          '【抖音短视频脚本】\n\n（开场）哎，你们有没有发现...（AI生成内容）',
-                  coverPrompt: `高质量${key === 'gzh' ? '公众号' : key === 'xhs' ? '小红书' : '抖音'}封面图片，时尚潮流风格，简洁大方，适合社交媒体传播`,
-                },
-              };
-            }
-
-            return {
-              ...prev,
-              [key]: { ...current, progress: newProgress },
-            };
-          });
-        }, 100);
-        intervalIds.push(intervalId);
-      }, delay);
-    });
-
-    return () => {
-      intervalIds.forEach(id => window.clearInterval(id));
-    };
-  }, []);
 
   // 一键生成处理
   const handleGenerate = async () => {

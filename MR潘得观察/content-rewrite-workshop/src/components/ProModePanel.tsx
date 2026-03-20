@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import {
   Sparkles,
   Target,
-  Layers,
   Edit3,
   Check,
   X,
@@ -214,7 +213,7 @@ export default function ProModePanel({
   };
 
   // 获取推荐理由
-  const getRecommendationReason = (score: number, type: string) => {
+  const getRecommendationReason = (score: number) => {
     if (score >= 9) return '高热度词汇，爆款潜力强';
     if (score >= 8) return '精准触达用户痛点';
     return '有一定吸引力';
@@ -321,7 +320,7 @@ export default function ProModePanel({
       onGenerate({
         platforms: selectedPlatforms,
         titles: selectedTitlesList,
-        contents: generatedContents,
+        content: generatedContents[0] || '',
         coverPrompt: '',
         coverStyles: selectedCoverStyles,
       });
@@ -573,7 +572,7 @@ export default function ProModePanel({
                                     ? 'bg-white/50 text-blue-600'
                                     : 'bg-slate-50 text-slate-500'
                                 }`}>
-                                  💡 {getRecommendationReason(title.score, title.type)}
+                                  💡 {getRecommendationReason(title.score)}
                                 </div>
                               </>
                             )}

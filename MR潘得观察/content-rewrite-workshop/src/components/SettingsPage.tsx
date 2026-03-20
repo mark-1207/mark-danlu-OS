@@ -1060,7 +1060,6 @@ function AnalysisTab() {
 function OptimizationTab() {
   const {
     optimization,
-    platforms,
     addOptimizationTemplate,
     updateOptimizationTemplate,
     removeOptimizationTemplate,

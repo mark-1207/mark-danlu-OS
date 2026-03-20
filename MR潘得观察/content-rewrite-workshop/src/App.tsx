@@ -22,7 +22,6 @@ import {
   X,
   Edit3,
 } from 'lucide-react';
-import './App.css';
 import OptimizationReportPage from './components/OptimizationReportPage';
 import SettingsPage from './components/SettingsPage';
 import InsightPage from './components/InsightPage';
