@@ -6,8 +6,8 @@
 # ========== 飞书配置 ==========
 FEISHU_APP_ID = "cli_a937bd1eba781bb3"           # 飞书应用ID
 FEISHU_APP_SECRET = "Jsz8wdNz1blnmogCoIDM9z84MPLINQtr"  # 飞书应用密钥
-FEISHU_APP_TOKEN = "NbKqw5AMIiLI9xkyRwCcM2eNnOe"  # 多维表格App Token
-FEISHU_TABLE_ID = "tblYlhkrtIJF06Xb"            # 多维表格Table ID
+FEISHU_APP_TOKEN = "LuBKbHrQvaIOQ6sGY99cymKRn4e"  # 多维表格App Token
+FEISHU_TABLE_ID = "tblxBndasAxLD0M8"            # 多维表格Table ID
 
 # ========== 微信登录配置（可选） ==========
 # 如果需要抓取公众号评论，需要扫码登录
@@ -38,19 +38,5 @@ TRANSLATION_SERVICE = "google"
 # DEEPL_API_KEY = "your-deepl-key"
 
 # ========== 多维表格字段映射 ==========
-# 请确保与你的飞书多维表格列名一致
-FIELDS_MAPPING = {
-    "title": "标题",
-    "url": "链接",
-    "source": "来源",
-    "author": "作者",
-    "publish_date": "发布日期",
-    "content": "正文",
-    "summary": "内容摘要",
-    "translation": "译文",
-    "likes": "点赞数",
-    "views": "阅读数",
-    "comments_count": "评论数",
-    "top_comments": "热门评论",
-    "crawl_time": "抓取时间"
-}
+# 现在代码会自动从API获取字段映射，此处保留用于参考
+FIELDS_MAPPING = {}
