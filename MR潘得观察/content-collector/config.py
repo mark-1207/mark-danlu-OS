@@ -4,10 +4,10 @@
 """
 
 # ========== 飞书配置 ==========
-FEISHU_APP_ID = "your_app_id"          # 飞书应用ID
-FEISHU_APP_SECRET = "your_app_secret"   # 飞书应用密钥
-FEISHU_APP_TOKEN = "your_app_token"     # 多维表格App Token
-FEISHU_TABLE_ID = "your_table_id"       # 多维表格Table ID
+FEISHU_APP_ID = "cli_a937bd1eba781bb3"           # 飞书应用ID
+FEISHU_APP_SECRET = "Jsz8wdNz1blnmogCoIDM9z84MPLINQtr"  # 飞书应用密钥
+FEISHU_APP_TOKEN = "NbKqw5AMIiLI9xkyRwCcM2eNnOe"  # 多维表格App Token
+FEISHU_TABLE_ID = "tblYlhkrtIJF06Xb"            # 多维表格Table ID
 
 # ========== 微信登录配置（可选） ==========
 # 如果需要抓取公众号评论，需要扫码登录

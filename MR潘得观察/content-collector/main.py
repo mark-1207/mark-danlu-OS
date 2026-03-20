@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from crawler import create_crawler
 from feishu import FeishuClient
+from cleaner import structure_data, validate_data
 from config import REQUEST_DELAY
 
 # 配置日志
@@ -44,7 +45,15 @@ def crawl_single_url(url: str, push_to_feishu: bool = True, feishu_client: Feish
     result = crawler.crawl(url)
 
     if result.get("success"):
-        data = result.get("data")
+        raw_data = result.get("data")
+
+        # 清洗数据为结构化格式
+        data = structure_data(raw_data)
+
+        # 验证数据
+        validation = validate_data(data)
+        if not validation["valid"]:
+            logger.warning(f"⚠️ 数据验证警告: {validation['errors']}")
 
         # 打印结果摘要
         logger.info("=" * 50)
@@ -54,11 +63,16 @@ def crawl_single_url(url: str, push_to_feishu: bool = True, feishu_client: Feish
         logger.info(f"❤️ 点赞: {data.get('likes', 0)}")
         logger.info(f"👁️ 阅读: {data.get('views', 0)}")
         logger.info(f"💬 评论: {data.get('comments_count', 0)}")
+        logger.info(f"📝 正文长度: {len(data.get('content', ''))} 字符")
+        if data.get('translation'):
+            logger.info(f"🌐 译文长度: {len(data['translation'])} 字符")
         logger.info("=" * 50)
 
         # 推送飞书
         if push_to_feishu and feishu_client:
-            feishu_client.push_record(data)
+            success = feishu_client.push_record(data)
+            if success:
+                logger.info(f"✅ 已推送至飞书多维表格")
     else:
         logger.error(f"❌ 抓取失败: {result.get('error')}")
 

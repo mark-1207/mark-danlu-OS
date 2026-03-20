@@ -17,6 +17,9 @@ from config import FEISHU_APP_ID, FEISHU_APP_SECRET, FEISHU_APP_TOKEN, FEISHU_TA
 
 logger = logging.getLogger(__name__)
 
+# 数字类型字段
+NUMERIC_FIELDS = {"likes", "views", "comments_count"}
+
 
 class FeishuClient:
     """飞书多维表格客户端"""
@@ -46,6 +49,17 @@ class FeishuClient:
                 raise Exception(f"获取token失败: {response}")
         return self._token
 
+    def _convert_field_value(self, key: str, value: any) -> any:
+        """转换字段值，确保类型正确"""
+        # 数字字段
+        if key in NUMERIC_FIELDS:
+            try:
+                return int(value) if value else 0
+            except (ValueError, TypeError):
+                return 0
+        # 其他字段直接返回
+        return value
+
     def push_record(self, data: Dict) -> bool:
         """
         推送单条记录到多维表格
@@ -57,11 +71,13 @@ class FeishuClient:
             bool: 是否成功
         """
         try:
-            # 转换字段名为飞书格式
+            # 转换字段名为飞书格式，并确保类型正确
             fields = {}
             for key, value in data.items():
                 if key in FIELDS_MAPPING and value is not None:
-                    fields[FIELDS_MAPPING[key]] = value
+                    # 转换字段值类型
+                    converted_value = self._convert_field_value(key, value)
+                    fields[FIELDS_MAPPING[key]] = converted_value
 
             # 如果没有数据，直接返回
             if not fields:
