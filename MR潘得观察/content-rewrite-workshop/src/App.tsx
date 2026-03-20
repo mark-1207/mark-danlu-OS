@@ -21,6 +21,9 @@ import {
   File,
   X,
   Edit3,
+  Clock,
+  Lightbulb,
+  RefreshCw,
 } from 'lucide-react';
 import OptimizationReportPage from './components/OptimizationReportPage';
 import SettingsPage from './components/SettingsPage';
@@ -707,8 +710,11 @@ function ContentCreationPage({
     onNext({ ...data, mode: 'pro' });
   };
 
+  // 计算原始内容字数
+  const contentLength = inputContent?.length || 0;
+
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30 flex">
       {/* 左侧导航 */}
       <SideNav
         currentStep={3}
@@ -720,71 +726,258 @@ function ContentCreationPage({
 
       {/* 右侧内容区 */}
       <div className="flex-1 flex flex-col">
+        {/* 顶部操作栏 */}
+        <div className="h-14 border-b border-slate-200/60 bg-white/80 backdrop-blur-sm flex items-center justify-between px-6">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5" />
+            <span className="text-sm font-medium">返回</span>
+          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => onStepClick(2)}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              重做洞察
+            </button>
+          </div>
+        </div>
+
         <div className="flex-1 p-8 overflow-auto">
           <div className="max-w-4xl mx-auto">
             {/* 页面标题 */}
-            <div className="mb-6 flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900">内容创作</h1>
-              <span className="text-slate-400">|</span>
-              <p className="text-slate-500 text-sm">选择模式，开始创作</p>
+            <div className="mb-7">
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles className="w-5 h-5 text-blue-500" />
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
+                  内容创作
+                </h1>
+              </div>
+              <p className="text-slate-500 text-sm">选择创作模式，开始生成爆款内容</p>
+            </div>
+
+            {/* 信息卡片区 */}
+            <div className="grid grid-cols-2 gap-4 mb-8">
+              {/* 原始内容卡片 */}
+              <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-5 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <span className="font-semibold text-slate-800">原始内容</span>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">字数</span>
+                    <span className="text-sm font-medium text-slate-700">{contentLength.toLocaleString()} 字</span>
+                  </div>
+                  {preInfo?.platform && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-500">目标平台</span>
+                      <span className="text-sm font-medium text-slate-700">{preInfo.platform}</span>
+                    </div>
+                  )}
+                  {preInfo?.track && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-500">所属赛道</span>
+                      <span className="text-sm font-medium text-slate-700">{preInfo.track}</span>
+                    </div>
+                  )}
+                  {preInfo?.likes > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-500">参考点赞</span>
+                      <span className="text-sm font-medium text-slate-700">{preInfo.likes.toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* AI洞察卡片 */}
+              <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-5 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
+                    <Sparkles className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <span className="font-semibold text-slate-800">AI分析洞察</span>
+                </div>
+                <div className="space-y-3">
+                  {analysisResult?.主题分类 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-500">主题分类</span>
+                      <span className="text-sm font-medium text-slate-700">{analysisResult.主题分类}</span>
+                    </div>
+                  )}
+                  {analysisResult?.情绪基调 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-500">情绪基调</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        {Array.isArray(analysisResult.情绪基调) ? analysisResult.情绪基调.join('+') : analysisResult.情绪基调}
+                      </span>
+                    </div>
+                  )}
+                  {analysisResult?.目标受众 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-500">目标受众</span>
+                      <span className="text-sm font-medium text-slate-700">{analysisResult.目标受众}</span>
+                    </div>
+                  )}
+                  {analysisResult?.基因评估?.标题吸引力 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-500">标题评分</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        {analysisResult.基因评估.标题吸引力?.分数 || '-'} /10
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 模式选择标题 */}
+            <div className="mb-5">
+              <h2 className="text-lg font-semibold text-slate-800">选择创作模式</h2>
+              <div className="h-px bg-gradient-to-r from-slate-200 to-transparent mt-3"></div>
             </div>
 
             {/* 模式选择 */}
-            <div className="mb-8">
-              <div className="text-lg font-medium text-slate-800 mb-4">请您选择创作模式</div>
-              <div className="grid grid-cols-2 gap-4">
-                {/* 快速模式 */}
-                <button
-                  onClick={() => {
-                    setMode('quick');
-                    // 切换回快速模式时，重置生成进度状态但保留生成结果
-                  }}
-                  className={`p-5 rounded-xl border-2 transition-all text-left ${
-                    mode === 'quick'
-                      ? 'border-blue-500 bg-blue-50 shadow-lg shadow-blue-500/10'
-                      : 'border-slate-200 bg-white hover:border-blue-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      mode === 'quick' ? 'bg-blue-500' : 'bg-slate-100'
-                    }`}>
-                      <Zap className={`w-5 h-5 ${mode === 'quick' ? 'text-white' : 'text-slate-500'}`} />
-                    </div>
-                    <span className={`font-semibold ${mode === 'quick' ? 'text-blue-700' : 'text-slate-700'}`}>
-                      快速模式
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-500">无需配置，AI全接管，一键生成最终结果</p>
-                </button>
+            <div className="grid grid-cols-2 gap-5 mb-8">
+              {/* 快速模式 */}
+              <button
+                onClick={() => {
+                  setMode('quick');
+                }}
+                className={`group p-6 rounded-2xl border-2 transition-all text-left relative overflow-hidden ${
+                  mode === 'quick'
+                    ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-white shadow-lg shadow-blue-500/15'
+                    : 'border-slate-200/80 bg-white hover:border-blue-300 hover:shadow-md'
+                }`}
+              >
+                {/* 背景装饰 */}
+                <div className={`absolute top-0 right-0 w-32 h-32 rounded-full opacity-5 transition-transform group-hover:scale-110 ${
+                  mode === 'quick' ? 'bg-blue-500' : 'bg-slate-300'
+                }`} style={{ transform: 'translate(30%, -30%)' }}></div>
 
-                {/* 专业模式 */}
-                <button
-                  onClick={() => setMode('pro')}
-                  className={`p-5 rounded-xl border-2 transition-all text-left ${
-                    mode === 'pro'
-                      ? 'border-blue-500 bg-blue-50 shadow-lg shadow-blue-500/10'
-                      : 'border-slate-200 bg-white hover:border-blue-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      mode === 'pro' ? 'bg-blue-500' : 'bg-slate-100'
+                <div className="relative">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+                      mode === 'quick' ? 'bg-blue-500 shadow-lg shadow-blue-500/30' : 'bg-slate-100 group-hover:bg-blue-100'
                     }`}>
-                      <Edit3 className={`w-5 h-5 ${mode === 'pro' ? 'text-white' : 'text-slate-500'}`} />
+                      <Zap className={`w-6 h-6 ${mode === 'quick' ? 'text-white' : 'text-slate-500 group-hover:text-blue-600'}`} />
                     </div>
-                    <span className={`font-semibold ${mode === 'pro' ? 'text-blue-700' : 'text-slate-700'}`}>
+                    <div>
+                      <span className={`text-lg font-bold ${mode === 'quick' ? 'text-blue-700' : 'text-slate-700'}`}>
+                        快速模式
+                      </span>
+                      {mode === 'quick' && (
+                        <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+                          推荐
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-sm text-slate-500 mb-4">
+                    {mode === 'quick' ? 'AI全流程处理，适合新手小白' : '无需配置，AI全接管'}
+                  </p>
+
+                  <div className="flex items-center gap-4 text-xs text-slate-400">
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>预计30秒</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>三平台同出</span>
+                    </div>
+                  </div>
+
+                  <div className={`mt-5 py-2.5 px-4 rounded-xl text-center font-medium transition-all ${
+                    mode === 'quick'
+                      ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30'
+                      : 'bg-slate-100 text-slate-600 group-hover:bg-blue-50 group-hover:text-blue-600'
+                  }`}>
+                    {mode === 'quick' ? '🚀 立即生成' : '选择此模式'}
+                  </div>
+                </div>
+              </button>
+
+              {/* 专业模式 */}
+              <button
+                onClick={() => setMode('pro')}
+                className={`group p-6 rounded-2xl border-2 transition-all text-left relative overflow-hidden ${
+                  mode === 'pro'
+                    ? 'border-purple-500 bg-gradient-to-br from-purple-50 to-white shadow-lg shadow-purple-500/15'
+                    : 'border-slate-200/80 bg-white hover:border-purple-300 hover:shadow-md'
+                }`}
+              >
+                {/* 背景装饰 */}
+                <div className={`absolute top-0 right-0 w-32 h-32 rounded-full opacity-5 transition-transform group-hover:scale-110 ${
+                  mode === 'pro' ? 'bg-purple-500' : 'bg-slate-300'
+                }`} style={{ transform: 'translate(30%, -30%)' }}></div>
+
+                <div className="relative">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+                      mode === 'pro' ? 'bg-purple-500 shadow-lg shadow-purple-500/30' : 'bg-slate-100 group-hover:bg-purple-100'
+                    }`}>
+                      <Edit3 className={`w-6 h-6 ${mode === 'pro' ? 'text-white' : 'text-slate-500 group-hover:text-purple-600'}`} />
+                    </div>
+                    <span className={`text-lg font-bold ${mode === 'pro' ? 'text-purple-700' : 'text-slate-700'}`}>
                       专业模式
                     </span>
                   </div>
-                  <p className="text-sm text-slate-500">自定义选择+AI协助，更加符合预期效果</p>
-                </button>
+
+                  <p className="text-sm text-slate-500 mb-4">
+                    {mode === 'pro' ? '手动+AI混合，精准控制输出' : '自定义选择，灵活调整'}
+                  </p>
+
+                  <div className="flex items-center gap-4 text-xs text-slate-400">
+                    <div className="flex items-center gap-1">
+                      <Settings className="w-3.5 h-3.5" />
+                      <span>分步执行</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Target className="w-3.5 h-3.5" />
+                      <span>精准控制</span>
+                    </div>
+                  </div>
+
+                  <div className={`mt-5 py-2.5 px-4 rounded-xl text-center font-medium transition-all ${
+                    mode === 'pro'
+                      ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/30'
+                      : 'bg-slate-100 text-slate-600 group-hover:bg-purple-50 group-hover:text-purple-600'
+                  }`}>
+                    {mode === 'pro' ? '→ 开始配置' : '选择此模式'}
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            {/* 使用提示 */}
+            <div className="bg-gradient-to-r from-slate-50 to-blue-50/30 rounded-xl p-4 border border-slate-200/60">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Lightbulb className="w-4 h-4 text-blue-600" />
+                </div>
+                <div className="text-sm">
+                  <p className="font-medium text-slate-700 mb-1">使用建议</p>
+                  <p className="text-slate-500">
+                    {mode === 'quick'
+                      ? '快速模式：输入原文 → AI分析 → 一键生成三平台内容，适合追求效率的用户'
+                      : mode === 'pro'
+                      ? '专业模式：输入原文 → 挑选标题 → 精调内容 → 生成最终文案，适合深度用户'
+                      : '快速模式适合新手小白，专业模式适合有经验的用户深度定制'}
+                  </p>
+                </div>
               </div>
             </div>
 
             {/* 模式内容 - 使用独立组件 */}
             {mode && (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="mt-8 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 {mode === 'quick' && (
                   <QuickModePanel
                     inputContent={inputContent}
