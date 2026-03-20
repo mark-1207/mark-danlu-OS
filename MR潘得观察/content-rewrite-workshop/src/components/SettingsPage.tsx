@@ -1,21 +1,22 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   ArrowLeft,
   Plus,
   Trash2,
   Edit3,
-  Check,
-  X,
   Zap,
   AlertCircle,
   Settings,
   Palette,
-  RotateCcw,
-  Key
+  Key,
+  FlaskConical,
+  Upload
 } from 'lucide-react';
 import { useSettingsStore } from '../stores/settingsStore';
 import { llmManager } from '../services/llm/manager';
-import { PROVIDER_LIST, type ProviderConfig, type TemplateVariable, DEFAULT_VARIABLES, type AnalysisTemplate, type OptimizationTemplate } from '../services/llm/types';
+import { PROVIDER_LIST, type ProviderConfig, type AnalysisTemplate, type OptimizationTemplate, VARIABLE_LABELS } from '../services/llm/types';
+import { ProviderEditForm } from './ProviderEditForm';
+import { ApiDebugPanel } from './ApiDebugPanel';
 
 // Tab 类型
 type TabType = 'ai' | 'platforms' | 'analysis' | 'optimization' | 'other' | 'templates';
@@ -25,6 +26,7 @@ function AIProvidersTab() {
   const {
     ai,
     addProvider,
+    updateProvider,
     removeProvider,
     setPrimaryProvider,
     toggleProvider,
@@ -34,6 +36,8 @@ function AIProvidersTab() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ [key: string]: { success: boolean; error?: string } }>({});
+  const [editingProvider, setEditingProvider] = useState<ProviderConfig | null>(null);
+  const [showDebugPanel, setShowDebugPanel] = useState<string | null>(null);
 
   // 新增供应商表单状态
   const [newProvider, setNewProvider] = useState<Partial<ProviderConfig>>({
@@ -223,6 +227,28 @@ function AIProvidersTab() {
                       {testingId === provider.id ? '测试中...' : '测试'}
                     </button>
 
+                    {/* 调试面板 */}
+                    <button
+                      onClick={() => setShowDebugPanel(showDebugPanel === provider.id ? null : provider.id)}
+                      className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                        showDebugPanel === provider.id
+                          ? 'bg-purple-100 text-purple-600'
+                          : 'text-slate-500 hover:text-purple-600 hover:bg-purple-50'
+                      }`}
+                      title="API调试"
+                    >
+                      <FlaskConical className="w-4 h-4" />
+                    </button>
+
+                    {/* 编辑 */}
+                    <button
+                      onClick={() => setEditingProvider(provider)}
+                      className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                      title="编辑"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+
                     {/* 设置为主供应商 */}
                     {!provider.isPrimary && (
                       <button
@@ -265,6 +291,13 @@ function AIProvidersTab() {
                     testResult[provider.id].success ? 'text-green-600' : 'text-red-500'
                   }`}>
                     {testResult[provider.id].success ? '✓ 连接成功' : `✗ ${testResult[provider.id].error}`}
+                  </div>
+                )}
+
+                {/* 调试面板 */}
+                {showDebugPanel === provider.id && (
+                  <div className="mt-4">
+                    <ApiDebugPanel provider={provider} />
                   </div>
                 )}
               </div>
@@ -400,6 +433,18 @@ function AIProvidersTab() {
           </div>
         )}
       </div>
+
+      {/* 编辑供应商弹窗 */}
+      {editingProvider && (
+        <ProviderEditForm
+          provider={editingProvider}
+          onSave={(updates) => {
+            updateProvider(editingProvider.id, updates);
+            setEditingProvider(null);
+          }}
+          onCancel={() => setEditingProvider(null)}
+        />
+      )}
     </div>
   );
 }
@@ -409,28 +454,45 @@ function PlatformsTab() {
   const {
     platforms,
     addPlatform,
-    updatePlatform,
     removePlatform,
-    resetPlatform,
-    setDefaultPlatform,
-    addTitleVariable,
-    removeTitleVariable,
-    addContentVariable,
-    removeContentVariable,
+    addContentTemplate,
+    updateContentTemplate,
+    removeContentTemplate,
+    setDefaultContentTemplate,
   } = useSettingsStore();
 
   const [selectedPlatformId, setSelectedPlatformId] = useState<string>(platforms.defaultPlatform);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<'title' | 'content' | 'quality' | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<{ platformId: string; templateId: string; type: 'title' | 'content' } | null>(null);
   const [tempContent, setTempContent] = useState('');
+  // 文件上传引用
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const selectedPlatform = platforms.templates.find(p => p.id === selectedPlatformId);
+  // 处理文件上传
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setTempContent(content);
+    };
+    reader.readAsText(file);
+
+    // 清空input以便重复上传同一文件
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const selectedPlatform = platforms.platforms?.find(p => p.id === selectedPlatformId);
+  const selectedTemplate = selectedPlatform?.templates?.find(t => t.id === selectedPlatform?.defaultTemplateId);
 
   // 新增平台表单状态
   const [newPlatform, setNewPlatform] = useState({
     name: '',
     icon: '',
-    isDefault: false,
   });
 
   const handleAddPlatform = () => {
@@ -439,55 +501,82 @@ function PlatformsTab() {
     addPlatform({
       name: newPlatform.name,
       icon: newPlatform.icon || newPlatform.name.slice(0, 2),
-      isDefault: newPlatform.isDefault,
-      titlePrompt: '',
-      titleVariables: [...DEFAULT_VARIABLES],
-      contentPrompt: '',
-      contentVariables: [...DEFAULT_VARIABLES],
-      qualityPrompt: '',
-      qualityCriteria: [],
+      templates: [
+        {
+          name: '默认模板',
+          titlePrompt: '',
+          contentPrompt: '',
+        }
+      ],
     });
 
-    setNewPlatform({ name: '', icon: '', isDefault: false });
+    setNewPlatform({ name: '', icon: '' });
     setShowAddForm(false);
   };
 
-  const handleSaveTemplate = (type: 'title' | 'content' | 'quality') => {
-    if (!selectedPlatform) return;
+  const handleSaveTemplate = () => {
+    if (!editingTemplate || !selectedPlatform) return;
 
-    switch (type) {
-      case 'title':
-        updatePlatform(selectedPlatformId, { titlePrompt: tempContent });
-        break;
-      case 'content':
-        updatePlatform(selectedPlatformId, { contentPrompt: tempContent });
-        break;
-      case 'quality':
-        updatePlatform(selectedPlatformId, { qualityPrompt: tempContent });
-        break;
+    const templateId = selectedPlatform.defaultTemplateId;
+
+    // 解析合并的提示词内容
+    // 格式: # 标题提示词\nxxx\n# 正文提示词\nxxx
+    let titlePrompt = '';
+    let contentPrompt = '';
+
+    const titleMatch = tempContent.match(/#\s*标题[提示词]?\s*\n([\s\S]*?)(?=#\s*正文|$)/i);
+    const contentMatch = tempContent.match(/#\s*正文[提示词]?\s*\n([\s\S]*)/i);
+
+    if (titleMatch) {
+      titlePrompt = titleMatch[1].trim();
     }
+    if (contentMatch) {
+      contentPrompt = contentMatch[1].trim();
+    }
+
+    // 如果没有按格式输入，尝试智能识别
+    if (!titlePrompt && !contentPrompt) {
+      // 简单处理：如果内容包含"标题"较多，放在titlePrompt
+      const lines = tempContent.split('\n');
+      const titleKeywords = ['标题', 'title', '生成', '输出'];
+      const isTitle = lines.some(l => titleKeywords.some(k => l.toLowerCase().includes(k.toLowerCase())));
+      if (isTitle) {
+        titlePrompt = tempContent;
+      } else {
+        contentPrompt = tempContent;
+      }
+    }
+
+    updateContentTemplate(editingTemplate.platformId, templateId, {
+      titlePrompt: titlePrompt || '',
+      contentPrompt: contentPrompt || '',
+    });
     setEditingTemplate(null);
     setTempContent('');
   };
 
-  const handleAddVariable = (type: 'title' | 'content', variable: TemplateVariable) => {
+  const handleAddTemplate = () => {
     if (!selectedPlatform) return;
-
-    if (type === 'title') {
-      if (!selectedPlatform.titleVariables.find(v => v.name === variable.name)) {
-        addTitleVariable(selectedPlatformId, variable);
-      }
-    } else {
-      if (!selectedPlatform.contentVariables.find(v => v.name === variable.name)) {
-        addContentVariable(selectedPlatformId, variable);
-      }
-    }
+    addContentTemplate(selectedPlatform.id, {
+      name: `模板${selectedPlatform.templates.length + 1}`,
+      titlePrompt: '',
+      contentPrompt: '',
+    });
   };
 
-  const [showAddVariable, setShowAddVariable] = useState<{ type: 'title' | 'content'; visible: boolean }>({
-    type: 'title',
-    visible: false,
-  });
+  const handleUpdateTemplateName = (templateId: string, name: string) => {
+    if (!selectedPlatform) return;
+    updateContentTemplate(selectedPlatform.id, templateId, { name });
+  };
+
+  const handleRemoveTemplate = (templateId: string) => {
+    if (!selectedPlatform) return;
+    if (selectedPlatform.templates.length <= 1) {
+      alert('每个平台至少需要保留一个模板');
+      return;
+    }
+    removeContentTemplate(selectedPlatform.id, templateId);
+  };
 
   return (
     <div className="space-y-6">
@@ -496,7 +585,7 @@ function PlatformsTab() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Palette className="w-5 h-5 text-purple-500" />
-            <h3 className="font-semibold text-slate-900">平台模板</h3>
+            <h3 className="font-semibold text-slate-900">平台</h3>
           </div>
           <button
             onClick={() => setShowAddForm(true)}
@@ -509,7 +598,7 @@ function PlatformsTab() {
 
         {/* 平台卡片 */}
         <div className="flex flex-wrap gap-3">
-          {platforms.templates.map(platform => (
+          {(platforms.platforms || []).map(platform => (
             <button
               key={platform.id}
               onClick={() => setSelectedPlatformId(platform.id)}
@@ -521,16 +610,6 @@ function PlatformsTab() {
             >
               <span className="text-lg">{platform.icon}</span>
               <span className="font-medium">{platform.name}</span>
-              {platform.isBuiltIn && (
-                <span className="px-1.5 py-0.5 bg-slate-200 text-slate-600 text-xs rounded">
-                  内置
-                </span>
-              )}
-              {platform.isDefault && (
-                <span className="px-1.5 py-0.5 bg-blue-600 text-white text-xs rounded">
-                  默认
-                </span>
-              )}
             </button>
           ))}
         </div>
@@ -564,17 +643,6 @@ function PlatformsTab() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                 />
               </div>
-              <div className="flex items-end">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={newPlatform.isDefault}
-                    onChange={(e) => setNewPlatform({ ...newPlatform, isDefault: e.target.checked })}
-                    className="w-4 h-4 rounded border-slate-300"
-                  />
-                  <span className="text-sm text-slate-700">设为默认平台</span>
-                </label>
-              </div>
             </div>
             <div className="flex justify-end gap-3 mt-4">
               <button
@@ -595,7 +663,7 @@ function PlatformsTab() {
         )}
       </div>
 
-      {/* 模板编辑 */}
+      {/* 平台详情和模板列表 */}
       {selectedPlatform && (
         <div className="bg-white rounded-xl p-6 border border-slate-200">
           <div className="flex items-center justify-between mb-4">
@@ -603,30 +671,9 @@ function PlatformsTab() {
               <span className="text-2xl">{selectedPlatform.icon}</span>
               <div>
                 <h3 className="font-semibold text-slate-900">{selectedPlatform.name}</h3>
-                <p className="text-sm text-slate-500">
-                  {selectedPlatform.isBuiltIn ? '内置平台' : '自定义平台'}
-                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {!selectedPlatform.isDefault && (
-                <button
-                  onClick={() => setDefaultPlatform(selectedPlatform.id)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                >
-                  <Check className="w-4 h-4" />
-                  设为默认
-                </button>
-              )}
-              {selectedPlatform.isBuiltIn && (
-                <button
-                  onClick={() => resetPlatform(selectedPlatform.id)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  重置
-                </button>
-              )}
               {!selectedPlatform.isBuiltIn && (
                 <button
                   onClick={() => removePlatform(selectedPlatform.id)}
@@ -639,128 +686,119 @@ function PlatformsTab() {
             </div>
           </div>
 
-          {/* 标题模板 */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-medium text-slate-900">📝 标题模板</h4>
-              <button
-                onClick={() => {
-                  setEditingTemplate('title');
-                  setTempContent(selectedPlatform.titlePrompt);
-                }}
-                className="text-sm text-blue-600 hover:text-blue-700"
-              >
-                <Edit3 className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-3 bg-slate-50 rounded-lg text-sm text-slate-600 whitespace-pre-wrap">
-              {selectedPlatform.titlePrompt || '点击编辑按钮设置标题模板'}
-            </div>
-
-            {/* 变量标签 */}
-            <div className="mt-3 flex flex-wrap gap-2">
-              {selectedPlatform.titleVariables.map(v => (
-                <span
-                  key={v.name}
-                  className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded"
-                >
-                  {v.name}
-                  <button
-                    onClick={() => removeTitleVariable(selectedPlatform.id, v.name)}
-                    className="hover:text-red-500"
+          {/* 模板列表 */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                {selectedPlatform.templates.map(template => (
+                  <div
+                    key={template.id}
+                    onClick={() => setDefaultContentTemplate(selectedPlatform.id, template.id)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all cursor-pointer ${
+                      selectedPlatform.defaultTemplateId === template.id
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-slate-200 hover:border-slate-300 text-slate-700'
+                    }`}
                   >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
-              <button
-                onClick={() => setShowAddVariable({ type: 'title', visible: true })}
-                className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
-              >
-                + 添加变量
-              </button>
-            </div>
-          </div>
-
-          {/* 正文模板 */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-medium text-slate-900">📄 正文模板</h4>
-              <button
-                onClick={() => {
-                  setEditingTemplate('content');
-                  setTempContent(selectedPlatform.contentPrompt);
-                }}
-                className="text-sm text-blue-600 hover:text-blue-700"
-              >
-                <Edit3 className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-3 bg-slate-50 rounded-lg text-sm text-slate-600 whitespace-pre-wrap max-h-40 overflow-y-auto">
-              {selectedPlatform.contentPrompt || '点击编辑按钮设置正文模板'}
-            </div>
-
-            {/* 变量标签 */}
-            <div className="mt-3 flex flex-wrap gap-2">
-              {selectedPlatform.contentVariables.map(v => (
-                <span
-                  key={v.name}
-                  className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded"
-                >
-                  {v.name}
-                  <button
-                    onClick={() => removeContentVariable(selectedPlatform.id, v.name)}
-                    className="hover:text-red-500"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
-              <button
-                onClick={() => setShowAddVariable({ type: 'content', visible: true })}
-                className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
-              >
-                + 添加变量
-              </button>
-            </div>
-          </div>
-
-          {/* 质检模板 */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-medium text-slate-900">✓ 质检模板</h4>
-              <button
-                onClick={() => {
-                  setEditingTemplate('quality');
-                  setTempContent(selectedPlatform.qualityPrompt);
-                }}
-                className="text-sm text-blue-600 hover:text-blue-700"
-              >
-                <Edit3 className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-3 bg-slate-50 rounded-lg text-sm text-slate-600 whitespace-pre-wrap">
-              {selectedPlatform.qualityPrompt || '点击编辑按钮设置质检模板'}
-            </div>
-
-            {/* 质检维度 */}
-            <div className="mt-3">
-              <p className="text-sm text-slate-600 mb-2">质检维度：</p>
-              <div className="flex flex-wrap gap-2">
-                {selectedPlatform.qualityCriteria.map((c, idx) => (
-                  <span
-                    key={idx}
-                    className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded"
-                  >
-                    {c}
-                  </span>
+                    <span className="font-medium">{template.name}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveTemplate(template.id);
+                      }}
+                      className="p-1 text-slate-400 hover:text-red-500"
+                      title="删除模板"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
                 ))}
-                {selectedPlatform.qualityCriteria.length === 0 && (
-                  <span className="text-sm text-slate-400">暂无质检维度</span>
-                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleAddTemplate}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  新增模板
+                </button>
               </div>
             </div>
           </div>
+
+          {/* 当前模板编辑 */}
+          {selectedTemplate && (
+            <div className="border-t border-slate-200 pt-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-medium text-slate-900">正在编辑: {selectedTemplate.name}</h4>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={selectedTemplate.name}
+                    onChange={(e) => handleUpdateTemplateName(selectedTemplate.id, e.target.value)}
+                    className="px-2 py-1 text-sm border border-slate-300 rounded"
+                    placeholder="模板名称"
+                  />
+                </div>
+              </div>
+
+              {/* 爆款提示词 */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium text-slate-900">📝 爆款提示词</h4>
+                  <button
+                    onClick={() => {
+                      // 合并标题和正文提示词
+                      const mergedContent = `# 标题提示词\n${selectedTemplate.titlePrompt || '(未设置)'}\n\n# 正文提示词\n${selectedTemplate.contentPrompt || '(未设置)'}`;
+                      setEditingTemplate({ platformId: selectedPlatform.id, templateId: selectedTemplate.id, type: 'title' });
+                      setTempContent(mergedContent);
+                    }}
+                    className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                    编辑
+                  </button>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-lg text-sm text-slate-600 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                  {selectedTemplate.titlePrompt || selectedTemplate.contentPrompt ? (
+                    <>
+                      {selectedTemplate.titlePrompt && (
+                        <div className="mb-2">
+                          <span className="text-xs text-slate-400">【标题】</span>
+                          <div className="text-slate-700 mt-1">{selectedTemplate.titlePrompt}</div>
+                        </div>
+                      )}
+                      {selectedTemplate.contentPrompt && (
+                        <div className="mt-3">
+                          <span className="text-xs text-slate-400">【正文】</span>
+                          <div className="text-slate-700 mt-1">{selectedTemplate.contentPrompt}</div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    '点击编辑按钮设置提示词'
+                  )}
+                </div>
+              </div>
+
+              {/* 可用变量提示 */}
+              <div className="p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-700 mb-2">可用变量（直接使用变量名，AI会自动替换）：</p>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(VARIABLE_LABELS).map(([key, label]) => (
+                    <span
+                      key={key}
+                      className="px-2 py-1 bg-white text-blue-600 text-xs rounded border border-blue-200"
+                    >
+                      {key} = {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -768,15 +806,53 @@ function PlatformsTab() {
       {editingTemplate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-            <h3 className="font-semibold text-lg mb-4">
-              编辑{editingTemplate === 'title' ? '标题' : editingTemplate === 'content' ? '正文' : '质检'}模板
+            <h3 className="font-semibold text-lg mb-2">
+              编辑爆款提示词
             </h3>
+            <p className="text-sm text-slate-500 mb-4">
+              请按以下格式编辑提示词：<br/>
+              # 标题提示词<br/>
+              [标题生成提示词内容]<br/>
+              # 正文提示词<br/>
+              [正文生成提示词内容]
+            </p>
+            {/* 上传文件按钮 */}
+            <div className="mb-4 flex items-center gap-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".md,.txt"
+                onChange={handleFileUpload}
+                className="hidden"
+                id="template-file-upload"
+              />
+              <label
+                htmlFor="template-file-upload"
+                className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg cursor-pointer hover:bg-slate-200 transition-colors"
+              >
+                <Upload className="w-4 h-4" />
+                上传文件 (md/txt)
+              </label>
+              <span className="text-xs text-slate-500">
+                上传文件后系统将自动提取内容
+              </span>
+            </div>
             <textarea
               value={tempContent}
               onChange={(e) => setTempContent(e.target.value)}
-              className="w-full h-64 px-4 py-3 border border-slate-300 rounded-lg font-mono text-sm"
-              placeholder="输入提示词模板内容，可以使用变量如 {title}, {content}, {keywords} 等"
+              className="w-full h-80 px-4 py-3 border border-slate-300 rounded-lg font-mono text-sm overflow-y-auto"
+              placeholder={`# 标题提示词
+你是一个公众号爆款标题专家，根据用户提供的素材生成爆款标题
+
+# 正文提示词
+你是一个公众号内容创作专家，根据用户提供的素材生成文章`}
             />
+            {/* 提示：告诉用户如何编写提示词 */}
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+              <p className="text-sm text-blue-700">
+                💡 提示：直接编写提示词即可，系统调用时会自动传入用户输入的原始内容，AI会自动识别处理
+              </p>
+            </div>
             <div className="flex justify-end gap-3 mt-4">
               <button
                 onClick={() => {
@@ -788,47 +864,10 @@ function PlatformsTab() {
                 取消
               </button>
               <button
-                onClick={() => handleSaveTemplate(editingTemplate)}
+                onClick={handleSaveTemplate}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 保存
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 添加变量弹窗 */}
-      {showAddVariable.visible && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h3 className="font-semibold text-lg mb-4">添加变量</h3>
-            <div className="space-y-2 max-h-60 overflow-y-auto">
-              {DEFAULT_VARIABLES.filter(v => {
-                const currentVars = showAddVariable.type === 'title'
-                  ? selectedPlatform?.titleVariables
-                  : selectedPlatform?.contentVariables;
-                return !currentVars?.find(cv => cv.name === v.name);
-              }).map(variable => (
-                <button
-                  key={variable.name}
-                  onClick={() => {
-                    handleAddVariable(showAddVariable.type, variable);
-                    setShowAddVariable({ type: 'title', visible: false });
-                  }}
-                  className="w-full text-left p-3 hover:bg-slate-50 rounded-lg border border-slate-200"
-                >
-                  <div className="font-medium text-slate-900">{variable.name}</div>
-                  <div className="text-sm text-slate-500">{variable.description}</div>
-                </button>
-              ))}
-            </div>
-            <div className="flex justify-end mt-4">
-              <button
-                onClick={() => setShowAddVariable({ type: 'title', visible: false })}
-                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg"
-              >
-                取消
               </button>
             </div>
           </div>
@@ -959,7 +998,7 @@ function AnalysisTab() {
               <textarea
                 value={newTemplate.analysisPrompt || ''}
                 onChange={(e) => setNewTemplate({ ...newTemplate, analysisPrompt: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg h-48"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg h-48 overflow-y-auto"
                 placeholder="输入分析提示词..."
               />
             </div>
@@ -1017,10 +1056,11 @@ function AnalysisTab() {
   );
 }
 
-// 优化报告模板Tab组件
+// 优化报告模板Tab组件（标签页切换）
 function OptimizationTab() {
   const {
     optimization,
+    platforms,
     addOptimizationTemplate,
     updateOptimizationTemplate,
     removeOptimizationTemplate,
@@ -1028,35 +1068,84 @@ function OptimizationTab() {
     setDefaultOptimizationTemplate,
   } = useSettingsStore();
 
+  const [activeTab, setActiveTab] = useState<string>('gzh');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [newTemplate, setNewTemplate] = useState<Partial<OptimizationTemplate>>({
     name: '',
     systemPrompt: '',
     optimizePrompt: '',
     isDefault: false,
   });
-  const [showAddForm, setShowAddForm] = useState(false);
+
+  // 平台信息映射
+  const platformInfo = {
+    gzh: { name: '公众号', icon: '📺', color: 'blue', bgColor: 'bg-blue-500', activeBg: 'bg-blue-600', hoverBg: 'hover:bg-blue-50' },
+    xhs: { name: '小红书', icon: '📕', color: 'pink', bgColor: 'bg-pink-500', activeBg: 'bg-pink-500', hoverBg: 'hover:bg-pink-50' },
+    douyin: { name: '抖音', icon: '🎵', color: 'cyan', bgColor: 'bg-cyan-500', activeBg: 'bg-cyan-500', hoverBg: 'hover:bg-cyan-50' },
+  };
+
+  // 按平台分组获取优化模板
+  const getTemplatesByPlatform = (platformId: string) => {
+    return optimization.templates.filter(t => t.platformId === platformId);
+  };
+
+  const currentTemplates = getTemplatesByPlatform(activeTab);
+  const currentPlatformInfo = platformInfo[activeTab as keyof typeof platformInfo];
 
   const handleAdd = () => {
-    if (!newTemplate.name || !newTemplate.systemPrompt || !newTemplate.optimizePrompt) return;
+    if (!newTemplate.name || !newTemplate.optimizePrompt) return;
     addOptimizationTemplate({
       name: newTemplate.name,
-      systemPrompt: newTemplate.systemPrompt,
+      systemPrompt: newTemplate.systemPrompt || '',
       optimizePrompt: newTemplate.optimizePrompt,
       isDefault: newTemplate.isDefault || false,
-    });
+      platformId: activeTab,
+    }, activeTab);
     setNewTemplate({ name: '', systemPrompt: '', optimizePrompt: '', isDefault: false });
     setShowAddForm(false);
   };
 
   const currentEditing = editingId ? optimization.templates.find(t => t.id === editingId) : null;
 
+  const platformTabs = [
+    { id: 'gzh', ...platformInfo.gzh },
+    { id: 'xhs', ...platformInfo.xhs },
+    { id: 'douyin', ...platformInfo.douyin },
+  ];
+
   return (
     <div className="space-y-6">
-      {/* 模板列表 */}
+      {/* 平台标签页 */}
+      <div className="bg-white rounded-xl p-2 border border-slate-200 flex gap-1">
+        {platformTabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => { setActiveTab(tab.id); setEditingId(null); setShowAddForm(false); }}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all ${
+              activeTab === tab.id
+                ? `${tab.activeBg} text-white`
+                : `text-slate-600 ${tab.hoverBg}`
+            }`}
+          >
+            <span>{tab.icon}</span>
+            <span>{tab.name}</span>
+            <span className={`text-xs px-1.5 py-0.5 rounded ${
+              activeTab === tab.id ? 'bg-white/20' : 'bg-slate-100'
+            }`}>
+              {getTemplatesByPlatform(tab.id).length}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* 当前平台的模板列表 */}
       <div className="bg-white rounded-xl p-6 border border-slate-200">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-slate-900">优化报告模板</h3>
+          <div className="flex items-center gap-2">
+            <span className="text-xl">{currentPlatformInfo.icon}</span>
+            <h3 className="font-semibold text-slate-900">{currentPlatformInfo.name}优化模板</h3>
+          </div>
           <button
             onClick={() => setShowAddForm(true)}
             className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
@@ -1066,13 +1155,19 @@ function OptimizationTab() {
           </button>
         </div>
 
-        {optimization.templates.length === 0 && !showAddForm ? (
-          <div className="text-center py-8 text-slate-500">
-            <p>暂无优化模板</p>
+        {currentTemplates.length === 0 && !showAddForm ? (
+          <div className="text-center py-8 text-slate-400">
+            <p>暂无{currentPlatformInfo.name}优化模板</p>
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="mt-2 text-blue-600 hover:underline text-sm"
+            >
+              点击添加第一个模板
+            </button>
           </div>
         ) : (
           <div className="space-y-2">
-            {optimization.templates.map((template) => (
+            {currentTemplates.map((template) => (
               <div
                 key={template.id}
                 className={`p-3 rounded-lg border flex items-center justify-between ${
@@ -1091,7 +1186,7 @@ function OptimizationTab() {
                 <div className="flex items-center gap-2">
                   {!template.isDefault && (
                     <button
-                      onClick={() => setDefaultOptimizationTemplate(template.id)}
+                      onClick={() => setDefaultOptimizationTemplate(template.id, activeTab)}
                       className="text-sm text-blue-600 hover:underline"
                     >
                       设为默认
@@ -1118,80 +1213,53 @@ function OptimizationTab() {
         )}
       </div>
 
-      {/* 添加表单 */}
-      {showAddForm && (
+      {/* 添加/编辑表单 */}
+      {(showAddForm || currentEditing) && (
         <div className="bg-white rounded-xl p-6 border border-slate-200">
-          <h4 className="font-medium mb-4">添加新模板</h4>
+          <h4 className="font-medium mb-4">
+            {currentEditing ? `编辑模板: ${currentEditing.name}` : `添加${currentPlatformInfo.name}优化模板`}
+          </h4>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">模板名称</label>
               <input
                 type="text"
-                value={newTemplate.name || ''}
-                onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
+                value={currentEditing ? currentEditing.name : newTemplate.name || ''}
+                onChange={(e) => currentEditing
+                  ? updateOptimizationTemplate(currentEditing.id, { name: e.target.value })
+                  : setNewTemplate({ ...newTemplate, name: e.target.value })
+                }
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                 placeholder="例如：深度优化"
               />
             </div>
+            {!currentEditing && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">系统提示词（可选）</label>
+                <textarea
+                  value={newTemplate.systemPrompt || ''}
+                  onChange={(e) => setNewTemplate({ ...newTemplate, systemPrompt: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg h-24 font-mono text-sm"
+                  placeholder="设置AI角色和行为方式..."
+                />
+              </div>
+            )}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">系统提示词</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                {currentEditing ? '优化提示词模板' : '优化提示词模板'}
+              </label>
               <textarea
-                value={newTemplate.systemPrompt || ''}
-                onChange={(e) => setNewTemplate({ ...newTemplate, systemPrompt: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg h-24"
-                placeholder="输入系统提示词..."
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">优化提示词模板</label>
-              <textarea
-                value={newTemplate.optimizePrompt || ''}
-                onChange={(e) => setNewTemplate({ ...newTemplate, optimizePrompt: e.target.value })}
+                value={currentEditing ? currentEditing.optimizePrompt : newTemplate.optimizePrompt || ''}
+                onChange={(e) => currentEditing
+                  ? updateOptimizationTemplate(currentEditing.id, { optimizePrompt: e.target.value })
+                  : setNewTemplate({ ...newTemplate, optimizePrompt: e.target.value })
+                }
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg h-48 font-mono text-sm"
                 placeholder="输入优化提示词... 可用变量: {originalContent}, {qualityReport}"
               />
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={handleAdd}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                保存
-              </button>
-              <button
-                onClick={() => { setShowAddForm(false); setNewTemplate({ name: '', systemPrompt: '', optimizePrompt: '', isDefault: false }); }}
-                className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50"
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 编辑面板 */}
-      {currentEditing && (
-        <div className="bg-white rounded-xl p-6 border border-slate-200">
-          <h4 className="font-medium mb-4">编辑模板: {currentEditing.name}</h4>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">系统提示词</label>
-              <textarea
-                defaultValue={currentEditing.systemPrompt}
-                onChange={(e) => updateOptimizationTemplate(currentEditing.id, { systemPrompt: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg h-24"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">优化提示词模板</label>
-              <textarea
-                defaultValue={currentEditing.optimizePrompt}
-                onChange={(e) => updateOptimizationTemplate(currentEditing.id, { optimizePrompt: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg h-64 font-mono text-sm"
-              />
-            </div>
-            <div className="flex gap-2">
-              {currentEditing.isBuiltIn && (
+              {currentEditing && currentEditing.isBuiltIn && (
                 <button
                   onClick={() => resetOptimizationTemplate(currentEditing.id)}
                   className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50"
@@ -1199,12 +1267,29 @@ function OptimizationTab() {
                   重置为默认
                 </button>
               )}
-              <button
-                onClick={() => setEditingId(null)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                保存并关闭
-              </button>
+              {currentEditing ? (
+                <button
+                  onClick={() => setEditingId(null)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  保存并关闭
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={handleAdd}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    保存
+                  </button>
+                  <button
+                    onClick={() => { setShowAddForm(false); setNewTemplate({ name: '', systemPrompt: '', optimizePrompt: '', isDefault: false }); }}
+                    className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50"
+                  >
+                    取消
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1215,12 +1300,51 @@ function OptimizationTab() {
 
 // 其他设置Tab组件
 function OtherSettingsTab() {
+  const { testMode, toggleTestMode } = useSettingsStore();
+
   return (
-    <div className="bg-white rounded-xl p-6 border border-slate-200">
-      <div className="text-center py-12 text-slate-500">
-        <Settings className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-        <p>更多设置功能开发中...</p>
-        <p className="text-sm">后续将添加数据存储、版本管理等功能</p>
+    <div className="space-y-4">
+      {/* 测试模式 */}
+      <div className="bg-white rounded-xl p-6 border border-slate-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${testMode ? 'bg-purple-100' : 'bg-slate-100'}`}>
+              <FlaskConical className={`w-5 h-5 ${testMode ? 'text-purple-600' : 'text-slate-500'}`} />
+            </div>
+            <div>
+              <h3 className="font-medium text-slate-900">测试模式</h3>
+              <p className="text-sm text-slate-500">启用后使用模拟数据，跳过API调用和输入限制</p>
+            </div>
+          </div>
+          <button
+            onClick={toggleTestMode}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              testMode ? 'bg-purple-600' : 'bg-slate-300'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                testMode ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+        {testMode && (
+          <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+            <p className="text-sm text-purple-800">
+              测试模式已启用：所有AI功能将使用模拟数据，你可以跳过API配置直接预览完整流程。
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* 其他设置占位 */}
+      <div className="bg-white rounded-xl p-6 border border-slate-200">
+        <div className="text-center py-8 text-slate-500">
+          <Settings className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+          <p>更多设置功能开发中...</p>
+          <p className="text-sm">后续将添加数据存储、版本管理等功能</p>
+        </div>
       </div>
     </div>
   );

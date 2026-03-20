@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
+import { useSettingsStore } from './stores/settingsStore';
 import {
   Settings,
   History,
@@ -19,19 +20,14 @@ import {
   ChevronLeft,
   File,
   X,
-  AlertCircle,
-  RefreshCw,
-  Wand2,
   Edit3,
-  Plus,
-  Check,
-  Download
 } from 'lucide-react';
 import './App.css';
 import OptimizationReportPage from './components/OptimizationReportPage';
 import SettingsPage from './components/SettingsPage';
 import InsightPage from './components/InsightPage';
-import { hasApiConfig, getApiConfigError, generatePlatformContent } from './services/llm/llmService';
+import QuickModePanel from './components/QuickModePanel';
+import ProModePanel from './components/ProModePanel';
 
 // 首页组件
 function HomePage({ onStartCreate, onOpenSettings }: { onStartCreate: () => void; onOpenSettings: () => void }) {
@@ -371,154 +367,15 @@ function SideNav({
   );
 }
 
-// 平台结果卡片组件
-function PlatformResultCard({
-  name,
-  icon,
-  color,
-  result,
-  isAllStepsCompleted,
-  onPreview,
-  onDownload,
-  onRegenerate
-}: {
-  name: string;
-  icon: React.ReactNode;
-  color: 'blue' | 'pink' | 'cyan';
-  result?: {
-    title: string;
-    content: string;
-    coverPrompt: string;
-    progress: number;
-    status: 'generating' | 'completed' | 'error';
-  };
-  isAllStepsCompleted: boolean;
-  onPreview: () => void;
-  onDownload: () => void;
-  onRegenerate: () => void;
-}) {
-  const colorStyles = {
-    blue: {
-      bg: 'from-blue-50 to-indigo-50',
-      border: 'border-blue-100',
-      iconBg: 'bg-blue-500',
-      iconColor: 'text-white',
-      progress: 'bg-blue-500',
-      text: 'text-blue-600'
-    },
-    pink: {
-      bg: 'from-pink-50 to-rose-50',
-      border: 'border-pink-100',
-      iconBg: 'bg-pink-500',
-      iconColor: 'text-white',
-      progress: 'bg-pink-500',
-      text: 'text-pink-600'
-    },
-    cyan: {
-      bg: 'from-cyan-50 to-sky-50',
-      border: 'border-cyan-100',
-      iconBg: 'bg-cyan-500',
-      iconColor: 'text-white',
-      progress: 'bg-cyan-500',
-      text: 'text-cyan-600'
-    }
-  };
-
-  const style = colorStyles[color];
-  const isGenerating = result?.status === 'generating';
-  const isCompleted = result?.status === 'completed';
-
-  return (
-    <div className={`p-4 bg-gradient-to-br ${style.bg} rounded-xl border ${style.border} flex flex-col`}>
-      {/* 平台名称和图标 */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className={`w-8 h-8 ${style.iconBg} rounded-lg flex items-center justify-center ${style.iconColor}`}>
-            {icon}
-          </div>
-          <span className="font-medium text-slate-800">{name}</span>
-        </div>
-        {isCompleted && (
-          <span className={`text-xs px-2 py-1 ${style.bg.split(' ')[0]} ${style.text} rounded-full font-medium`}>
-            推荐度 9
-          </span>
-        )}
-      </div>
-
-      {/* 标题 */}
-      <div className="flex-1 mb-3">
-        {isCompleted ? (
-          <div className="text-sm font-medium text-slate-800 line-clamp-2">
-            {result?.title}
-          </div>
-        ) : isGenerating ? (
-          <div className="text-sm text-slate-500">正在生成中...</div>
-        ) : isAllStepsCompleted ? (
-          <div className="text-sm text-green-600 font-medium">生成完毕</div>
-        ) : (
-          <div className="text-sm text-slate-400">等待生成...</div>
-        )}
-      </div>
-
-      {/* 操作按钮 */}
-      <div className="flex gap-2 mb-3">
-        {isCompleted ? (
-          <>
-            <button
-              onClick={onPreview}
-              className="flex-1 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-lg border border-slate-200 transition-colors"
-            >
-              预览
-            </button>
-            <button
-              onClick={onDownload}
-              className={`flex-1 px-3 py-2 ${style.iconBg} hover:opacity-90 ${style.iconColor} text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-1`}
-            >
-              <Download className="w-4 h-4" />
-              下载
-            </button>
-          </>
-        ) : isGenerating ? (
-          <button
-            onClick={onRegenerate}
-            disabled
-            className="flex-1 px-3 py-2 bg-slate-100 text-slate-400 text-sm font-medium rounded-lg cursor-not-allowed"
-          >
-            生成中...
-          </button>
-        ) : !isAllStepsCompleted ? (
-          <button
-            onClick={onRegenerate}
-            disabled
-            className="flex-1 px-3 py-2 bg-slate-100 text-slate-400 text-sm font-medium rounded-lg cursor-not-allowed"
-          >
-            开始生成
-          </button>
-        ) : (
-          <button
-            onClick={onRegenerate}
-            className={`flex-1 px-3 py-2 ${style.iconBg} hover:opacity-90 ${style.iconColor} text-sm font-medium rounded-lg transition-colors`}
-          >
-            开始生成
-          </button>
-        )}
-      </div>
-
-      {/* 进度条 */}
-      <div className="mt-auto">
-        <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-          <span>生成进度</span>
-          <span>{result?.progress || 0}%</span>
-        </div>
-        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-          <div
-            className={`h-full ${style.progress} transition-all duration-300 rounded-full`}
-            style={{ width: `${result?.progress || 0}%` }}
-          />
-        </div>
-      </div>
-    </div>
-  );
+// 前置信息类型
+interface PreContentInfo {
+  platform: string;       // 内容平台
+  contentType: string;   // 内容类型
+  track: string;         // 所属赛道
+  likes: number;         // 获赞数
+  collectCount: number;  // 收藏数
+  viewCount: number;     // 播放数
+  shareCount: number;    // 转发数
 }
 
 // 内容输入页面
@@ -527,7 +384,7 @@ function ContentInputPage({
   onStepClick,
   onBack
 }: {
-  onStartAnalyze: (content: string) => void;
+  onStartAnalyze: (content: string, preInfo: PreContentInfo) => void;
   onStepClick: (step: number) => void;
   onBack: () => void;
 }) {
@@ -536,7 +393,43 @@ function ContentInputPage({
   const [showToast, setShowToast] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // 前置信息状态
+  const [preInfo, setPreInfo] = useState<PreContentInfo>({
+    platform: '',
+    contentType: '',
+    track: '',
+    likes: 0,
+    collectCount: 0,
+    viewCount: 0,
+    shareCount: 0,
+  });
+
+  const testMode = useSettingsStore((state) => state.testMode);
   const charCount = content.length;
+  const MIN_CHARS = 100;
+  const MAX_CHARS = 5000;
+
+  // 字数状态判断（测试模式下跳过最小字符限制）
+  const isTooShort = !testMode && charCount > 0 && charCount < MIN_CHARS;
+  const isTooLong = charCount > MAX_CHARS;
+  const isValidLength = testMode || (charCount >= MIN_CHARS && charCount <= MAX_CHARS);
+
+  // 获取字数提示颜色
+  const getCharCountColor = () => {
+    if (charCount === 0) return 'text-slate-400';
+    if (isTooShort) return 'text-amber-500';
+    if (isTooLong) return 'text-red-500';
+    return 'text-green-600';
+  };
+
+  // 获取字数提示文字
+  const getCharCountText = () => {
+    if (charCount === 0) return `${charCount} 字`;
+    if (testMode) return `${charCount} 字 (测试模式)`;
+    if (isTooShort) return `${charCount} 字 (至少${MIN_CHARS}字)`;
+    if (isTooLong) return `${charCount} 字 (不超过${MAX_CHARS}字)`;
+    return `${charCount} 字`;
+  };
 
   const handleSaveDraft = () => {
     setShowToast(true);
@@ -547,7 +440,7 @@ function ContentInputPage({
     // 创建文件输入元素
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.txt,.md,.doc,.docx,.pdf';
+    input.accept = '.txt,.md';
     input.click();
 
     input.onchange = (e) => {
@@ -592,8 +485,110 @@ function ContentInputPage({
               <p className="text-slate-500 text-sm mt-1">提供您的文本，为您分析拆解</p>
             </div>
 
-            {/* 输入框区域 */}
+            {/* 前置信息模块 */}
+            <div className="mt-4 bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <h3 className="font-medium text-slate-800 mb-4 flex items-center gap-2">
+                <span className="text-blue-600">前置信息</span>
+                <span className="text-xs text-slate-400 font-normal">（选填，但填写后生成内容更精准）</span>
+              </h3>
+
+              <div className="grid grid-cols-3 gap-4">
+                {/* 内容平台 */}
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1.5">内容平台</label>
+                  <select
+                    value={preInfo.platform}
+                    onChange={(e) => setPreInfo({ ...preInfo, platform: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">请选择平台</option>
+                    <option value="公众号">公众号</option>
+                    <option value="小红书">小红书</option>
+                    <option value="抖音">抖音</option>
+                    <option value="视频号">视频号</option>
+                    <option value="微博">微博</option>
+                    <option value="B站">B站</option>
+                  </select>
+                </div>
+
+                {/* 内容类型 */}
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1.5">内容类型</label>
+                  <input
+                    type="text"
+                    value={preInfo.contentType}
+                    onChange={(e) => setPreInfo({ ...preInfo, contentType: e.target.value })}
+                    placeholder="例：1分钟口播短视频"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                {/* 所属赛道 */}
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1.5">所属赛道</label>
+                  <input
+                    type="text"
+                    value={preInfo.track}
+                    onChange={(e) => setPreInfo({ ...preInfo, track: e.target.value })}
+                    placeholder="例：情感-亲密关系"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* 核心数据 */}
+              <div className="mt-4">
+                <label className="block text-sm text-slate-600 mb-1.5">核心数据（选填）</label>
+                <div className="grid grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">获赞数</label>
+                    <input
+                      type="number"
+                      value={preInfo.likes || ''}
+                      onChange={(e) => setPreInfo({ ...preInfo, likes: parseInt(e.target.value) || 0 })}
+                      placeholder="0"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">收藏数</label>
+                    <input
+                      type="number"
+                      value={preInfo.collectCount || ''}
+                      onChange={(e) => setPreInfo({ ...preInfo, collectCount: parseInt(e.target.value) || 0 })}
+                      placeholder="0"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">播放数</label>
+                    <input
+                      type="number"
+                      value={preInfo.viewCount || ''}
+                      onChange={(e) => setPreInfo({ ...preInfo, viewCount: parseInt(e.target.value) || 0 })}
+                      placeholder="0"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">转发数</label>
+                    <input
+                      type="number"
+                      value={preInfo.shareCount || ''}
+                      onChange={(e) => setPreInfo({ ...preInfo, shareCount: parseInt(e.target.value) || 0 })}
+                      placeholder="0"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 输入原文区域 */}
             <div className="mt-4 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                <span className="font-medium text-slate-700">输入原文</span>
+              </div>
               <textarea
                 ref={textareaRef}
                 value={content}
@@ -612,7 +607,7 @@ function ContentInputPage({
                   >
                     <Upload className="w-4 h-4" />
                     上传文件
-                    <span className="text-xs text-slate-400">(TXT/MD/DOC/PDF)</span>
+                    <span className="text-xs text-slate-400">(TXT/MD)</span>
                   </button>
                   <button
                     disabled
@@ -634,8 +629,8 @@ function ContentInputPage({
                 </div>
 
                 {/* 右侧：字数统计 */}
-                <div className="text-sm text-slate-400">
-                  {charCount} 字
+                <div className={`text-sm font-medium ${getCharCountColor()}`}>
+                  {getCharCountText()}
                 </div>
               </div>
             </div>
@@ -650,15 +645,22 @@ function ContentInputPage({
                 保存草稿
               </button>
 
-              {/* 开始分析按钮 */}
-              <button
-                onClick={() => onStartAnalyze(content)}
-                disabled={!content.trim()}
-                className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-              >
-                开始分析
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              {/* 开始分析按钮 + 字数限制提示 */}
+              <div className="flex items-center gap-3">
+                {content.trim() && !isValidLength && (
+                  <span className={`text-sm ${isTooShort ? 'text-amber-500' : 'text-red-500'}`}>
+                    {isTooShort ? `内容至少需要 ${MIN_CHARS} 字，当前 ${charCount} 字` : `内容不能超过 ${MAX_CHARS} 字，当前 ${charCount} 字`}
+                  </span>
+                )}
+                <button
+                  onClick={() => onStartAnalyze(content, preInfo)}
+                  disabled={!content.trim() || !isValidLength}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                >
+                  开始分析
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -681,6 +683,7 @@ function ContentInputPage({
 function ContentCreationPage({
   inputContent,
   analysisResult,
+  preInfo,
   onBack,
   onNext,
   completedSteps,
@@ -689,6 +692,7 @@ function ContentCreationPage({
 }: {
   inputContent: string;
   analysisResult: any;
+  preInfo?: any;
   onBack: () => void;
   onNext: (data: any) => void;
   completedSteps: number[];
@@ -696,347 +700,12 @@ function ContentCreationPage({
   onStepClick: (step: number) => void;
 }) {
   const [mode, setMode] = useState<'quick' | 'pro' | null>('quick');
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
-  const [selectedTitles, setSelectedTitles] = useState<number[]>([]);
-  const [editedTitles, setEditedTitles] = useState<{ [key: number]: string }>({});
-  const [editingTitleId, setEditingTitleId] = useState<number | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const [customTitle, setCustomTitle] = useState('');
-  const [selectedCoverStyles, setSelectedCoverStyles] = useState<string[]>([]);
-  // 快速模式和专业模式使用独立的生成状态
-  const [quickIsGenerating, setQuickIsGenerating] = useState(false);
   const [proIsGenerating, setProIsGenerating] = useState(false);
-  // 快速模式是否已点击过生成（用于显示结果预览而不是初始状态）
-  const [quickHasGenerated, setQuickHasGenerated] = useState(false);
-  const [generationSteps, setGenerationSteps] = useState<{ step: string; status: 'pending' | 'success' | 'error' }[]>([]);
-  // 专业模式生成进度状态（独立于快速模式）
-  const [proGenerationSteps, setProGenerationSteps] = useState<{ step: string; status: 'pending' | 'success' | 'error' }[]>([]);
-  const [showPlatformTip, setShowPlatformTip] = useState(false);
 
-  // 判断生成进度是否全部完成
-  const isAllStepsCompleted = generationSteps.length > 0 && generationSteps.every(s => s.status === 'success');
-
-  // 快速模式生成结果状态
-  const [quickModeResults, setQuickModeResults] = useState<{
-    [platform: string]: {
-      title: string;
-      content: string;
-      coverPrompt: string;
-      progress: number;
-      status: 'generating' | 'completed' | 'error';
-    }
-  }>({});
-  const [previewPlatform, setPreviewPlatform] = useState<string | null>(null);
-  const [showPreview, setShowPreview] = useState(false);
-  const [apiError, setApiError] = useState<string | null>(null);
-
-  // 模拟生成的标题数据（实际应调用AI）
-  const [generatedTitles, setGeneratedTitles] = useState([
-    { id: 1, content: '你不是懒，你只是太焦虑了', type: '反常识', score: 9 },
-    { id: 2, content: '职场人最大的陷阱，不是能力不够', type: '反常识', score: 8 },
-    { id: 3, content: '为什么你总是拖延？答案可能出乎意料', type: '悬念', score: 9 },
-    { id: 4, content: '打开这篇文章前，请先准备好纸巾', type: '悬念', score: 7 },
-    { id: 5, content: '年薪百万的职场人，都在偷偷做这件事', type: '悬念', score: 8 },
-    { id: 6, content: '2026年职场生存指南：别再只会努力了', type: '热点', score: 7 },
-    { id: 7, content: '领导最不想听到的5句话，句句扎心', type: '痛点', score: 8 },
-  ]);
-
-  // 标题按推荐度和类型分组（推荐标题最多2个）
-  const recommendedTitles = generatedTitles.filter(t => t.score >= 8).slice(0, 2);
-  const otherTitles = generatedTitles.filter(t => t.score < 8);
-  const titlesByType = otherTitles.reduce((acc: { [key: string]: typeof generatedTitles }, title) => {
-    if (!acc[title.type]) acc[title.type] = [];
-    acc[title.type].push(title);
-    return acc;
-  }, {});
-
-  // 推荐理由映射
-  const getRecommendationReason = (score: number) => {
-    if (score >= 9) return '高热度词汇，爆款潜力强';
-    if (score >= 8) return '精准触达用户痛点';
-    return '有一定吸引力';
-  };
-
-  // 封面风格选项
-  const coverStyles = [
-    { id: 'bold-editorial', name: 'Bold Editorial', desc: '大胆编辑风格' },
-    { id: 'intuition-machine', name: 'Intuition Machine', desc: '直觉机器风格' },
-    { id: 'pixel-art', name: 'Pixel Art', desc: '像素艺术风格' },
-    { id: 'claymation', name: 'Claymation', desc: '黏土动画风格' },
-    { id: 'craft-handmade', name: 'Craft Handmade', desc: '手工制作风格' },
-  ];
-
-  // 平台信息
-  const platforms = [
-    { id: 'gzh', name: '公众号', size: '900×383', aspect: '2.35:1' },
-    { id: 'xhs', name: '小红书', size: '3:4', aspect: '3:4' },
-    { id: 'douyin', name: '抖音', size: '9:16', aspect: '9:16' },
-  ];
-
-  // 找出评分最高的平台
-  const topPlatform = analysisResult?.platformFit
-    ? Object.entries(analysisResult.platformFit).sort((a: any, b: any) => b[1].score - a[1].score)[0][0]
-    : 'gzh';
-
-  // 初始化默认选中最高评分平台
-  useEffect(() => {
-    if (mode === 'pro' && selectedPlatforms.length === 0) {
-      setSelectedPlatforms([topPlatform]);
-    }
-  }, [mode, topPlatform]);
-
-  const handlePlatformToggle = (platformId: string) => {
-    setSelectedPlatforms(prev =>
-      prev.includes(platformId)
-        ? prev.filter(p => p !== platformId)
-        : [...prev, platformId]
-    );
-  };
-
-  const handleTitleToggle = (titleId: number) => {
-    if (selectedTitles.includes(titleId)) {
-      setSelectedTitles(prev => prev.filter(id => id !== titleId));
-    } else {
-      if (selectedTitles.length < 3) {
-        setSelectedTitles(prev => [...prev, titleId]);
-      }
-    }
-  };
-
-  const handleTitleEdit = (titleId: number, newContent: string) => {
-    setEditedTitles(prev => ({ ...prev, [titleId]: newContent }));
-    setEditingTitleId(null);
-  };
-
-  const startEditing = (titleId: number, currentContent: string) => {
-    setEditingTitleId(titleId);
-    setEditValue(currentContent);
-  };
-
-  const handleAddCustomTitle = () => {
-    if (customTitle.trim()) {
-      const newId = Math.max(...generatedTitles.map(t => t.id), 0) + 1;
-      setGeneratedTitles(prev => [...prev, { id: newId, content: customTitle, type: '自定义', score: 0 }]);
-      setSelectedTitles(prev => [...prev, newId]);
-      setCustomTitle('');
-    }
-  };
-
-  const handleCoverStyleToggle = (styleId: string) => {
-    setSelectedCoverStyles(prev =>
-      prev.includes(styleId)
-        ? prev.filter(s => s !== styleId)
-        : [...prev, styleId]
-    );
-  };
-
-  const canGenerate = () => {
-    if (mode === 'quick') return true;
-    if (mode === 'pro') {
-      return selectedPlatforms.length > 0 && selectedTitles.length > 0;
-    }
-    return false;
-  };
-
-  const handleGenerate = async () => {
-    // 检查 API 配置
-    if (!hasApiConfig()) {
-      const error = getApiConfigError();
-      setApiError(error || '请检查您的API配置');
-      alert(error || '请检查您的API配置');
-      return;
-    }
-
-    // 模拟生成步骤
-    const steps = [
-      { step: '分析内容结构', status: 'pending' as const },
-      { step: '匹配平台风格', status: 'pending' as const },
-      { step: '生成标题方案', status: 'pending' as const },
-      { step: '撰写内容正文', status: 'pending' as const },
-      { step: '生成封面建议', status: 'pending' as const },
-    ];
-
-    // 根据模式设置各自的生成状态
-    if (mode === 'quick') {
-      setQuickIsGenerating(true);
-      setGenerationSteps(steps); // 先设置步骤数据，显示生成进度模块
-    } else {
-      setProIsGenerating(true);
-      // 读取状态以确保TypeScript正确识别
-      if (proGenerationSteps.length >= 0) {}
-      setProGenerationSteps(steps);
-    }
-
-    // 保存 AI 生成的结果（专业模式）
-    let aiGeneratedResult: { titles: string[]; content: string; coverPrompt: string } | null = null;
-
-    // 专业模式：调用 AI 生成标题
-    if (mode === 'pro' && selectedPlatforms.length > 0) {
-      try {
-        // 更新步骤状态
-        setProGenerationSteps(prev => prev.map((s, idx) =>
-          idx === 0 ? { ...s, status: 'success' } : s
-        ));
-
-        const platformId = selectedPlatforms[0];
-        const context = {
-          content: inputContent,
-          keywords: analysisResult?.contentDNA?.关键词 || '',
-          emotion: analysisResult?.contentDNA?.情绪基调 || '',
-          audience: analysisResult?.contentDNA?.目标受众 || '',
-          category: analysisResult?.contentDNA?.主题分类 || '',
-        };
-
-        // 调用 AI 生成内容
-        const result = await generatePlatformContent(platformId, context);
-
-        // 保存生成的结果
-        aiGeneratedResult = result;
-
-        // 更新步骤状态
-        setProGenerationSteps(prev => prev.map((s, idx) =>
-          idx >= 2 ? { ...s, status: 'success' } : s
-        ));
-
-        // 将 AI 返回的标题转换为页面格式
-        const newTitles = result.titles.map((title, index) => ({
-          id: index + 1,
-          content: title,
-          type: 'AI生成',
-          score: 9 - index // 第一个标题最高分
-        }));
-
-        setGeneratedTitles(newTitles);
-        // 自动选中前两个标题
-        if (newTitles.length >= 2) {
-          setSelectedTitles([newTitles[0].id, newTitles[1].id]);
-        } else if (newTitles.length === 1) {
-          setSelectedTitles([newTitles[0].id]);
-        }
-
-      } catch (error: any) {
-        console.error('AI生成失败:', error);
-        setApiError(error.message || '生成失败，请检查API配置');
-        setProIsGenerating(false);
-        return;
-      }
-    }
-
-    // 模拟剩余步骤（仅视觉效果）
-    const totalSteps = mode === 'pro' ? 3 : steps.length;
-    for (let i = mode === 'pro' ? 2 : 0; i < totalSteps; i++) {
-      await new Promise(resolve => setTimeout(resolve, 600));
-      if (mode === 'quick') {
-        setGenerationSteps(prev => prev.map((s, idx) =>
-          idx === i ? { ...s, status: 'success' } : s
-        ));
-      } else {
-        setProGenerationSteps(prev => prev.map((s, idx) =>
-          idx === i ? { ...s, status: 'success' } : s
-        ));
-      }
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    // 构建结果数据
-    // 如果有 AI 生成的结果，优先使用 AI 生成的标题
-    let titles: string[];
-    if (aiGeneratedResult && mode === 'pro') {
-      titles = selectedTitles.map((_, index) => {
-        const titleId = selectedTitles[index];
-        const edited = editedTitles[titleId];
-        if (edited) return edited;
-        // 使用 AI 生成的标题，按选中顺序
-        return aiGeneratedResult.titles[index] || '';
-      });
-    } else {
-      titles = selectedTitles.map(id => {
-        const title = generatedTitles.find(t => t.id === id);
-        return title ? (editedTitles[id] || title.content) : '';
-      });
-    }
-
-    const resultData = {
-      platforms: selectedPlatforms,
-      titles,
-      content: aiGeneratedResult?.content || '',
-      coverPrompt: aiGeneratedResult?.coverPrompt || '',
-      coverStyles: selectedCoverStyles,
-      mode,
-    };
-
-    // 快速模式生成完成后保持在当前页面显示结果，专业模式跳转到下一步
-    if (mode === 'quick') {
-      // 标记快速模式已完成生成
-      setQuickHasGenerated(true);
-      // 设置生成状态为 false
-      setQuickIsGenerating(false);
-      // 不自动初始化各平台结果，让用户手动选择生成
-      // 各平台保持"等待生成"状态
-    } else {
-      // 设置专业模式生成状态为 false
-      setProIsGenerating(false);
-      // 更新已完成步骤
-      setCompletedSteps(prev => [...prev, 3]);
-      onNext(resultData);
-    }
-    // 快速模式不跳转，停留在当前页面
-  };
-
-  // 快速模式下载处理
-  const handleDownload = (platform: string) => {
-    // 实际应生成文件包并下载
-    alert(`正在下载 ${platform} 平台的内容包...`);
-  };
-
-  // 快速模式重新生成处理
-  const handleRegenerate = async (platform: string) => {
-    // 检查 API 配置
-    if (!hasApiConfig()) {
-      const error = getApiConfigError();
-      setApiError(error || '请检查您的API配置');
-      return;
-    }
-
-    // 开始重新生成
-    setQuickModeResults(prev => ({
-      ...prev,
-      [platform]: { ...prev[platform], status: 'generating', progress: 0 }
-    }));
-
-    try {
-      const context = {
-        content: inputContent,
-        keywords: analysisResult?.contentDNA?.关键词 || '',
-        emotion: analysisResult?.contentDNA?.情绪基调 || '',
-        audience: analysisResult?.contentDNA?.目标受众 || '',
-        category: analysisResult?.contentDNA?.主题分类 || '',
-      };
-
-      // 调用 AI 生成内容
-      const result = await generatePlatformContent(platform, context);
-
-      // 生成完成
-      setQuickModeResults(prev => ({
-        ...prev,
-        [platform]: {
-          ...prev[platform],
-          status: 'completed',
-          progress: 100,
-          title: result.titles[0] || '',
-          content: result.content,
-          coverPrompt: result.coverPrompt
-        }
-      }));
-    } catch (error: any) {
-      console.error('AI生成失败:', error);
-      setQuickModeResults(prev => ({
-        ...prev,
-        [platform]: { ...prev[platform], status: 'error', progress: 0 }
-      }));
-      setApiError(error.message || '生成失败');
-    }
+  // 专业模式生成完成后的回调
+  const handleProGenerate = (data: any) => {
+    setCompletedSteps(prev => [...prev, 3]);
+    onNext({ ...data, mode: 'pro' });
   };
 
   return (
@@ -1092,13 +761,7 @@ function ContentCreationPage({
 
                 {/* 专业模式 */}
                 <button
-                  onClick={() => {
-                    setMode('pro');
-                    // 切换到专业模式时，重置快速模式的生成状态
-                    setQuickHasGenerated(false);
-                    setQuickModeResults({});
-                    setGenerationSteps([]);
-                  }}
+                  onClick={() => setMode('pro')}
                   className={`p-5 rounded-xl border-2 transition-all text-left ${
                     mode === 'pro'
                       ? 'border-blue-500 bg-blue-50 shadow-lg shadow-blue-500/10'
@@ -1120,567 +783,32 @@ function ContentCreationPage({
               </div>
             </div>
 
-            {/* 模式内容 */}
+            {/* 模式内容 - 使用独立组件 */}
             {mode && (
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                {/* 快速模式 */}
                 {mode === 'quick' && (
-                  <div className="p-6">
-                    {/* 未生成时显示按钮 */}
-                    {!quickHasGenerated && !quickIsGenerating ? (
-                      <div className="text-center py-12">
-                        <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center">
-                          <Wand2 className="w-10 h-10 text-blue-600" />
-                        </div>
-                        <h3 className="text-xl font-semibold text-slate-800 mb-2">一键生成爆款内容</h3>
-                        <p className="text-slate-500 mb-8">AI将自动分析内容并生成适配各平台的爆款文案</p>
-                        <button
-                          onClick={handleGenerate}
-                          className="inline-flex items-center gap-2 px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-lg transition-all shadow-lg shadow-blue-600/20"
-                        >
-                          <Zap className="w-5 h-5" />
-                          点击一键生成
-                        </button>
-                      </div>
-                    ) : (
-                      <div>
-                        {/* 生成过程展示 */}
-                        <div className="mb-6">
-                          <h4 className="text-base font-medium text-slate-800 mb-4">生成进度</h4>
-                          <div className="grid grid-cols-2 gap-3">
-                            {generationSteps.map((item, idx) => (
-                              <div key={idx} className={`flex items-center gap-3 p-3 rounded-lg border ${
-                                item.status === 'success' ? 'bg-green-50 border-green-200' :
-                                item.status === 'error' ? 'bg-red-50 border-red-200' :
-                                'bg-slate-50 border-slate-200'
-                              }`}>
-                                {item.status === 'pending' && (
-                                  <div className="w-5 h-5 rounded-full border-2 border-slate-300 flex-shrink-0" />
-                                )}
-                                {item.status === 'success' && (
-                                  <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
-                                )}
-                                {item.status === 'error' && (
-                                  <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                                )}
-                                <span className={`text-sm ${
-                                  item.status === 'success' ? 'text-green-700 font-medium' :
-                                  item.status === 'error' ? 'text-red-700' : 'text-slate-500'
-                                }`}>
-                                  {item.step}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* 生成结果预览 */}
-                        <div className="border-t border-slate-200 pt-6">
-                          <h4 className="text-base font-medium text-slate-800 mb-4">生成结果预览</h4>
-
-                          {/* API错误提示 */}
-                          {apiError && (
-                            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3">
-                              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                              <span className="text-sm text-red-700">{apiError}</span>
-                              <button
-                                onClick={() => setApiError(null)}
-                                className="ml-auto text-red-400 hover:text-red-600"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          )}
-
-                          <div className="grid grid-cols-3 gap-4">
-                            {/* 公众号卡片 */}
-                            <PlatformResultCard
-                              name="公众号"
-                              icon={<MessageSquare className="w-5 h-5" />}
-                              color="blue"
-                              result={quickModeResults['gzh']}
-                              isAllStepsCompleted={isAllStepsCompleted}
-                              onPreview={() => {
-                                setPreviewPlatform('gzh');
-                                setShowPreview(true);
-                              }}
-                              onDownload={() => handleDownload('gzh')}
-                              onRegenerate={() => handleRegenerate('gzh')}
-                            />
-                            {/* 小红书卡片 */}
-                            <PlatformResultCard
-                              name="小红书"
-                              icon={<Layers className="w-5 h-5" />}
-                              color="pink"
-                              result={quickModeResults['xhs']}
-                              isAllStepsCompleted={isAllStepsCompleted}
-                              onPreview={() => {
-                                setPreviewPlatform('xhs');
-                                setShowPreview(true);
-                              }}
-                              onDownload={() => handleDownload('xhs')}
-                              onRegenerate={() => handleRegenerate('xhs')}
-                            />
-                            {/* 抖音卡片 */}
-                            <PlatformResultCard
-                              name="抖音"
-                              icon={<Target className="w-5 h-5" />}
-                              color="cyan"
-                              result={quickModeResults['douyin']}
-                              isAllStepsCompleted={isAllStepsCompleted}
-                              onPreview={() => {
-                                setPreviewPlatform('douyin');
-                                setShowPreview(true);
-                              }}
-                              onDownload={() => handleDownload('douyin')}
-                              onRegenerate={() => handleRegenerate('douyin')}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 专业模式 */}
-                {mode === 'pro' && (
-                  <div className="p-6 space-y-8">
-                    {/* 平台选择 */}
-                    <div>
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                          <Target className="w-5 h-5 text-slate-500" />
-                          <span className="font-medium text-slate-800">选择目标平台</span>
-                        </div>
-                        <button
-                          onClick={() => setShowPlatformTip(!showPlatformTip)}
-                          className="text-slate-400 hover:text-slate-600"
-                        >
-                          <AlertCircle className="w-5 h-5" />
-                        </button>
-                      </div>
-                      {showPlatformTip && (
-                        <div className="mb-4 p-3 bg-blue-50 rounded-lg text-sm text-slate-600">
-                          根据内容分析，为您推荐最适合的平台。默认选择评分最高的平台。
-                        </div>
-                      )}
-                      <div className="grid grid-cols-3 gap-3">
-                        {platforms.map(platform => {
-                          const isTop = platform.id === topPlatform;
-                          const isSelected = selectedPlatforms.includes(platform.id);
-                          return (
-                            <button
-                              key={platform.id}
-                              onClick={() => handlePlatformToggle(platform.id)}
-                              className={`p-4 rounded-xl border-2 transition-all text-left ${
-                                isSelected
-                                  ? 'border-blue-500 bg-blue-50'
-                                  : isTop
-                                  ? 'border-amber-300 bg-amber-50 hover:border-amber-400'
-                                  : 'border-slate-200 bg-white hover:border-blue-200'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between mb-2">
-                                <span className={`font-medium ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
-                                  {platform.name}
-                                </span>
-                                {isTop && (
-                                  <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded">
-                                    推荐
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-sm text-slate-500">{platform.size}</div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* 标题选择 */}
-                    <div>
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                          <Sparkles className="w-5 h-5 text-slate-500" />
-                          <span className="font-medium text-slate-800">选择标题</span>
-                        </div>
-                        <span className="text-sm text-slate-500">
-                          已选 {selectedTitles.length}/3
-                        </span>
-                      </div>
-
-                      {/* 标题展示：推荐标题单独展示 */}
-                      <div className="space-y-4 mb-4">
-                        {/* 推荐标题 - 单独展示 */}
-                        {recommendedTitles.length > 0 && (
-                          <div>
-                            <div className="flex items-center gap-2 mb-3">
-                              <Sparkles className="w-4 h-4 text-amber-500" />
-                              <span className="text-sm font-medium text-amber-700">推荐标题</span>
-                              <span className="text-xs text-amber-600">爆款潜力强，建议优先选择</span>
-                            </div>
-                            <div className="grid grid-cols-1 gap-2">
-                              {recommendedTitles.map(title => {
-                                const isSelected = selectedTitles.includes(title.id);
-                                const isEditing = editingTitleId === title.id;
-                                const displayContent = editedTitles[title.id] !== undefined ? editedTitles[title.id] : title.content;
-                                return (
-                                  <div
-                                    key={title.id}
-                                    className={`p-4 rounded-xl border-3 transition-all relative ${
-                                      isSelected
-                                        ? 'border-amber-500 bg-amber-100 shadow-lg shadow-amber-500/20'
-                                        : 'border-amber-200 bg-white hover:border-amber-300 hover:shadow-md'
-                                    }`}
-                                  >
-                                    {isSelected && (
-                                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center shadow-lg">
-                                        <Check className="w-4 h-4 text-white" />
-                                      </div>
-                                    )}
-                                    {isEditing ? (
-                                      <div className="flex gap-2">
-                                        <input
-                                          type="text"
-                                          value={editValue}
-                                          onChange={(e) => setEditValue(e.target.value)}
-                                          className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-amber-500"
-                                          autoFocus
-                                        />
-                                        <button
-                                          onClick={() => handleTitleEdit(title.id, editValue)}
-                                          className="p-2 text-green-600 hover:bg-green-100 rounded-lg"
-                                        >
-                                          <Check className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                          onClick={() => setEditingTitleId(null)}
-                                          className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg"
-                                        >
-                                          <X className="w-4 h-4" />
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <>
-                                        <div className="flex items-start justify-between gap-3">
-                                          <div className="flex-1">
-                                            <span className={`text-base font-medium ${isSelected ? 'text-amber-800' : 'text-slate-800'}`}>
-                                              {displayContent}
-                                            </span>
-                                            <div className="flex items-center gap-2 mt-2">
-                                              <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700 font-medium">
-                                                推荐度 {title.score}
-                                              </span>
-                                              <span className="text-xs text-slate-500">{title.type}</span>
-                                            </div>
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                startEditing(title.id, displayContent);
-                                              }}
-                                              className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-100 rounded-lg transition-colors"
-                                            >
-                                              <Edit3 className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleTitleToggle(title.id);
-                                              }}
-                                              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                                                isSelected
-                                                  ? 'bg-amber-500 text-white'
-                                                  : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                                              }`}
-                                            >
-                                              {isSelected ? '已选择' : '选择'}
-                                            </button>
-                                          </div>
-                                        </div>
-                                        <div className="mt-3 pt-3 border-t border-amber-100">
-                                          <span className="text-xs text-amber-700">
-                                            推荐理由：{getRecommendationReason(title.score)}
-                                          </span>
-                                        </div>
-                                      </>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 其他标题 - 按类型分组展示 */}
-                        {Object.entries(titlesByType).map(([type, titles]) => (
-                          <div key={type}>
-                            <div className="text-sm font-medium text-slate-600 mb-2">{type}</div>
-                            <div className="grid grid-cols-2 gap-2">
-                              {titles.map(title => {
-                                const isSelected = selectedTitles.includes(title.id);
-                                const isEditing = editingTitleId === title.id;
-                                const displayContent = editedTitles[title.id] !== undefined ? editedTitles[title.id] : title.content;
-                                return (
-                                  <div
-                                    key={title.id}
-                                    className={`p-3 rounded-lg border-2 transition-all ${
-                                      isSelected
-                                        ? 'border-blue-500 bg-blue-50'
-                                        : 'border-slate-200 bg-white hover:border-blue-200'
-                                    }`}
-                                  >
-                                    {isEditing ? (
-                                      <div className="flex gap-2">
-                                        <input
-                                          type="text"
-                                          value={editValue}
-                                          onChange={(e) => setEditValue(e.target.value)}
-                                          className="flex-1 px-2 py-1 text-sm border border-slate-300 rounded focus:outline-none focus:border-blue-500"
-                                          autoFocus
-                                        />
-                                        <button
-                                          onClick={() => handleTitleEdit(title.id, editValue)}
-                                          className="p-1 text-green-600 hover:bg-green-100 rounded"
-                                        >
-                                          <Check className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                          onClick={() => setEditingTitleId(null)}
-                                          className="p-1 text-slate-400 hover:bg-slate-100 rounded"
-                                        >
-                                          <X className="w-4 h-4" />
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <>
-                                        <div className="flex items-start justify-between gap-2">
-                                          <span className={`text-sm flex-1 ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
-                                            {displayContent}
-                                          </span>
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              startEditing(title.id, displayContent);
-                                            }}
-                                            className="text-slate-400 hover:text-blue-600"
-                                          >
-                                            <Edit3 className="w-3.5 h-3.5" />
-                                          </button>
-                                        </div>
-                                        <div className="flex items-center gap-2 mt-2">
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleTitleToggle(title.id);
-                                            }}
-                                            className={`flex-1 text-left`}
-                                          >
-                                            <span className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                                              推荐度 {title.score}
-                                            </span>
-                                            <span className="text-xs text-slate-400 ml-2">{title.type}</span>
-                                          </button>
-                                          {isSelected && <Check className="w-4 h-4 text-blue-600 flex-shrink-0" />}
-                                        </div>
-                                      </>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* 编辑/自定义标题 */}
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={customTitle}
-                          onChange={(e) => setCustomTitle(e.target.value)}
-                          placeholder="添加自定义标题..."
-                          className="flex-1 px-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-                        />
-                        <button
-                          onClick={handleAddCustomTitle}
-                          disabled={!customTitle.trim()}
-                          className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                        >
-                          <Plus className="w-4 h-4" />
-                          添加
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 封面建议 */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-4">
-                        <Layers className="w-5 h-5 text-slate-500" />
-                        <span className="font-medium text-slate-800">封面建议</span>
-                      </div>
-                      <div className="grid grid-cols-5 gap-3">
-                        {coverStyles.map(style => {
-                          const isSelected = selectedCoverStyles.includes(style.id);
-                          return (
-                            <button
-                              key={style.id}
-                              onClick={() => handleCoverStyleToggle(style.id)}
-                              className={`p-3 rounded-lg border-2 transition-all text-center ${
-                                isSelected
-                                  ? 'border-blue-500 bg-blue-50'
-                                  : 'border-slate-200 bg-white hover:border-blue-200'
-                              }`}
-                            >
-                              <div className={`w-10 h-10 mx-auto mb-2 rounded-lg ${
-                                style.id === 'bold-editorial' ? 'bg-red-100' :
-                                style.id === 'intuition-machine' ? 'bg-blue-100' :
-                                style.id === 'pixel-art' ? 'bg-purple-100' :
-                                style.id === 'claymation' ? 'bg-amber-100' :
-                                'bg-green-100'
-                              }`} />
-                              <div className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
-                                {style.name}
-                              </div>
-                              <div className="text-xs text-slate-500 mt-1">{style.desc}</div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* 底部操作区 */}
-            {mode && (
-              <div className="mt-8 flex items-center justify-center">
-                {mode === 'pro' && (
-                  <button
-                    onClick={onBack}
-                    className="px-6 py-3 text-slate-600 hover:text-slate-800 hover:bg-white border border-slate-200 rounded-lg font-medium text-base transition-colors"
-                  >
-                    上一步
-                  </button>
+                  <QuickModePanel
+                    inputContent={inputContent}
+                    analysisResult={analysisResult}
+                    preInfo={preInfo}
+                  />
                 )}
                 {mode === 'pro' && (
-                  <button
-                    onClick={handleGenerate}
-                    disabled={!canGenerate() || proIsGenerating}
-                    className={`flex items-center gap-2 px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-medium text-base transition-colors ${mode === 'pro' ? 'ml-auto' : ''}`}
-                  >
-                    {proIsGenerating ? (
-                      <>生成中...</>
-                    ) : (
-                      <>
-                        爆款制作启动
-                        <ArrowRight className="w-5 h-5" />
-                      </>
-                    )}
-                  </button>
+                  <ProModePanel
+                    inputContent={inputContent}
+                    analysisResult={analysisResult}
+                    preInfo={preInfo}
+                    onGenerate={handleProGenerate}
+                    onBack={onBack}
+                    isGenerating={proIsGenerating}
+                    setIsGenerating={setProIsGenerating}
+                  />
                 )}
               </div>
             )}
           </div>
         </div>
       </div>
-
-      {/* 预览浮层 */}
-      {showPreview && previewPlatform && quickModeResults[previewPlatform] && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* 遮罩层 */}
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setShowPreview(false)}
-          />
-
-          {/* 浮层内容 */}
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden m-4">
-            {/* 浮层头部 */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  previewPlatform === 'gzh' ? 'bg-blue-500' :
-                  previewPlatform === 'xhs' ? 'bg-pink-500' : 'bg-cyan-500'
-                }`}>
-                  {previewPlatform === 'gzh' ? <MessageSquare className="w-5 h-5 text-white" /> :
-                   previewPlatform === 'xhs' ? <Layers className="w-5 h-5 text-white" /> :
-                   <Target className="w-5 h-5 text-white" />}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-800">
-                    {previewPlatform === 'gzh' ? '公众号' : previewPlatform === 'xhs' ? '小红书' : '抖音'} 内容预览
-                  </h3>
-                  <p className="text-sm text-slate-500">生成结果详情</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowPreview(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* 浮层内容 */}
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
-              {/* 标题 */}
-              <div className="mb-6">
-                <div className="text-sm text-slate-500 mb-2">标题</div>
-                <div className="text-lg font-semibold text-slate-800">
-                  {quickModeResults[previewPlatform]?.title}
-                </div>
-              </div>
-
-              {/* 内容 */}
-              <div className="mb-6">
-                <div className="text-sm text-slate-500 mb-2">正文内容</div>
-                <div className="p-4 bg-slate-50 rounded-lg text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">
-                  {quickModeResults[previewPlatform]?.content}
-                </div>
-              </div>
-
-              {/* 封面提示词 */}
-              <div>
-                <div className="text-sm text-slate-500 mb-2">封面提示词</div>
-                <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg">
-                  <code className="text-sm text-purple-700">
-                    {quickModeResults[previewPlatform]?.coverPrompt}
-                  </code>
-                </div>
-              </div>
-            </div>
-
-            {/* 浮层底部操作 */}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-slate-50">
-              <button
-                onClick={() => handleRegenerate(previewPlatform)}
-                className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-white rounded-lg border border-slate-200 transition-colors"
-              >
-                <RefreshCw className="w-4 h-4" />
-                重新生成
-              </button>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowPreview(false)}
-                  className="px-4 py-2 text-slate-600 hover:bg-white rounded-lg border border-slate-200 transition-colors"
-                >
-                  关闭
-                </button>
-                <button
-                  onClick={() => handleDownload(previewPlatform)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                >
-                  <Download className="w-4 h-4" />
-                  下载内容包
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1688,6 +816,8 @@ function ContentCreationPage({
 function App() {
   const [currentPage, setCurrentPage] = useState<'home' | 'input' | 'insight' | 'creation' | 'optimization' | 'settings'>('home');
   const [inputContent, setInputContent] = useState('');
+  const preInfo = useSettingsStore((state) => state.preInfo);
+  const setPreInfo = useSettingsStore((state) => state.setPreInfo);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [completedSteps, setCompletedSteps] = useState<number[]>([1]);
   const [generationResult, setGenerationResult] = useState<any>(null);
@@ -1696,8 +826,11 @@ function App() {
     setCurrentPage('input');
   };
 
-  const handleStartAnalyze = (content: string) => {
+  const handleStartAnalyze = (content: string, preInfo?: any) => {
     setInputContent(content);
+    if (preInfo) {
+      setPreInfo(preInfo);  // 保存前置信息到持久化存储
+    }
     setCurrentPage('insight');
   };
 
@@ -1763,12 +896,14 @@ function App() {
           completedSteps={completedSteps}
           setCompletedSteps={setCompletedSteps}
           onStepClick={handleStepClick}
+          preInfo={preInfo}
         />
       )}
       {currentPage === 'creation' && (
         <ContentCreationPage
           inputContent={inputContent}
           analysisResult={analysisResult}
+          preInfo={preInfo}
           onBack={handleBack}
           onNext={handleCreationNext}
           completedSteps={completedSteps}

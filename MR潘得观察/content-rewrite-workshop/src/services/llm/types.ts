@@ -12,6 +12,7 @@ export type AIProvider =
   | 'glm'
   | 'doubao'
   | 'qwen'
+  | 'ark'
   | 'custom';
 
 // 单个供应商配置
@@ -48,33 +49,30 @@ export interface TemplateVariable {
   example: string;
 }
 
-// 平台模板
-export interface PlatformTemplate {
+// 单个内容模板
+export interface ContentTemplate {
+  id: string;
+  name: string;  // 如 "深度文章模板"、"种草模板"
+  titlePrompt: string;
+  contentPrompt: string;
+}
+
+// 平台
+export interface Platform {
   id: string;
   name: string;
-  icon: string; // 图标或文字标签
+  icon: string;
   isBuiltIn: boolean;
-  isDefault: boolean;
-
-  // 平台核心认知
+  templates: ContentTemplate[];  // 该平台的多个模板
+  defaultTemplateId: string;    // 当前选中的模板
   platformCognition?: string;
-
-  // 标题模板
-  titlePrompt: string;
-  titleVariables: TemplateVariable[];
-
-  // 正文模板
-  contentPrompt: string;
-  contentVariables: TemplateVariable[];
-
-  // 质检模板
-  qualityPrompt: string;
-  qualityCriteria: string[];
+  qualityPrompt?: string;
+  qualityCriteria?: string[];
 }
 
 // 平台设置
 export interface PlatformSettings {
-  templates: PlatformTemplate[];
+  platforms: Platform[];
   defaultPlatform: string;
 }
 
@@ -109,6 +107,7 @@ export interface OptimizationTemplate {
   name: string;
   isBuiltIn: boolean;
   isDefault: boolean;
+  platformId?: string; // 关联的平台ID
 
   // 优化系统提示词
   systemPrompt: string;
@@ -135,6 +134,7 @@ export interface AppSettings {
   platforms: PlatformSettings;
   analysis: AnalysisSettings;
   optimization: OptimizationSettings;
+  testMode: boolean;
 }
 
 // 对话消息
@@ -240,6 +240,14 @@ export const PROVIDER_LIST: ProviderInfo[] = [
     website: 'https://tongyi.aliyun.com',
   },
   {
+    id: 'ark',
+    name: '火山引擎 Ark',
+    provider: 'ark',
+    defaultModel: 'deepseek-r1-250528',
+    baseUrl: 'https://ark.cn-beijing.volces.com',
+    website: 'https://www.volcengine.com',
+  },
+  {
     id: 'custom',
     name: '自定义/中转站',
     provider: 'custom',
@@ -249,13 +257,115 @@ export const PROVIDER_LIST: ProviderInfo[] = [
   },
 ];
 
-// 获取默认变量列表
+// 变量映射：UI显示名称（固定映射，不影响AI）
+export const VARIABLE_LABELS: Record<string, string> = {
+  '{title}': '原始标题',
+  '{content}': '原始内容',
+  '{keywords}': '关键词',
+  '{emotion}': '情绪基调',
+  '{audience}': '目标受众',
+  '{category}': '内容分类',
+  '{style}': '风格要求',
+  '{word_count}': '目标字数',
+};
+
+// 预设短语到变量的自动映射（用于智能替换）
+export const PHRASE_TO_VARIABLE: Record<string, string> = {
+  // 原文/内容相关
+  '原文': '{content}',
+  '原始内容': '{content}',
+  '原始文本': '{content}',
+  '输入内容': '{content}',
+  '内容': '{content}',
+
+  // 标题相关
+  '标题': '{title}',
+  '原始标题': '{title}',
+
+  // 关键词
+  '关键词': '{keywords}',
+  '核心关键词': '{keywords}',
+
+  // 受众
+  '受众': '{audience}',
+  '目标受众': '{audience}',
+  '目标人群': '{audience}',
+  '针对人群': '{audience}',
+  '读者': '{audience}',
+
+  // 情绪
+  '情绪': '{emotion}',
+  '情绪基调': '{emotion}',
+  '情感': '{emotion}',
+  '基调': '{emotion}',
+
+  // 分类
+  '分类': '{category}',
+  '内容分类': '{category}',
+  '类别': '{category}',
+  '领域': '{category}',
+
+  // 风格
+  '风格': '{style}',
+  '风格要求': '{style}',
+  '文风': '{style}',
+  '语调': '{style}',
+
+  // 字数
+  '字数': '{word_count}',
+  '目标字数': '{word_count}',
+  '字': '{word_count}',
+};
+
+// 自动检测文本中的概念并替换为变量
+// 返回: { text: 替换后的文本, newVariables: 新发现的变量列表 }
+export function autoDetectAndReplaceVariables(text: string): { text: string; newVariables: string[] } {
+  let resultText = text;
+  const newVariables: string[] = [];
+  const usedVariables = new Set<string>();
+
+  // 按长度降序排列短语，确保先匹配长的
+  const sortedPhrases = Object.keys(PHRASE_TO_VARIABLE).sort((a, b) => b.length - a.length);
+
+  for (const phrase of sortedPhrases) {
+    const variable = PHRASE_TO_VARIABLE[phrase];
+    // 使用正则表达式全局替换，支持中英文
+    const regex = new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    resultText = resultText.replace(regex, () => {
+      usedVariables.add(variable);
+      return variable;
+    });
+  }
+
+  // 检测新增变量（用户可能自定义的变量格式，如 {自定义内容}）
+  const customVarRegex = /\{([^}]+)\}/g;
+  let match;
+  while ((match = customVarRegex.exec(resultText)) !== null) {
+    const varName = match[0];
+    // 如果这个变量不在预设表中，添加到新变量列表
+    if (!VARIABLE_LABELS[varName] && !newVariables.includes(varName)) {
+      newVariables.push(varName);
+    }
+  }
+
+  return { text: resultText, newVariables };
+}
+
+// 添加新变量到预设表
+export function addVariableToLabels(variableName: string, description?: string): void {
+  if (!VARIABLE_LABELS[variableName]) {
+    VARIABLE_LABELS[variableName] = description || variableName.replace(/[{}]/g, '');
+  }
+}
+
+// 获取默认变量列表（用于参考）
 export const DEFAULT_VARIABLES: TemplateVariable[] = [
-  { name: '{title}', description: '原始标题', example: '如何提升工作效率' },
-  { name: '{content}', description: '原始内容', example: '长文本内容...' },
-  { name: '{keywords}', description: '关键词', example: '效率,时间管理,专注' },
-  { name: '{emotion}', description: '情绪基调', example: '积极,乐观,温暖' },
-  { name: '{audience}', description: '目标受众', example: '职场新人,25-35岁' },
-  { name: '{category}', description: '内容分类', example: '职场,自我提升' },
-  { name: '{style}', description: '风格要求', example: '专业,亲切,口语化' },
+  { name: '{title}', description: VARIABLE_LABELS['{title}'], example: '如何提升工作效率' },
+  { name: '{content}', description: VARIABLE_LABELS['{content}'], example: '长文本内容...' },
+  { name: '{keywords}', description: VARIABLE_LABELS['{keywords}'], example: '效率,时间管理,专注' },
+  { name: '{emotion}', description: VARIABLE_LABELS['{emotion}'], example: '积极,乐观,温暖' },
+  { name: '{audience}', description: VARIABLE_LABELS['{audience}'], example: '职场新人,25-35岁' },
+  { name: '{category}', description: VARIABLE_LABELS['{category}'], example: '职场,自我提升' },
+  { name: '{style}', description: VARIABLE_LABELS['{style}'], example: '专业,亲切,口语化' },
+  { name: '{word_count}', description: VARIABLE_LABELS['{word_count}'], example: '2000' },
 ];

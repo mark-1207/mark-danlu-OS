@@ -1,19 +1,17 @@
 import { useState, useEffect } from 'react';
 import {
   FileText,
-  Tag,
-  Users,
-  MessageSquare,
   CheckCircle,
   BarChart3,
   Target,
   ChevronRight,
   RefreshCw,
   AlertCircle,
-  Sparkles,
-  Zap
+  Sparkles
 } from 'lucide-react';
-import { parseContent, hasApiConfig } from '../services/llm/llmService';
+import ReactMarkdown from 'react-markdown';
+import { parseContent, hasApiConfig, getApiConfigError } from '../services/llm/llmService';
+import { useSettingsStore } from '../stores/settingsStore';
 
 // 左侧导航组件
 function SideNav({
@@ -97,12 +95,13 @@ function SideNav({
 
 // 洞察分析页面组件
 export default function InsightPage({
-  content,
+  content: _content,
   onBack,
   onNext,
   completedSteps,
   setCompletedSteps,
-  onStepClick
+  onStepClick,
+  preInfo
 }: {
   content: string;
   onBack: () => void;
@@ -110,11 +109,111 @@ export default function InsightPage({
   completedSteps: number[];
   setCompletedSteps: React.Dispatch<React.SetStateAction<number[]>>;
   onStepClick: (step: number) => void;
+  preInfo?: {
+    platform: string;
+    contentType: string;
+    track: string;
+    likes?: number;
+    collectCount?: number;
+    viewCount?: number;
+    shareCount?: number;
+  };
 }) {
+  const testMode = useSettingsStore((state) => state.testMode);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [progress, setProgress] = useState(0);
 
+  // 模拟数据（用于预览样式）
+  const mockRawContent = `# 内容DNA分析报告
+
+## 一、基础定位
+
+- **主题分类**：职场成长 / 个人发展
+- **核心议题**：如何从月薪5千到3万，实现职场逆袭
+- **目标受众**：职场新人、想要提升收入的年轻人
+
+---
+
+## 二、结构脉络
+
+### 开篇钩子（评分：8/10）
+> "为什么有人工作3年薪资翻倍，而你还在原地踏步？"
+
+### 主线脉络
+1. **现状分析**：大多数人的职场困境
+2. **核心问题**：缺少这3个关键能力
+3. **解决方案**：具体可执行的成长路径
+4. **成功案例**：真实逆袭故事
+
+### 高潮时刻
+揭秘大厂HR不会告诉你的薪资谈判技巧
+
+### 收尾方式
+行动号召：现在开始改变，3个月后你会感谢自己
+
+---
+
+## 三、价值与情绪
+
+### 知识增量
+- 职场技能树构建方法
+- 薪资谈判的3个黄金时机
+
+### 认知颠覆
+- 努力≠能力，方向比努力更重要
+- 职场晋升不靠加班，靠思维
+
+### 情绪价值
+- 共情职场焦虑
+- 给予希望和动力
+
+### 实用价值
+- 可直接套用的简历模板
+- 薪资谈判话术清单
+
+---
+
+## 四、爆款基因评估
+
+| 维度 | 得分 | 亮点 |
+|------|------|------|
+| 标题吸引力 | 9/10 | 痛点+数字+悬念 |
+| 开头留存 | 8/10 | 提问引发共鸣 |
+| 内容价值度 | 8/10 | 干货+案例结合 |
+| 情绪感染力 | 7/10 | 积极正向 |
+| 传播设计 | 8/10 | 引发讨论的话题 |
+
+---
+
+## 五、金句提取
+
+> "方向对了，努力才有意义"
+
+> "你的工资不是由老板决定的，是由你的不可替代性决定的"
+
+> "职场最大的谎言是'是金子总会发光'，前提是你要站在能被人看到的地方"
+
+---
+
+## 六、平台适配度
+
+### 公众号
+- **适配度**：9/10
+- **建议**：适合深度阅读，增加案例细节
+
+### 小红书
+- **适配度**：8/10
+- **建议**：精简内容，突出干货要点
+
+### 抖音
+- **适配度**：7/10
+- **建议**：提取核心观点做成口播脚本
+
+---
+
+*本报告由AI生成，仅供参考*`;
 
   // 调用 AI 分析
   useEffect(() => {
@@ -122,50 +221,46 @@ export default function InsightPage({
       setIsLoading(true);
       setError(null);
 
+      // 检查 API 配置（测试模式除外）
+      if (!testMode && !hasApiConfig()) {
+        setError(getApiConfigError() || '请先配置 AI 供应商');
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        if (!hasApiConfig()) {
-          throw new Error('请先在设置中配置 AI 供应商');
-        }
-
-        const aiResult = await parseContent(content, {
-          onProgress: (progress: number, status: string) => {
-            console.log('[Insight] Progress:', progress, status);
-          }
-        });
-
-        // 直接使用 AI 返回的原始数据
-        console.log('[Insight] AI原始结果:', aiResult);
-        console.log('[Insight] 打印完整数据结构:', JSON.stringify(aiResult, null, 2));
-        setAnalysisResult(aiResult);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '分析失败');
+        const result = await parseContent(_content, {
+          onProgress: (p) => setProgress(p)
+        }, preInfo);
+        setAnalysisResult(result);
+      } catch (err: any) {
+        setError(err.message || '分析失败，请重试');
       } finally {
         setIsLoading(false);
       }
     };
 
-    if (content) {
-      performAnalysis();
-    }
-  }, [content]);
+    performAnalysis();
+  }, [_content, preInfo]);
 
   const handleReanalyze = async () => {
     setIsLoading(true);
     setError(null);
 
+    // 检查 API 配置（测试模式除外）
+    if (!testMode && !hasApiConfig()) {
+      setError(getApiConfigError() || '请先配置 AI 供应商');
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      if (!hasApiConfig()) {
-        throw new Error('请先在设置中配置 AI 供应商');
-      }
-
-      const aiResult = await parseContent(content, {
-        onProgress: () => {}
-      });
-
-      console.log('[Insight] 重新分析结果:', aiResult);
-      setAnalysisResult(aiResult);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '分析失败');
+      const result = await parseContent(_content, {
+        onProgress: (p) => setProgress(p)
+      }, preInfo);
+      setAnalysisResult(result);
+    } catch (err: any) {
+      setError(err.message || '分析失败，请重试');
     } finally {
       setIsLoading(false);
     }
@@ -208,7 +303,7 @@ export default function InsightPage({
             ) : analysisResult ? (
               <div className="space-y-6">
                 {/* 调试信息 */}
-                {process.env.NODE_ENV === 'development' && !analysisResult._rawJson && (
+                {import.meta.env.DEV && !analysisResult._rawJson && (
                   <div className="bg-orange-100 border border-orange-400 text-orange-700 px-4 py-3 rounded">
                     <p className="font-bold">调试: AI返回数据为空</p>
                     <pre className="text-xs mt-2">{JSON.stringify(analysisResult).slice(0, 500)}</pre>
@@ -234,315 +329,29 @@ export default function InsightPage({
                   </button>
                 </div>
 
-                {/* 内容定位 */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                  <h3 className="text-base font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <span className="w-1 h-5 bg-blue-500 rounded-full"></span>
-                    内容定位
-                  </h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <Tag className="w-4 h-4 text-slate-400" />
-                        <span className="text-sm font-medium text-slate-600">主题分类</span>
-                      </div>
-                      <span className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md text-sm font-medium">
-                        {(analysisResult._rawJson || {})['一、基础定位']?.主题分类 || analysisResult.主题分类 || '未识别'}
-                      </span>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <MessageSquare className="w-4 h-4 text-slate-400" />
-                        <span className="text-sm font-medium text-slate-600">核心议题</span>
-                      </div>
-                      <span className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-md text-sm">
-                        {(analysisResult._rawJson || {})['一、基础定位']?.核心议题 || analysisResult.核心议题 || '未识别'}
-                      </span>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <Users className="w-4 h-4 text-slate-400" />
-                        <span className="text-sm font-medium text-slate-600">目标受众画像</span>
-                      </div>
-                      <span className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-md text-sm">
-                        {(analysisResult._rawJson || {})['一、基础定位']?.目标受众画像 || analysisResult.目标受众画像 || analysisResult.目标受众 || '未识别'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 模块2：结构脉络 */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                  <h3 className="text-base font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <span className="w-1 h-5 bg-green-500 rounded-full"></span>
-                    结构脉络
-                  </h3>
-                  {/* 从 _rawJson 直接获取数据 */}
-                  {(() => {
-                    const structure = analysisResult._rawJson?.['二、结构脉络 (Structure)'] || {};
-
-                    // 处理可能的对象或字符串格式
-                    const getStringValue = (val: any): string => {
-                      if (!val) return '暂无';
-                      if (typeof val === 'string') return val;
-                      if (typeof val === 'object') {
-                        // 如果是对象，尝试获取特征字段或第一个值
-                        return val.特征 || val.content || val.内容 || Object.values(val)[0] || '暂无';
-                      }
-                      return String(val);
-                    };
-
-                    // 开篇钩子 - 需要处理特殊键名
-                    const hookKeys = Object.keys(structure.开篇钩子 || {});
-                    const hookKey = hookKeys[0] || '';
-                    const hookRaw = structure.开篇钩子?.[hookKey];
-                    const hookValue = getStringValue(hookRaw);
-                    const hookScore = hookValue.match(/(\d+)分/)?.[1] || '5';
-                    const hookContent = hookValue.replace(/^\d+分，?/, '') || hookValue;
-
-                    return (
-                      <div className="grid grid-cols-5 gap-3">
-                        <div className="p-3 bg-slate-50 rounded-lg">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-medium text-slate-600">开篇钩子</span>
-                            <span className="text-xs font-bold text-green-600">{hookScore}/10</span>
-                          </div>
-                          <p className="text-xs text-slate-600 leading-relaxed">{hookContent || '暂无'}</p>
-                        </div>
-                        <div className="p-3 bg-slate-50 rounded-lg col-span-2">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-medium text-slate-600">主线脉络</span>
-                          </div>
-                          <ol className="space-y-1">
-                            {(structure.主线脉络 || []).slice(0, 3).map((item: any, idx: number) => (
-                              <li key={idx} className="flex items-start gap-1 text-xs text-slate-600">
-                                <span className="flex-shrink-0 w-4 h-4 rounded-full bg-green-100 text-green-600 font-medium text-[10px] flex items-center justify-center">{idx + 1}</span>
-                                <span className="break-words">{typeof item === 'string' ? item : (item.内容 || '')}</span>
-                              </li>
-                            ))}
-                          </ol>
-                        </div>
-                        <div className="p-3 bg-slate-50 rounded-lg">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-medium text-slate-600">高潮时刻</span>
-                          </div>
-                          <p className="text-xs text-slate-600 leading-relaxed">{getStringValue(structure.高潮时刻)}</p>
-                        </div>
-                        <div className="p-3 bg-slate-50 rounded-lg">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-medium text-slate-600">收尾方式</span>
-                          </div>
-                          <p className="text-xs text-slate-600 leading-relaxed">{getStringValue(structure.收尾方式)}</p>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                    <span className="text-xs font-medium text-blue-700">逻辑链条：</span>
-                    <span className="text-xs text-blue-600 ml-1">{(() => {
-                      const val = (analysisResult._rawJson?.['二、结构脉络 (Structure)'] || {}).逻辑链条;
-                      if (!val) return '暂无';
-                      if (typeof val === 'string') return val;
-                      if (typeof val === 'object') return val.论点 || val.逻辑 || Object.values(val)[0] || '暂无';
-                      return String(val);
-                    })()}</span>
-                  </div>
-                </div>
-
-                {/* 模块3：价值与情绪 */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                  <h3 className="text-base font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <span className="w-1 h-5 bg-purple-500 rounded-full"></span>
-                    价值与情绪
-                  </h3>
-                  {(() => {
-                    const valueEmotion = analysisResult._rawJson?.['三、价值与情绪 (Value & Emotion)'] || {};
-                    const getString = (v: any) => {
-                      if (!v) return '暂无';
-                      if (typeof v === 'string') return v;
-                      if (typeof v === 'object') return v.知识增量 || v.认知颠覆 || v.情绪价值 || v.实用价值 || Object.values(v)[0] || '暂无';
-                      return String(v);
-                    };
-                    return (
-                      <div className="grid grid-cols-4 gap-4">
-                        <div className="p-4 bg-gradient-to-r from-blue-50 to-blue-100/50 rounded-lg border border-blue-100">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-sm font-semibold text-blue-700">知识增量</span>
-                          </div>
-                          <ul className="space-y-1">
-                            <li className="flex items-start gap-1 text-xs text-slate-600">
-                              <CheckCircle className="w-3 h-3 text-blue-500 flex-shrink-0 mt-0.5" />
-                              <span className="break-words">{getString(valueEmotion.知识增量)}</span>
-                            </li>
-                          </ul>
-                        </div>
-                        <div className="p-4 bg-gradient-to-r from-purple-50 to-purple-100/50 rounded-lg border border-purple-100">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-sm font-semibold text-purple-700">认知颠覆</span>
-                          </div>
-                          <ul className="space-y-1">
-                            <li className="flex items-start gap-1 text-xs text-slate-600">
-                              <CheckCircle className="w-3 h-3 text-purple-500 flex-shrink-0 mt-0.5" />
-                              <span className="break-words">{getString(valueEmotion.认知颠覆)}</span>
-                            </li>
-                          </ul>
-                        </div>
-                        <div className="p-4 bg-gradient-to-r from-pink-50 to-pink-100/50 rounded-lg border border-pink-100">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-sm font-semibold text-pink-700">情绪价值</span>
-                          </div>
-                          <ul className="space-y-1">
-                            <li className="flex items-start gap-1 text-xs text-slate-600">
-                              <CheckCircle className="w-3 h-3 text-pink-500 flex-shrink-0 mt-0.5" />
-                              <span className="break-words">{getString(valueEmotion.情绪价值)}</span>
-                            </li>
-                          </ul>
-                        </div>
-                        <div className="p-4 bg-gradient-to-r from-emerald-50 to-emerald-100/50 rounded-lg border border-emerald-100">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-sm font-semibold text-emerald-700">实用价值</span>
-                          </div>
-                          <ul className="space-y-1">
-                            <li className="flex items-start gap-1 text-xs text-slate-600">
-                              <CheckCircle className="w-3 h-3 text-emerald-500 flex-shrink-0 mt-0.5" />
-                              <span className="break-words">{getString(valueEmotion.实用价值)}</span>
-                            </li>
-                          </ul>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* 模块4：爆款基因评估 */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                  <h3 className="text-base font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <span className="w-1 h-5 bg-amber-500 rounded-full"></span>
-                    爆款基因评估
-                  </h3>
-                  {(() => {
-                    const gene = analysisResult._rawJson?.['四、爆款基因评估'] || {};
-                    // AI返回的键名是完整的：标题吸引力打分（1-10分）及亮点分析
-                    const parseGeneItem = (key: string) => {
-                      // 找到匹配的键
-                      const matchedKey = Object.keys(gene).find(k => k.startsWith(key));
-                      const value = matchedKey ? gene[matchedKey] : '';
-                      if (!value) return { score: 5, highlight: '暂无亮点分析' };
-                      // 提取分数和亮点分析
-                      const strVal = String(value);
-                      const score = parseInt(strVal.match(/(\d+)分/)?.[1] || '5');
-                      const highlight = strVal.replace(/^\d+分，?/, '') || strVal;
-                      return { score, highlight };
-                    };
-
-                    const items = [
-                      { key: '标题', searchKey: '标题吸引力打分' },
-                      { key: '开头留存', searchKey: '开头留存力打分' },
-                      { key: '内容价值度', searchKey: '内容价值度打分' },
-                      { key: '情绪感染力', searchKey: '情绪感染力打分' },
-                      { key: '传播设计度', searchKey: '传播设计度打分' }
-                    ];
-
-                    return (
-                      <div className="grid grid-cols-5 gap-4">
-                        {items.map((item, idx) => {
-                          const { score, highlight } = parseGeneItem(item.searchKey);
-                          return (
-                            <div key={idx} className="p-4 bg-gradient-to-r from-amber-50 to-amber-100/50 rounded-lg border border-amber-100">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-semibold text-amber-700">{item.key}</span>
-                                <span className="text-lg font-bold text-amber-600">{score}/10</span>
-                              </div>
-                              <p className="text-xs text-slate-600 leading-relaxed">{highlight}</p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* 模块5：高光与传播点 */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                  <h3 className="text-base font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <span className="w-1 h-5 bg-pink-500 rounded-full"></span>
-                    高光与传播点
-                  </h3>
-                  {(() => {
-                    const highlight = analysisResult._rawJson?.['五、高光与传播点'] || {};
-                    const goldSentences = highlight.金句提取 || highlight.金句 || [];
-
-                    return (
-                      <div className="space-y-4">
-                        {/* 金句提取 */}
-                        <div>
-                          <div className="flex items-center gap-2 mb-3">
-                            <Zap className="w-4 h-4 text-pink-500" />
-                            <span className="text-sm font-medium text-slate-700">金句提取</span>
-                            <span className="text-xs text-slate-400">(共{Array.isArray(goldSentences) ? goldSentences.length : 0}条)</span>
-                          </div>
-                          <div className="grid grid-cols-3 gap-3">
-                            {(Array.isArray(goldSentences) ? goldSentences : []).slice(0, 6).map((item: any, idx: number) => {
-                              const content = typeof item === 'string' ? item : (item.content || item.金句 || '');
-                              return (
-                                <div key={idx} className="p-3 bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-lg border border-amber-200">
-                                  <p className="text-sm text-slate-700 leading-relaxed">"{content}"</p>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                        {/* 互动诱饵 */}
-                        <div>
-                          <div className="flex items-center gap-2 mb-3">
-                            <MessageSquare className="w-4 h-4 text-pink-500" />
-                            <span className="text-sm font-medium text-slate-700">互动诱饵</span>
-                          </div>
-                          <div className="p-3 bg-pink-50 rounded-lg border border-pink-200">
-                            <p className="text-sm text-slate-700 leading-relaxed">
-                              {typeof highlight.互动诱饵 === 'string' ? highlight.互动诱饵 : (highlight.互动诱饵?.描述 || highlight.互动诱饵?.content || '暂无互动诱饵数据')}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* 模块6：平台适配度 */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-                  <h3 className="text-base font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <span className="w-1 h-5 bg-cyan-500 rounded-full"></span>
-                    平台适配度
-                  </h3>
-                  <div className="grid grid-cols-3 gap-6">
-                    {[
-                      { name: '公众号', key: 'gzh', color: 'blue' },
-                      { name: '小红书', key: 'xhs', color: 'pink' },
-                      { name: '抖音', key: 'douyin', color: 'cyan' }
-                    ].map((platform) => {
-                      const platformData = analysisResult._rawJson?.['六、平台适配度']?.[platform.key] || analysisResult['六、平台适配度']?.[platform.key] || analysisResult.平台适配度?.[platform.key] || {};
-                      const score = platformData.得分 || platformData.score || 5;
-                      const reason = platformData.理由 || platformData.reason || 'AI未返回该平台适配数据';
-                      const colorValue = platform.color === 'blue' ? '#3b82f6' : platform.color === 'pink' ? '#ec4899' : '#06b6d4';
-                      return (
-                        <div key={platform.key} className="p-4 bg-slate-50 rounded-lg">
-                          <div className="flex items-center gap-2 mb-3">
-                            <FileText className="w-5 h-5" style={{ color: colorValue }} />
-                            <span className="text-base font-semibold text-slate-800">{platform.name}</span>
-                          </div>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm text-slate-600">适配得分</span>
-                            <span className="text-xl font-bold" style={{ color: colorValue }}>{score}/10</span>
-                          </div>
-                          <div className="h-2 bg-slate-200 rounded-full overflow-hidden mb-2">
-                            <div className="h-full rounded-full" style={{ width: `${score * 10}%`, backgroundColor: colorValue }} />
-                          </div>
-                          <p className="text-xs text-slate-500 leading-relaxed">{reason}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
+                {/* 统一 Markdown 渲染模块 */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8
+                    [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-slate-900 [&_h1]:mb-6 [&_h1]:pb-3 [&_h1]:border-b [&_h1]:border-slate-200
+                    [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-slate-800 [&_h2]:mt-8 [&_h2]:mb-4 [&_h2]:pb-2 [&_h2]:border-b [&_h2]:border-slate-100
+                    [&_h3]:text-base [&_h3]:font-medium [&_h3]:text-slate-700 [&_h3]:mt-6 [&_h3]:mb-3
+                    [&_p]:text-sm [&_p]:text-slate-600 [&_p]:leading-7 [&_p]:my-3
+                    [&_ul]:my-4 [&_ul]:pl-5 [&_ul]:space-y-2
+                    [&_ol]:my-4 [&_ol]:pl-5 [&_ol]:space-y-2
+                    [&_li]:text-sm [&_li]:text-slate-600 [&_li]:leading-6
+                    [&_blockquote]:border-l-2 [&_blockquote]:border-slate-300 [&_blockquote]:bg-slate-50 [&_blockquote]:py-3 [&_blockquote]:px-4 [&_blockquote]:not-italic [&_blockquote]:rounded-r [&_blockquote]:my-4
+                    [&_blockquote_p]:text-sm [&_blockquote_p]:text-slate-700 [&_blockquote_p]:leading-6
+                    [&_table]:w-full [&_table]:my-4 [&_table]:text-sm
+                    [&_th]:bg-slate-50 [&_th]:text-slate-700 [&_th]:font-medium [&_th]:px-4 [&_th]:py-3 [&_th]:text-left [&_th]:border [&_th]:border-slate-200 [&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wider
+                    [&_td]:px-4 [&_td]:py-3 [&_td]:text-slate-600 [&_td]:border [&_td]:border-slate-200
+                    [&_tr:hover]:bg-slate-50
+                    [&_hr]:my-8 [&_hr]:border-0 [&_hr]:h-px [&_hr]:bg-slate-200
+                    [&_strong]:font-semibold [&_strong]:text-slate-800
+                    [&_em]:text-rose-600 [&_em]:italic
+                    [&_code]:text-rose-600 [&_code]:bg-rose-50 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono
+                    [&_a]:text-blue-600 [&_a]:underline [&_a]:hover:text-blue-800">
+                  <ReactMarkdown>
+                    {analysisResult.rawContent || '暂无分析结果'}
+                  </ReactMarkdown>
                 </div>
 
                 {/* 底部操作区 */}
@@ -560,7 +369,7 @@ export default function InsightPage({
                     }}
                     className="flex items-center gap-2 px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-base transition-colors"
                   >
-                    立即生成
+                    选择创作模式
                     <ChevronRight className="w-5 h-5" />
                   </button>
                 </div>

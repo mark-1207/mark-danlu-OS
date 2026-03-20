@@ -43,6 +43,7 @@ export class LLMManager {
     this.adapters.set('minimax', createAdapter('minimax'));
     this.adapters.set('kimi', createAdapter('kimi'));
     this.adapters.set('deepseek', createAdapter('deepseek'));
+    this.adapters.set('ark', createAdapter('ark'));
     this.adapters.set('custom', createAdapter('custom'));
   }
 
@@ -112,16 +113,11 @@ export class LLMManager {
           retries++;
           lastError = this.normalizeError(error, provider.name);
 
-          console.log('[LLM] Provider error:', lastError.message, 'isRetryable:', lastError.isRetryable);
-
           // 如果是不可重试的错误，直接抛出
           if (!lastError.isRetryable) {
-            // 如果关闭了自动切换，在这里抛出错误
             if (!failover.enabled) {
-              console.log('[LLM] 不可重试错误且failover关闭，抛出错误');
               throw lastError;
             }
-            console.log('[LLM] 不可重试错误但failover开启，尝试下一个provider');
             break;
           }
 
@@ -136,9 +132,6 @@ export class LLMManager {
       if (!failover.enabled && lastError) {
         throw lastError;
       }
-
-      // 继续尝试下一个供应商
-      console.warn(`[LLM] Provider ${provider.name} failed, trying next provider...`);
     }
 
     // 所有供应商都失败了

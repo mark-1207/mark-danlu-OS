@@ -6,14 +6,13 @@ import {
   type ProviderConfig,
   type FailoverConfig,
   type PlatformSettings,
-  type PlatformTemplate,
-  type TemplateVariable,
+  type Platform,
+  type ContentTemplate,
   type AIProvider,
   type AnalysisSettings,
   type AnalysisTemplate,
   type OptimizationSettings,
   type OptimizationTemplate,
-  DEFAULT_VARIABLES,
 } from '../services/llm/types';
 
 // 默认故障转移配置
@@ -23,15 +22,18 @@ const DEFAULT_FAILOVER_CONFIG: FailoverConfig = {
   retryDelay: 1000,
 };
 
-// 内置平台模板
-const createBuiltInPlatforms = (): PlatformTemplate[] => [
+// 内置平台（每个平台可有多个内容模板）
+const createBuiltInPlatforms = (): Platform[] => [
   {
     id: 'gzh',
     name: '公众号',
     icon: '📺',
     isBuiltIn: true,
-    isDefault: false,
-    titlePrompt: `你是一个公众号爆款标题专家。请根据以下信息生成5个适合公众号的爆款标题：
+    templates: [
+      {
+        id: 'gzh-deep',
+        name: '深度文章模板',
+        titlePrompt: `你是一个公众号爆款标题专家。请根据以下信息生成5个适合公众号的爆款标题：
 
 【原始内容】
 {content}
@@ -42,13 +44,18 @@ const createBuiltInPlatforms = (): PlatformTemplate[] => [
 【内容调性】
 {style}
 
+【前置信息】
+平台：{platform}
+内容类型：{content_type}
+所属赛道：{track}
+数据参考：点赞{likes} / 收藏{collect_count} / 阅读{view_count} / 分享{share_count}
+
 【要求】
 1. 13-25字，关键词前置
 2. 使用八大标题公式：颠覆认知型、痛点共鸣型、悬念钩子型、数字清单型、身份标签型、热点借力型、对话口语型、金句前置型
 3. 引发好奇或共鸣，能吸引点击
 4. 每个标题标注类型和推荐度`,
-    titleVariables: DEFAULT_VARIABLES,
-    contentPrompt: `你是一个公众号内容创作专家。请根据以下信息改写成公众号风格的文章：
+        contentPrompt: `你是一个公众号内容创作专家。请根据以下信息改写成公众号风格的文章：
 
 【原始内容】
 {content}
@@ -68,6 +75,12 @@ const createBuiltInPlatforms = (): PlatformTemplate[] => [
 【风格】
 {style}
 
+【前置信息】
+平台：{platform}
+内容类型：{content_type}
+所属赛道：{track}
+数据参考：点赞{likes} / 收藏{collect_count} / 阅读{view_count} / 分享{share_count}
+
 【公众号爆款公式】
 爆款 = 精准选题 × 吸睛标题 × 黄金开头 × 价值密度 × 情绪共鸣 × 传播设计
 
@@ -82,10 +95,54 @@ const createBuiltInPlatforms = (): PlatformTemplate[] => [
 4. 段落分明、干货充足
 5. 预埋3-5个传播触发点
 6. 字数：2000-3000字`,
-    contentVariables: [
-      ...DEFAULT_VARIABLES,
-      { name: '{word_count}', description: '目标字数', example: '2000' },
+      },
+      {
+        id: 'gzh-quick',
+        name: '快讯模板',
+        titlePrompt: `你是一个公众号标题专家。请根据以下信息生成3个简洁的公众号标题：
+
+【原始内容】
+{content}
+
+【关键词】
+{keywords}
+
+【前置信息】
+平台：{platform}
+内容类型：{content_type}
+所属赛道：{track}
+数据参考：点赞{likes} / 收藏{collect_count} / 阅读{view_count} / 分享{share_count}
+
+【要求】
+1. 15-20字，简明扼要
+2. 突出核心信息
+3. 引发好奇或关注`,
+        contentPrompt: `你是一个公众号内容创作专家。请根据以下信息改写成简洁的公众号文章：
+
+【原始内容】
+{content}
+
+【目标受众】
+{audience}
+
+【核心关键词】
+{keywords}
+
+【前置信息】
+平台：{platform}
+内容类型：{content_type}
+所属赛道：{track}
+数据参考：点赞{likes} / 收藏{collect_count} / 阅读{view_count} / 分享{share_count}
+
+【要求】
+1. 开头100字：直接点题，核心信息前置
+2. 主体300-500字：关键信息+补充说明
+3. 结尾100字：总结或引导
+4. 字数：500-800字
+5. 简洁明了，信息密度高`,
+      },
     ],
+    defaultTemplateId: 'gzh-deep',
     qualityPrompt: `请对以下公众号文章进行六维度质检：
 文章内容：{content}
 
@@ -104,8 +161,11 @@ const createBuiltInPlatforms = (): PlatformTemplate[] => [
     name: '小红书',
     icon: '📕',
     isBuiltIn: true,
-    isDefault: false,
-    titlePrompt: `你是一个小红书爆款标题专家。请根据以下信息生成5个适合小红书的爆款标题：
+    templates: [
+      {
+        id: 'xhs-grass',
+        name: '种草模板',
+        titlePrompt: `你是一个小红书爆款标题专家。请根据以下信息生成5个适合小红书的爆款标题：
 
 【原始内容】
 {content}
@@ -115,6 +175,12 @@ const createBuiltInPlatforms = (): PlatformTemplate[] => [
 
 【内容调性】
 {style}
+
+【前置信息】
+平台：{platform}
+内容类型：{content_type}
+所属赛道：{track}
+数据参考：点赞{likes} / 收藏{collect_count} / 阅读{view_count} / 分享{share_count}
 
 【小红书生态画像】
 - 用户心理："我想发现好东西" / "这个对我有用吗"
@@ -127,8 +193,7 @@ const createBuiltInPlatforms = (): PlatformTemplate[] => [
 3. 引发收藏和分享（高CES互动）
 4. 身份标签化：打工人/25岁/INFJ/内向者等
 5. 每个标题标注类型和推荐度`,
-    titleVariables: DEFAULT_VARIABLES,
-    contentPrompt: `你是一个小红书内容创作专家。请根据以下信息改写成小红书风格的笔记：
+        contentPrompt: `你是一个小红书内容创作专家。请根据以下信息改写成小红书风格的笔记：
 
 【原始内容】
 {content}
@@ -147,6 +212,12 @@ const createBuiltInPlatforms = (): PlatformTemplate[] => [
 
 【风格】
 {style}
+
+【前置信息】
+平台：{platform}
+内容类型：{content_type}
+所属赛道：{track}
+数据参考：点赞{likes} / 收藏{collect_count} / 阅读{view_count} / 分享{share_count}
 
 【小红书爆款公式】
 爆款 = 精准封面 × 痛点标题 × 快速代入 × 干货密度 × 情绪共鸣 × 互动设计
@@ -186,7 +257,9 @@ const createBuiltInPlatforms = (): PlatformTemplate[] => [
 - 点赞收藏引导
 - 评论互动话题
 - 关注引导`,
-    contentVariables: DEFAULT_VARIABLES,
+      },
+    ],
+    defaultTemplateId: 'xhs-grass',
     qualityPrompt: `请对以下小红书笔记进行六维度质检：
 笔记内容：{content}
 
@@ -205,8 +278,11 @@ const createBuiltInPlatforms = (): PlatformTemplate[] => [
     name: '抖音',
     icon: '🎵',
     isBuiltIn: true,
-    isDefault: false,
-    titlePrompt: `你是一个抖音爆款标题专家。请根据以下信息生成5个适合抖音的爆款标题：
+    templates: [
+      {
+        id: 'douyin-short',
+        name: '短视频脚本',
+        titlePrompt: `你是一个抖音爆款标题专家。请根据以下信息生成5个适合抖音的爆款标题：
 
 【原始内容】
 {content}
@@ -216,6 +292,12 @@ const createBuiltInPlatforms = (): PlatformTemplate[] => [
 
 【内容调性】
 {style}
+
+【前置信息】
+平台：{platform}
+内容类型：{content_type}
+所属赛道：{track}
+数据参考：点赞{likes} / 收藏{collect_count} / 阅读{view_count} / 分享{share_count}
 
 【抖音生态画像】
 - 用户心理："我想开心一下" / "这个有意思吗"
@@ -227,8 +309,7 @@ const createBuiltInPlatforms = (): PlatformTemplate[] => [
 2. 使用黄金3秒十大公式：反常识开头/强情绪开头/悬念钩子开头/身份锁定开头/冲突矛盾开头/数字冲击开头/直接提问开头/结果前置开头/情绪爆发开头/场景代入开头
 3. 引发完播和评论
 4. 每个标题标注类型和推荐度`,
-    titleVariables: DEFAULT_VARIABLES,
-    contentPrompt: `你是一个抖音脚本创作专家。请根据以下信息改写成抖音风格的脚本：
+        contentPrompt: `你是一个抖音脚本创作专家。请根据以下信息改写成抖音风格的脚本：
 
 【原始内容】
 {content}
@@ -247,6 +328,12 @@ const createBuiltInPlatforms = (): PlatformTemplate[] => [
 
 【风格】
 {style}
+
+【前置信息】
+平台：{platform}
+内容类型：{content_type}
+所属赛道：{track}
+数据参考：点赞{likes} / 收藏{collect_count} / 阅读{view_count} / 分享{share_count}
 
 【抖音爆款公式】
 爆款 = 黄金3秒 × 情绪曲线 × 信息密度 × 节奏控制 × 互动设计
@@ -299,7 +386,9 @@ const createBuiltInPlatforms = (): PlatformTemplate[] => [
 - 每3-5秒必须有新的信息或刺激
 - 口播类：每5-10秒切换画面
 - 语速：钩子部分快→核心部分适中→结尾部分放缓`,
-    contentVariables: DEFAULT_VARIABLES,
+      },
+    ],
+    defaultTemplateId: 'douyin-short',
     qualityPrompt: `请对以下抖音脚本进行六维度质检：
 脚本内容：{content}
 
@@ -323,7 +412,7 @@ const createDefaultAISettings = (): AISettings => ({
 
 // 默认平台设置
 const createDefaultPlatformSettings = (): PlatformSettings => ({
-  templates: createBuiltInPlatforms(),
+  platforms: createBuiltInPlatforms(),
   defaultPlatform: 'gzh',
 });
 
@@ -337,39 +426,39 @@ const createDefaultAnalysisSettings = (): AnalysisSettings => ({
       isDefault: true,
       analysisPrompt: `你是一个顶尖新媒体爆款拆解专家。请对以下爆款内容进行深度逆向拆解，提取其Content DNA底层逻辑。
 
-请严格按照以下维度进行结构化分析，以JSON格式输出：
+请严格按照以下JSON格式输出，**不要添加任何解释、评论或markdown代码块标记**，直接输出有效JSON：
 
-## 一、基础定位
-- 主题分类：情感/科技/商业/生活/教育/娱乐/其他
-- 核心议题：内容主要讨论什么问题？受众的痛点是什么？
-- 目标受众画像：年龄段、身份标签，心理需求
-
-## 二、结构脉络 (Structure)
-- 开篇钩子：前30秒/前300字是如何留住用户的？使用了什么技巧（悬念/冲突/共鸣）？吸引力打分（1-10分）
-- 主线脉络：按时间线梳理3-5个核心论点或故事节点
-- 高潮时刻：哪一部分最精彩？标记其特征
-- 逻辑链条：提炼"论点→论据→结论"的完整转化路径
-- 收尾方式：如何结束？是否有强烈的行动号召(CTA)或情绪余韵？
-
-## 三、价值与情绪 (Value & Emotion)
-- 知识增量：用户能学到什么？
-- 认知颠覆：打破了什么固有观念？
-- 情绪价值：引发什么共鸣？（焦虑→释怀→振奋等情绪起伏）
-- 实用价值：有可操作性吗？
-
-## 四、爆款基因评估
-- 标题吸引力打分（1-10分）及亮点分析
-- 开头留存力打分（1-10分）及亮点分析
-- 内容价值度打分（1-10分）及亮点分析
-- 情绪感染力打分（1-10分）及亮点分析
-- 传播设计度打分（1-10分）及亮点分析（金句/转发点）
-- 排版美观度打分（1-10分）及亮点分析
-
-## 五、高光与传播点
-- 金句提取：3-5句极具传播属性的金句
-- 互动诱饵：作者是如何引导点赞、评论或收藏的？
-
-请以JSON格式输出完整分析结果。`,
+{
+  "主题分类": "情感/科技/商业/生活/教育/娱乐/其他",
+  "核心议题": "内容主要讨论什么问题？",
+  "目标受众": "年龄段、身份标签，心理需求",
+  "情绪基调": ["情绪词1", "情绪词2"],
+  "内容结构": {
+    "开篇钩子": {"内容": "钩子内容", "技巧": "悬念/冲突/共鸣", "打分": 8},
+    "主线脉络": ["节点1", "节点2", "节点3"],
+    "高潮时刻": "最精彩的部分",
+    "逻辑链条": "论点→论据→结论",
+    "收尾方式": "结束方式"
+  },
+  "价值点": {
+    "知识增量": "用户能学到的内容",
+    "认知颠覆": "打破的固有观念",
+    "情绪价值": "引发的共鸣",
+    "实用价值": "可操作的内容"
+  },
+  "爆款基因评估": {
+    "标题吸引力": {"打分": 8, "亮点": "亮点分析"},
+    "开头留存力": {"打分": 8, "亮点": "亮点分析"},
+    "内容价值度": {"打分": 8, "亮点": "亮点分析"},
+    "情绪感染力": {"打分": 8, "亮点": "亮点分析"},
+    "传播设计度": {"打分": 8, "亮点": "亮点分析"},
+    "排版美观度": {"打分": 8, "亮点": "亮点分析"}
+  },
+  "高光片段": [
+    {"类型": "金句", "内容": "金句内容"},
+    {"类型": "金句", "内容": "金句内容2"}
+  ]
+}`,
       outputFormat: {
         fields: [
           { key: '主题分类', label: '主题分类', type: 'string', required: true },
@@ -386,16 +475,18 @@ const createDefaultAnalysisSettings = (): AnalysisSettings => ({
   defaultTemplate: 'default',
 });
 
-// 默认优化报告设置
+// 默认优化报告设置（按平台分类）
 const createDefaultOptimizationSettings = (): OptimizationSettings => ({
   templates: [
+    // 公众号优化模板
     {
-      id: 'default',
-      name: '针对性优化',
+      id: 'gzh-default',
+      name: '公众号通用优化',
       isBuiltIn: true,
       isDefault: true,
-      systemPrompt: '你是一个内容优化专家，擅长根据质检报告进行针对性优化。只修改需要改进的部分，其他保持原样。',
-      optimizePrompt: `请根据以下质检报告对内容进行针对性优化。
+      platformId: 'gzh',
+      systemPrompt: '你是一个公众号内容优化专家，擅长根据质检报告进行针对性优化。根据公众号的特点（深度阅读、情感共鸣、传播设计）来优化内容。',
+      optimizePrompt: `请根据以下质检报告对公众号文章进行针对性优化。
 
 ## 原始内容
 {originalContent}
@@ -403,16 +494,64 @@ const createDefaultOptimizationSettings = (): OptimizationSettings => ({
 ## 质检报告
 {qualityReport}
 
-## 优化要求
+## 公众号优化要求
 1. 只修改质检报告中标记为"未通过"或"不足"的部分
-2. 其他内容保持不变
-3. 保持内容的完整性、逻辑流畅度、风格、语调、情绪
-4. 修改后的内容要自然流畅，不要有拼接感
+2. 保持公众号风格：深度分析、情感共鸣、金句点缀
+3. 保持内容的完整性、逻辑流畅度
+4. 预埋传播触发点（金句、槽点、共鸣点）
+
+请直接输出优化后的完整内容，不要添加任何解释。`
+    },
+    // 小红书优化模板
+    {
+      id: 'xhs-default',
+      name: '小红书通用优化',
+      isBuiltIn: true,
+      isDefault: true,
+      platformId: 'xhs',
+      systemPrompt: '你是一个小红书内容优化专家，擅长根据质检报告进行针对性优化。根据小红书的特点（种草、互动、真实感）来优化内容。',
+      optimizePrompt: `请根据以下质检报告对小红书笔记进行针对性优化。
+
+## 原始内容
+{originalContent}
+
+## 质检报告
+{qualityReport}
+
+## 小红书优化要求
+1. 只修改质检报告中标记为"未通过"或"不足"的部分
+2. 保持小红书风格：真实分享、种草价值、互动引导
+3. 使用emoji和分段保持视觉节奏
+4. 结尾增加互动引导（点赞收藏评论）
+
+请直接输出优化后的完整内容，不要添加任何解释。`
+    },
+    // 抖音优化模板
+    {
+      id: 'douyin-default',
+      name: '抖音通用优化',
+      isBuiltIn: true,
+      isDefault: true,
+      platformId: 'douyin',
+      systemPrompt: '你是一个抖音脚本优化专家，擅长根据质检报告进行针对性优化。根据抖音的特点（黄金3秒、情绪节奏、完播率）来优化内容。',
+      optimizePrompt: `请根据以下质检报告对抖音脚本进行针对性优化。
+
+## 原始内容
+{originalContent}
+
+## 质检报告
+{qualityReport}
+
+## 抖音优化要求
+1. 只修改质检报告中标记为"未通过"或"不足"的部分
+2. 保持抖音风格：黄金3秒钩子、情绪节奏、紧凑节奏
+3. 每3-5秒有新信息或刺激点
+4. 增加行动号召和互动引导
 
 请直接输出优化后的完整内容，不要添加任何解释。`
     }
   ],
-  defaultTemplate: 'default',
+  defaultTemplate: 'gzh-default',
 });
 
 // 默认完整设置
@@ -421,6 +560,18 @@ const createDefaultSettings = (): AppSettings => ({
   platforms: createDefaultPlatformSettings(),
   analysis: createDefaultAnalysisSettings(),
   optimization: createDefaultOptimizationSettings(),
+  testMode: false,
+});
+
+// 默认前置信息
+const createDefaultPreInfo = () => ({
+  platform: '',
+  contentType: '',
+  track: '',
+  likes: 0,
+  collectCount: 0,
+  viewCount: 0,
+  shareCount: 0,
 });
 
 // 设置 Store
@@ -435,18 +586,18 @@ interface SettingsState extends AppSettings {
   // 故障转移配置
   updateFailoverConfig: (config: Partial<FailoverConfig>) => void;
 
-  // 平台模板操作
-  addPlatform: (template: Omit<PlatformTemplate, 'id' | 'isBuiltIn'>) => void;
-  updatePlatform: (id: string, updates: Partial<PlatformTemplate>) => void;
+  // 平台操作
+  addPlatform: (platform: Omit<Platform, 'id' | 'isBuiltIn' | 'templates' | 'defaultTemplateId'> & { templates: Omit<ContentTemplate, 'id'>[] }) => void;
+  updatePlatform: (id: string, updates: Partial<Platform>) => void;
   removePlatform: (id: string) => void;
   resetPlatform: (id: string) => void;
   setDefaultPlatform: (id: string) => void;
 
-  // 模板变量操作
-  addTitleVariable: (platformId: string, variable: TemplateVariable) => void;
-  removeTitleVariable: (platformId: string, variableName: string) => void;
-  addContentVariable: (platformId: string, variable: TemplateVariable) => void;
-  removeContentVariable: (platformId: string, variableName: string) => void;
+  // 平台内容模板操作
+  addContentTemplate: (platformId: string, template: Omit<ContentTemplate, 'id'>) => void;
+  updateContentTemplate: (platformId: string, templateId: string, updates: Partial<ContentTemplate>) => void;
+  removeContentTemplate: (platformId: string, templateId: string) => void;
+  setDefaultContentTemplate: (platformId: string, templateId: string) => void;
 
   // 内容分析模板操作
   addAnalysisTemplate: (template: Omit<AnalysisTemplate, 'id' | 'isBuiltIn'>) => void;
@@ -456,11 +607,35 @@ interface SettingsState extends AppSettings {
   setDefaultAnalysisTemplate: (id: string) => void;
 
   // 优化报告模板操作
-  addOptimizationTemplate: (template: Omit<OptimizationTemplate, 'id' | 'isBuiltIn'>) => void;
+  addOptimizationTemplate: (template: Omit<OptimizationTemplate, 'id' | 'isBuiltIn'>, platformId?: string) => void;
   updateOptimizationTemplate: (id: string, updates: Partial<OptimizationTemplate>) => void;
   removeOptimizationTemplate: (id: string) => void;
   resetOptimizationTemplate: (id: string) => void;
-  setDefaultOptimizationTemplate: (id: string) => void;
+  setDefaultOptimizationTemplate: (id: string, platformId?: string) => void;
+  getOptimizationTemplatesByPlatform: (platformId: string) => OptimizationTemplate[];
+
+  // 测试模式
+  toggleTestMode: () => void;
+
+  // 前置信息（持久化）
+  preInfo: {
+    platform: string;
+    contentType: string;
+    track: string;
+    likes: number;
+    collectCount: number;
+    viewCount: number;
+    shareCount: number;
+  };
+  setPreInfo: (info: {
+    platform?: string;
+    contentType?: string;
+    track?: string;
+    likes?: number;
+    collectCount?: number;
+    viewCount?: number;
+    shareCount?: number;
+  }) => void;
 
   // 初始化/重置
   resetAll: () => void;
@@ -556,18 +731,24 @@ export const useSettingsStore = create<SettingsState>()(
         }));
       },
 
-      // 平台模板操作
-      addPlatform: (template) => {
+      // 平台操作
+      addPlatform: (platform) => {
         const id = `platform-${Date.now()}`;
-        const newTemplate: PlatformTemplate = {
-          ...template,
+        const templates = platform.templates.map((t, idx) => ({
+          ...t,
+          id: `${id}-tpl-${idx}`,
+        }));
+        const newPlatform: Platform = {
+          ...platform,
           id,
           isBuiltIn: false,
+          templates,
+          defaultTemplateId: templates[0]?.id || '',
         };
         set((state) => ({
           platforms: {
             ...state.platforms,
-            templates: [...state.platforms.templates, newTemplate],
+            platforms: [...state.platforms.platforms, newPlatform],
           },
         }));
       },
@@ -576,8 +757,8 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => ({
           platforms: {
             ...state.platforms,
-            templates: state.platforms.templates.map((t) =>
-              t.id === id ? { ...t, ...updates } : t
+            platforms: state.platforms.platforms.map((p) =>
+              p.id === id ? { ...p, ...updates } : p
             ),
           },
         }));
@@ -585,47 +766,38 @@ export const useSettingsStore = create<SettingsState>()(
 
       removePlatform: (id) => {
         set((state) => {
-          // 找到要删除的平台
-          const platformToRemove = state.platforms.templates.find(
-            (t) => t.id === id
+          const platformToRemove = state.platforms.platforms.find(
+            (p) => p.id === id
           );
-
-          // 如果是内置平台，不允许删除
           if (platformToRemove?.isBuiltIn) {
             return state;
           }
-
-          const templates = state.platforms.templates.filter(
-            (t) => t.id !== id
+          const platforms = state.platforms.platforms.filter(
+            (p) => p.id !== id
           );
-          // 如果删除的是默认平台，重新设置默认平台
           const needsNewDefault =
-            templates.length > 0 &&
-            !templates.some((t) => t.isDefault);
-          if (needsNewDefault) {
-            templates[0].isDefault = true;
-          }
+            platforms.length > 0 &&
+            !platforms.some((p) => p.id === state.platforms.defaultPlatform);
           return {
             platforms: {
               ...state.platforms,
-              templates,
-              defaultPlatform:
-                state.platforms.defaultPlatform === id
-                  ? templates[0]?.id
-                  : state.platforms.defaultPlatform,
+              platforms,
+              defaultPlatform: needsNewDefault
+                ? platforms[0]?.id
+                : state.platforms.defaultPlatform,
             },
           };
         });
       },
 
       resetPlatform: (id) => {
-        const builtIn = createBuiltInPlatforms().find((t) => t.id === id);
+        const builtIn = createBuiltInPlatforms().find((p) => p.id === id);
         if (builtIn) {
           set((state) => ({
             platforms: {
               ...state.platforms,
-              templates: state.platforms.templates.map((t) =>
-                t.id === id ? builtIn : t
+              platforms: state.platforms.platforms.map((p) =>
+                p.id === id ? builtIn : p
               ),
             },
           }));
@@ -636,79 +808,86 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => ({
           platforms: {
             ...state.platforms,
-            templates: state.platforms.templates.map((t) => ({
-              ...t,
-              isDefault: t.id === id,
-            })),
             defaultPlatform: id,
           },
         }));
       },
 
-      // 模板变量操作
-      addTitleVariable: (platformId, variable) => {
+      // 平台内容模板操作
+      addContentTemplate: (platformId, template) => {
+        const id = `tpl-${Date.now()}`;
+        const newTemplate: ContentTemplate = {
+          ...template,
+          id,
+        };
         set((state) => ({
           platforms: {
             ...state.platforms,
-            templates: state.platforms.templates.map((t) =>
-              t.id === platformId
+            platforms: state.platforms.platforms.map((p) =>
+              p.id === platformId
                 ? {
-                    ...t,
-                    titleVariables: [...t.titleVariables, variable],
+                    ...p,
+                    templates: [...p.templates, newTemplate],
+                    defaultTemplateId: p.defaultTemplateId || id,
                   }
-                : t
+                : p
             ),
           },
         }));
       },
 
-      removeTitleVariable: (platformId, variableName) => {
+      updateContentTemplate: (platformId, templateId, updates) => {
         set((state) => ({
           platforms: {
             ...state.platforms,
-            templates: state.platforms.templates.map((t) =>
-              t.id === platformId
+            platforms: state.platforms.platforms.map((p) =>
+              p.id === platformId
                 ? {
-                    ...t,
-                    titleVariables: t.titleVariables.filter(
-                      (v) => v.name !== variableName
+                    ...p,
+                    templates: p.templates.map((t) =>
+                      t.id === templateId ? { ...t, ...updates } : t
                     ),
                   }
-                : t
+                : p
             ),
           },
         }));
       },
 
-      addContentVariable: (platformId, variable) => {
-        set((state) => ({
-          platforms: {
-            ...state.platforms,
-            templates: state.platforms.templates.map((t) =>
-              t.id === platformId
-                ? {
-                    ...t,
-                    contentVariables: [...t.contentVariables, variable],
-                  }
-                : t
-            ),
-          },
-        }));
+      removeContentTemplate: (platformId, templateId) => {
+        set((state) => {
+          const platform = state.platforms.platforms.find((p) => p.id === platformId);
+          if (!platform) return state;
+
+          const templates = platform.templates.filter((t) => t.id !== templateId);
+          if (templates.length === 0) return state;
+
+          let defaultTemplateId = platform.defaultTemplateId;
+          if (defaultTemplateId === templateId) {
+            defaultTemplateId = templates[0].id;
+          }
+
+          return {
+            platforms: {
+              ...state.platforms,
+              platforms: state.platforms.platforms.map((p) =>
+                p.id === platformId
+                  ? { ...p, templates, defaultTemplateId }
+                  : p
+              ),
+            },
+          };
+        });
       },
 
-      removeContentVariable: (platformId, variableName) => {
+      setDefaultContentTemplate: (platformId, templateId) => {
         set((state) => ({
           platforms: {
             ...state.platforms,
-            templates: state.platforms.templates.map((t) =>
-              t.id === platformId
-                ? {
-                    ...t,
-                    contentVariables: t.contentVariables.filter(
-                      (v) => v.name !== variableName
-                    ),
-                  }
-                : t
+            platforms: state.platforms.platforms.map((p) =>
+              p.id === platformId
+                ? { ...p, defaultTemplateId: templateId }
+                : p
             ),
           },
         }));
@@ -789,12 +968,13 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       // 优化报告模板操作
-      addOptimizationTemplate: (template) => {
+      addOptimizationTemplate: (template, platformId) => {
         const id = `optimization-${Date.now()}`;
         const newTemplate: OptimizationTemplate = {
           ...template,
           id,
           isBuiltIn: false,
+          platformId: platformId || template.platformId,
         };
         set((state) => ({
           optimization: {
@@ -848,16 +1028,45 @@ export const useSettingsStore = create<SettingsState>()(
         }));
       },
 
-      setDefaultOptimizationTemplate: (id) => {
+      setDefaultOptimizationTemplate: (id, platformId) => {
         set((state) => ({
           optimization: {
             ...state.optimization,
-            templates: state.optimization.templates.map((t) => ({
-              ...t,
-              isDefault: t.id === id,
-            })),
-            defaultTemplate: id,
+            // 如果传了 platformId，只设置该平台的默认模板
+            // 否则设置全局默认模板（兼容旧逻辑）
+            templates: platformId
+              ? state.optimization.templates.map((t) => ({
+                  ...t,
+                  isDefault: t.platformId === platformId ? t.id === id : t.isDefault,
+                }))
+              : state.optimization.templates.map((t) => ({
+                  ...t,
+                  isDefault: t.id === id,
+                })),
+            defaultTemplate: platformId
+              ? state.optimization.defaultTemplate // 保持原有的全局默认不变
+              : id,
           },
+        }));
+      },
+
+      getOptimizationTemplatesByPlatform: (platformId) => {
+        return get().optimization.templates.filter(t => t.platformId === platformId);
+      },
+
+      // 测试模式
+      toggleTestMode: () => {
+        set((state) => ({
+          testMode: !state.testMode,
+        }));
+      },
+
+      // 前置信息（持久化）
+      preInfo: createDefaultPreInfo(),
+
+      setPreInfo: (info) => {
+        set((state) => ({
+          preInfo: { ...state.preInfo, ...info },
         }));
       },
 
@@ -872,7 +1081,46 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'refine-settings', // localStorage key
-    }
+      partialize: (state) => ({
+        ai: state.ai,
+        platforms: state.platforms,
+        analysis: state.analysis,
+        optimization: state.optimization,
+        testMode: state.testMode,
+      }),
+      onRehydrateStorage: () => (state) => {
+        // 迁移旧数据结构
+        if (state && state.platforms) {
+          const platforms = state.platforms as any;
+          // 如果是旧结构 (templates 数组)，转换为新结构 (platforms 数组)
+          if (Array.isArray(platforms.templates) && !platforms.platforms) {
+            // 将旧的 templates 转换为 platforms
+            const oldTemplates = platforms.templates;
+            const migratedPlatforms = oldTemplates.map((t: any) => ({
+              id: t.id,
+              name: t.name,
+              icon: t.icon,
+              isBuiltIn: t.isBuiltIn,
+              templates: [
+                {
+                  id: `${t.id}-default`,
+                  name: '默认模板',
+                  titlePrompt: t.titlePrompt || '',
+                  contentPrompt: t.contentPrompt || '',
+                }
+              ],
+              defaultTemplateId: `${t.id}-default`,
+              qualityPrompt: t.qualityPrompt,
+              qualityCriteria: t.qualityCriteria,
+            }));
+            state.platforms = {
+              platforms: migratedPlatforms,
+              defaultPlatform: platforms.defaultPlatform || migratedPlatforms[0]?.id,
+            };
+          }
+        }
+      },
+    },
   )
 );
 

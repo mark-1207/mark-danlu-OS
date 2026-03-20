@@ -1,5 +1,5 @@
 import { useSettingsStore } from '../../stores/settingsStore';
-import type { PlatformTemplate, Message } from './types';
+import type { ContentTemplate, Message } from './types';
 
 /**
  * 提示词模板服务
@@ -72,11 +72,20 @@ export function buildParseMessages(content: string): Message[] {
 }
 
 /**
- * 获取平台模板
+ * 获取平台内容模板
+ * @param platformId - 平台ID
+ * @param templateId - 可选的内容模板ID，不传则使用平台默认模板
  */
-export function getPlatformTemplate(platformId: string): PlatformTemplate | undefined {
+export function getPlatformTemplate(platformId: string, templateId?: string): ContentTemplate | undefined {
   const { platforms } = useSettingsStore.getState();
-  return platforms.templates.find(t => t.id === platformId);
+  const platform = platforms.platforms.find(p => p.id === platformId);
+  if (!platform) return undefined;
+
+  if (templateId) {
+    return platform.templates.find(t => t.id === templateId);
+  }
+  // 使用默认模板
+  return platform.templates.find(t => t.id === platform.defaultTemplateId) || platform.templates[0];
 }
 
 /**
@@ -89,6 +98,14 @@ export function buildTitleMessages(platformId: string, context: {
   audience?: string;
   category?: string;
   style?: string;
+  // 前置信息
+  platform?: string;
+  contentType?: string;
+  track?: string;
+  likes?: number;
+  collectCount?: number;
+  viewCount?: number;
+  shareCount?: number;
 }): Message[] {
   const template = getPlatformTemplate(platformId);
   if (!template) {
@@ -103,7 +120,15 @@ export function buildTitleMessages(platformId: string, context: {
     .replace(/{audience}/g, context.audience || '')
     .replace(/{category}/g, context.category || '')
     .replace(/{style}/g, context.style || '')
-    .replace(/{title}/g, '');
+    .replace(/{title}/g, '')
+    // 前置信息变量
+    .replace(/{platform}/g, context.platform || '')
+    .replace(/{content_type}/g, context.contentType || '')
+    .replace(/{track}/g, context.track || '')
+    .replace(/{likes}/g, context.likes?.toString() || '0')
+    .replace(/{collect_count}/g, context.collectCount?.toString() || '0')
+    .replace(/{view_count}/g, context.viewCount?.toString() || '0')
+    .replace(/{share_count}/g, context.shareCount?.toString() || '0');
 
   return [
     {
@@ -129,6 +154,14 @@ export function buildContentMessages(platformId: string, context: {
   category?: string;
   style?: string;
   wordCount?: string;
+  // 前置信息
+  platform?: string;
+  contentType?: string;
+  track?: string;
+  likes?: number;
+  collectCount?: number;
+  viewCount?: number;
+  shareCount?: number;
 }): Message[] {
   const template = getPlatformTemplate(platformId);
   if (!template) {
@@ -144,7 +177,15 @@ export function buildContentMessages(platformId: string, context: {
     .replace(/{audience}/g, context.audience || '')
     .replace(/{category}/g, context.category || '')
     .replace(/{style}/g, context.style || '')
-    .replace(/{word_count}/g, context.wordCount || '');
+    .replace(/{word_count}/g, context.wordCount || '')
+    // 前置信息变量
+    .replace(/{platform}/g, context.platform || '')
+    .replace(/{content_type}/g, context.contentType || '')
+    .replace(/{track}/g, context.track || '')
+    .replace(/{likes}/g, context.likes?.toString() || '0')
+    .replace(/{collect_count}/g, context.collectCount?.toString() || '0')
+    .replace(/{view_count}/g, context.viewCount?.toString() || '0')
+    .replace(/{share_count}/g, context.shareCount?.toString() || '0');
 
   return [
     {
@@ -201,12 +242,13 @@ export function buildQualityMessages(platformId: string, context: {
   content: string;
   title: string;
 }): Message[] {
-  const template = getPlatformTemplate(platformId);
-  if (!template) {
-    throw new Error(`Platform template not found: ${platformId}`);
+  const { platforms } = useSettingsStore.getState();
+  const platform = platforms.platforms.find(p => p.id === platformId);
+  if (!platform) {
+    throw new Error(`Platform not found: ${platformId}`);
   }
 
-  const criteriaText = template.qualityCriteria.join('\n');
+  const criteriaText = platform.qualityCriteria?.join('\n') || '';
 
   return [
     {
@@ -243,7 +285,7 @@ export function buildQualityMessages(platformId: string, context: {
   "optimizationSuggestions": ["优化建议1", "优化建议2"]
 }`;
         return promptTemplate
-          .replace(/{platformName}/g, template.name)
+          .replace(/{platformName}/g, platform.name)
           .replace(/{title}/g, context.title)
           .replace(/{content}/g, context.content)
           .replace(/{criteria}/g, criteriaText);

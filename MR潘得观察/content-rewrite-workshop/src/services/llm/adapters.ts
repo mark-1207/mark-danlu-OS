@@ -295,6 +295,93 @@ export class KimiAdapter implements LLMAdapter {
 }
 
 /**
+ * 火山引擎 Ark 适配器
+ */
+export class ArkAdapter implements LLMAdapter {
+  name = 'Ark';
+
+  async chat(config: LLMRequestConfig, providerConfig: ProviderConfig): Promise<LLMResponse> {
+    const baseUrl = providerConfig.baseUrl || 'https://ark.cn-beijing.volces.com';
+
+    // 将 messages 转换为 Ark 格式
+    const messages = config.messages.map((msg) => {
+      // 处理文本内容
+      const content = typeof msg.content === 'string' ? msg.content : String(msg.content);
+
+      return {
+        role: msg.role,
+        content,
+      };
+    });
+
+    const requestBody: any = {
+      model: providerConfig.model,
+      messages,
+      temperature: config.temperature ?? 0.7,
+    };
+
+    if (config.maxTokens) {
+      requestBody.max_tokens = config.maxTokens;
+    }
+
+    const response = await axios.post(
+      `${baseUrl}/api/v3/chat/completions`,
+      requestBody,
+      {
+        headers: {
+          'Authorization': `Bearer ${providerConfig.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    // 防御性处理：检查 choices 是否存在
+    const choice = response.data?.choices?.[0];
+    if (!choice) {
+      throw new Error('API返回为空，未收到有效响应');
+    }
+
+    const content = choice?.message?.content || '';
+    if (!content) {
+      throw new Error('API返回内容为空');
+    }
+
+    return {
+      content,
+      usage: {
+        promptTokens: response.data.usage?.prompt_tokens || 0,
+        completionTokens: response.data.usage?.completion_tokens || 0,
+        totalTokens: response.data.usage?.total_tokens || 0,
+      },
+      model: response.data.model || config.model,
+    };
+  }
+
+  async testConnection(providerConfig: ProviderConfig): Promise<boolean> {
+    try {
+      const baseUrl = providerConfig.baseUrl || 'https://ark.cn-beijing.volces.com';
+      await axios.post(
+        `${baseUrl}/api/v3/chat/completions`,
+        {
+          model: providerConfig.model,
+          messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
+          max_tokens: 1,
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${providerConfig.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+/**
  * DeepSeek 适配器
  */
 export class DeepSeekAdapter implements LLMAdapter {
@@ -453,6 +540,8 @@ export function createAdapter(provider: string): LLMAdapter {
       return new KimiAdapter();
     case 'deepseek':
       return new DeepSeekAdapter();
+    case 'ark':
+      return new ArkAdapter();
     case 'custom':
       return new CustomAdapter();
     default:

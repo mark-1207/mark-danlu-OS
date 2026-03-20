@@ -4,11 +4,6 @@ import type { Message } from './types';
 
 export type ProgressCallback = (progress: number, status: 'pending' | 'success' | 'error') => void;
 
-/**
- * AI 调用服务
- * 统一调用入口，支持进度回调
- */
-
 interface LLMServiceOptions {
   onProgress?: ProgressCallback;
 }
@@ -18,27 +13,21 @@ interface LLMServiceOptions {
  */
 export function hasApiConfig(): boolean {
   const { ai } = useSettingsStore.getState();
-  console.log('[LLM] hasApiConfig 检查 - providers:', ai.providers);
-  const result = ai.providers.some(p => p.isEnabled);
-  console.log('[LLM] hasApiConfig 结果:', result);
-  return result;
+  return ai.providers.some(p => p.isEnabled);
 }
 
 /**
- * 获取 AI 配置（用于错误提示）
+ * 获取 AI 配置错误信息
  */
 export function getApiConfigError(): string | null {
   const { ai } = useSettingsStore.getState();
-
   if (ai.providers.length === 0) {
     return '请先在设置中配置 AI 供应商';
   }
-
   const enabled = ai.providers.filter(p => p.isEnabled);
   if (enabled.length === 0) {
     return '请至少启用一个 AI 供应商';
   }
-
   return null;
 }
 
@@ -50,25 +39,17 @@ export async function callAI(
   options: LLMServiceOptions = {}
 ): Promise<string> {
   const { ai } = useSettingsStore.getState();
-
   if (ai.providers.length === 0) {
     throw new Error('请先在设置中配置 AI 供应商');
   }
-
   const enabledProviders = ai.providers.filter(p => p.isEnabled);
   if (enabledProviders.length === 0) {
     throw new Error('请至少启用一个 AI 供应商');
   }
 
   options.onProgress?.(10, 'pending');
-
   try {
-    const response = await llmManager.chat(
-      messages,
-      ai.providers,
-      ai.failover
-    );
-
+    const response = await llmManager.chat(messages, ai.providers, ai.failover);
     options.onProgress?.(100, 'success');
     return response.content;
   } catch (error) {
@@ -79,14 +60,69 @@ export async function callAI(
 
 /**
  * 解析内容（爆款拆解）
+ * @param content - 要解析的内容
+ * @param options - 选项
+ * @param preInfo - 前置信息（平台、内容类型、赛道、数据等）
  */
 export async function parseContent(
   content: string,
-  options: LLMServiceOptions = {}
+  options: LLMServiceOptions = {},
+  preInfo?: {
+    platform: string;
+    contentType: string;
+    track: string;
+    likes?: number;
+    collectCount?: number;
+    viewCount?: number;
+    shareCount?: number;
+  }
 ): Promise<any> {
-  console.log('[LLM] parseContent 被调用');
-  const { ai } = useSettingsStore.getState();
-  console.log('[LLM] parseContent - ai.providers:', ai.providers);
+  const { ai, analysis, testMode } = useSettingsStore.getState();
+
+  // 测试模式：返回模拟数据
+  if (testMode) {
+    options.onProgress?.(30, 'pending');
+    await new Promise(resolve => setTimeout(resolve, 800));
+    options.onProgress?.(60, 'pending');
+    await new Promise(resolve => setTimeout(resolve, 600));
+    options.onProgress?.(100, 'success');
+
+    return {
+      主题分类: '情感',
+      核心议题: '测试数据 - 人际关系中的边界感',
+      目标受众: '25-35岁职场人群',
+      情绪基调: ['共鸣', '温暖', '治愈'],
+      结构: {
+        开篇钩子: { 内容: '你有没有过这样的经历...', 技巧: '共鸣', 分数: 8 },
+        主线脉络: ['情绪共鸣', '故事展开', '观点提炼', '行动建议'],
+        高潮时刻: '学会说"不"之后，我反而更受欢迎了',
+        收尾方式: '互动提问'
+      },
+      价值: {
+        知识增量: '学会设立心理边界',
+        认知颠覆: '帮助他人不等于委屈自己',
+        情绪价值: '被理解、被治愈',
+        实用价值: '3个设立边界的具体方法'
+      },
+      基因评估: {
+        标题吸引力: { 分数: 8.5, 亮点: '引发共鸣+制造好奇' },
+        开头留存力: { 分数: 8, 亮点: '用共情问题开场' },
+        内容价值度: { 分数: 7.5, 亮点: '干货+故事结合' },
+        情绪感染力: { 分数: 8, 亮点: '真诚、有温度' },
+        传播设计度: { 分数: 7, 亮点: '引发讨论的设计' },
+        排版美观度: { 分数: 8, 亮点: '段落清晰、配图精美' }
+      },
+      金句: [
+        '帮助别人是好事，但委屈自己是坏事',
+        '设立边界不是自私，而是对自己负责',
+        '真正的朋友会尊重你的边界'
+      ],
+      互动诱饵: '你在生活中会因为不好意思拒绝而委屈自己吗？',
+      平台: '',
+      _rawJson: {},
+      rawContent: '这是测试模式返回的模拟数据'
+    };
+  }
 
   if (ai.providers.length === 0) {
     throw new Error('请先在设置中配置 AI 供应商');
@@ -94,49 +130,33 @@ export async function parseContent(
 
   options.onProgress?.(10, 'pending');
 
-  const systemPrompt = `你是一个顶尖新媒体爆款拆解专家。请对以下爆款内容进行深度逆向拆解，提取其Content DNA底层逻辑。
+  // 获取默认分析模板
+  const defaultTemplate = analysis.templates.find(t => t.id === analysis.defaultTemplate) || analysis.templates[0];
+  if (!defaultTemplate) {
+    throw new Error('未找到内容分析模板');
+  }
 
-请严格按照以下维度进行结构化分析，以JSON格式输出：
+  // 使用模板的分析提示词
+  const systemPrompt = defaultTemplate.analysisPrompt;
 
-## 一、基础定位
-- 主题分类：情感/科技/商业/生活/教育/娱乐/其他
-- 核心议题：内容主要讨论什么问题？受众的痛点是什么？
-- 目标受众画像：年龄段、身份标签、心理需求
+  // 构建前置信息上下文
+  let preInfoContext = '';
+  if (preInfo) {
+    preInfoContext = `
+【前置信息】
+平台：${preInfo.platform || '未指定'}
+内容类型：${preInfo.contentType || '未指定'}
+所属赛道：${preInfo.track || '未指定'}
+数据参考：点赞${preInfo.likes || 0} / 收藏${preInfo.collectCount || 0} / 阅读${preInfo.viewCount || 0} / 分享${preInfo.shareCount || 0}
 
-## 二、结构脉络 (Structure)
-- 开篇钩子：前30秒/前300字是如何留住用户的？使用了什么技巧（悬念/冲突/共鸣）？吸引力打分（1-10分）
-- 主线脉络：按时间线梳理3-5个核心论点或故事节点
-- 高潮时刻：哪一部分最精彩？标记其特征
-- 逻辑链条：提炼"论点→论据→结论"的完整转化路径
-- 收尾方式：如何结束？是否有强烈的行动号召(CTA)或情绪余韵？
-
-## 三、价值与情绪 (Value & Emotion)
-- 知识增量：用户能学到什么？
-- 认知颠覆：打破了什么固有观念？
-- 情绪价值：引发什么共鸣？（焦虑→释怀→振奋等情绪起伏）
-- 实用价值：有可操作性吗？
-
-## 四、爆款基因评估
-- 标题吸引力打分（1-10分）及亮点分析
-- 开头留存力打分（1-10分）及亮点分析
-- 内容价值度打分（1-10分）及亮点分析
-- 情绪感染力打分（1-10分）及亮点分析
-- 传播设计度打分（1-10分）及亮点分析（金句/转发点）
-- 排版美观度打分（1-10分）及亮点分析
-
-## 五、高光与传播点
-- 金句提取：3-5句极具传播属性的金句
-- 互动诱饵：作者是如何引导点赞、评论或收藏的？
-
-请以JSON格式输出完整分析结果。`;
+`;
+  }
 
   try {
-    console.log('[LLM] 准备调用 llmManager.chat');
-    console.log('[LLM] 请求信息 - model:', ai.providers[0]?.model, 'baseUrl:', ai.providers[0]?.baseUrl);
     const response = await llmManager.chat(
       [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `请分析以下内容：\n\n${content}` }
+        { role: 'user', content: `请分析以下内容：\n\n${preInfoContext}${content}` }
       ],
       ai.providers,
       ai.failover
@@ -144,136 +164,35 @@ export async function parseContent(
 
     options.onProgress?.(100, 'success');
 
-    // 检查返回内容是否为空
     if (!response.content || response.content.trim() === '') {
-      throw new Error('API返回内容为空，请检查API配置或网络连接');
+      throw new Error('API返回内容为空');
     }
 
-    console.log('[LLM] AI返回原始内容:', response.content.substring(0, 500));
-
-    // 尝试解析 JSON - 使用更健壮的方法
-    try {
-      // 尝试多种方式提取JSON
-      let jsonStr = '';
-
-      // 方法0: 尝试从 Markdown 代码块中提取 JSON
-      const codeBlockMatch = response.content.match(/```(?:json)?\s*([\s\S]*?)```/);
-      if (codeBlockMatch) {
-        jsonStr = codeBlockMatch[1].trim();
-      }
-
-      // 方法1: 尝试匹配完整的JSON对象
-      if (!jsonStr) {
-        const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          jsonStr = jsonMatch[0];
-        }
-      }
-
-      // 方法2: 如果方法1失败，尝试找到第一个{和最后一个}
-      if (!jsonStr) {
-        const firstBrace = response.content.indexOf('{');
-        const lastBrace = response.content.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-          jsonStr = response.content.substring(firstBrace, lastBrace + 1);
-        }
-      }
-
-      if (jsonStr) {
-        // 尝试修复常见的JSON格式问题
-        jsonStr = jsonStr
-          .replace(/,\s*}/g, '}')  // 移除尾随逗号
-          .replace(/,\s*]/g, ']')  // 移除数组尾随逗号
-          .replace(/'/g, '"')       // 单引号替换为双引号
-          .replace(/\n/g, ' ')      // 换行符替换为空格
-          .replace(/\r/g, ' ');     //  carriage return
-
-        try {
-          const parsed = JSON.parse(jsonStr);
-          console.log('[LLM] JSON解析成功, parsed:', JSON.stringify(parsed).substring(0, 300));
-
-          // 简单方式：遍历所有嵌套对象的值，提取有用的字段
-          const extractValues = (obj: any, result: any = {}): any => {
-            if (typeof obj !== 'object' || obj === null) return result;
-
-            for (const key of Object.keys(obj)) {
-              const value = obj[key];
-              if (typeof value === 'string') {
-                // 直接字符串值
-                if (!result[key]) result[key] = value;
-              } else if (Array.isArray(value)) {
-                // 数组值
-                if (!result[key]) result[key] = value;
-              } else if (typeof value === 'object') {
-                // 嵌套对象，递归提取
-                extractValues(value, result);
-              }
-            }
-            return result;
-          };
-
-          const flatData = extractValues(parsed);
-          console.log('[LLM] 提取的数据:', flatData);
-
-        // 返回完整的AI原始数据（不转换）
-        return {
-          ...flatData,
-          _rawJson: parsed, // 保留原始嵌套结构
-          rawContent: response.content
-        };
-        } catch (parseError) {
-          console.log('[LLM] JSON解析仍失败，但有内容，返回默认结构');
-          console.log('[LLM] 尝试解析的字符串:', jsonStr.substring(0, 200));
-        }
-      }
-    } catch (e) {
-      console.error('[LLM] JSON解析失败:', e);
+    // 尝试解析 JSON 格式（模板默认输出 JSON）
+    const parsed = parseJsonResult(response.content);
+    if (parsed) {
+      return {
+        ...parsed,
+        rawContent: JSON.stringify(parsed, null, 2)
+      };
     }
 
-    // 如果无法解析JSON，尝试从原始文本中提取有用信息
-    const rawContent = response.content;
+    // 如果JSON解析失败，尝试解析 Markdown 格式
+    const mdParsed = parseMarkdownResult(response.content);
+    if (mdParsed) {
+      return mdParsed;
+    }
 
-    // 尝试从文本中提取关键信息
-    const extractField = (pattern: RegExp): string => {
-      const match = rawContent.match(pattern);
-      return match ? match[1] || match[0] : '';
+    // 如果都失败，返回原始内容
+    return {
+      主题分类: '未识别',
+      核心议题: '未识别',
+      目标受众: '未识别',
+      情绪基调: [],
+      平台: '',
+      _rawJson: {},
+      rawContent: response.content
     };
-
-    // 尝试提取主题分类
-    const categories = ['情感', '科技', '商业', '生活', '教育', '娱乐', '财富', '职场', '心理'];
-    const foundCategory = categories.find(cat => rawContent.includes(cat)) || '未分类';
-
-    // 尝试提取情绪基调
-    const emotions = ['积极', '消极', '中性', '焦虑', '励志', '温暖', '感慨', '深刻'];
-    const foundEmotion = emotions.find(em => rawContent.includes(em)) || '未识别';
-
-    console.log('[LLM] 从原始文本提取信息: 主题=' + foundCategory + ', 情绪=' + foundEmotion);
-
-    // 尝试解析原始内容中的 JSON
-    let rawJson = {};
-    try {
-      const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        rawJson = JSON.parse(jsonMatch[0]);
-      }
-    } catch (e) {
-      console.log('[LLM] 原始内容中也无法解析JSON');
-    }
-
-    const result = {
-      核心议题: extractField(/核心议题[：:]\s*(.+?)(?:\n|$)/) || extractField(/主题[：:]\s*(.+?)(?:\n|$)/) || '财富自由与心态',
-      主题分类: foundCategory,
-      情绪基调: foundEmotion,
-      内容结构: {},
-      价值点: {},
-      目标受众: extractField(/目标受众[：:]\s*(.+?)(?:\n|$)/) || '职场人群/创业者',
-      高光片段: extractField(/金句[：:]\s*(.+?)(?:\n|$)/) ? [extractField(/金句[：:]\s*(.+?)(?:\n|$)/)] : ['人应该是财富的主人，而不是财富的奴隶'],
-      _rawJson: rawJson, // 始终返回原始JSON
-      rawContent: rawContent
-    };
-
-    console.log('[LLM] 最终返回结果:', result);
-    return result;
   } catch (error) {
     options.onProgress?.(0, 'error');
     throw error;
@@ -281,7 +200,134 @@ export async function parseContent(
 }
 
 /**
+ * 解析 JSON 格式的分析结果
+ */
+function parseJsonResult(content: string): any {
+  try {
+    // 尝试提取 JSON（去掉可能的 markdown 代码块标记）
+    let jsonStr = content.trim();
+    if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/^```\w*\n?/, '').replace(/```$/, '');
+    }
+
+    const parsed = JSON.parse(jsonStr);
+    if (parsed && typeof parsed === 'object') {
+      return {
+        ...parsed,
+        _rawJson: parsed
+      };
+    }
+    return null;
+  } catch (e) {
+    // JSON 解析失败
+    return null;
+  }
+}
+
+/**
+ * 解析 Markdown 格式的分析结果
+ */
+function parseMarkdownResult(content: string): any {
+  const result: any = { _rawJson: {}, rawContent: content };
+
+  // 一、基础定位
+  const basicMatch = content.match(/## 一、基础定位\n([\s\S]*?)(?=##|$)/);
+  if (basicMatch) {
+    const basic = basicMatch[1];
+    const 主题分类 = basic.match(/- 主题分类：(.+)/)?.[1] || '';
+    const 核心议题 = basic.match(/- 核心议题：(.+)/)?.[1] || '';
+    const 目标受众画像 = basic.match(/- 目标受众画像：(.+)/)?.[1] || '';
+    const 情绪基调Str = basic.match(/- 情绪基调：(.+)/)?.[1] || '';
+
+    result._rawJson['一、基础定位'] = {
+      主题分类,
+      核心议题,
+      目标受众画像,
+      情绪基调: 情绪基调Str.split(/[、,，]/).filter(Boolean)
+    };
+    result.主题分类 = 主题分类;
+    result.核心议题 = 核心议题;
+    result.目标受众 = 目标受众画像;
+    result.情绪基调 = 情绪基调Str.split(/[、,，]/).filter(Boolean);
+  }
+
+  // 二、结构脉络
+  const structMatch = content.match(/## 二、结构脉络\n([\s\S]*?)(?=##|$)/);
+  if (structMatch) {
+    const struct = structMatch[1];
+    const 开篇钩子 = struct.match(/- 开篇钩子：(.+?)，技巧：(.+?)，打分：(\d+)分/);
+    const 主线脉络 = struct.match(/- 主线脉络：(.+)/)?.[1] || '';
+    const 高潮时刻 = struct.match(/- 高潮时刻：(.+)/)?.[1] || '';
+    const 逻辑链条 = struct.match(/- 逻辑链条：(.+)/)?.[1] || '';
+    const 收尾方式 = struct.match(/- 收尾方式：(.+)/)?.[1] || '';
+
+    result._rawJson['二、结构脉络'] = {
+      开篇钩子: 开篇钩子 ? { 内容: 开篇钩子[1], 技巧: 开篇钩子[2], 打分: parseInt(开篇钩子[3]) } : { 内容: '', 技巧: '', 打分: 5 },
+      主线脉络: 主线脉络.split(/[、,，]/).filter(Boolean),
+      高潮时刻,
+      逻辑链条,
+      收尾方式
+    };
+  }
+
+  // 三、价值与情绪
+  const valueMatch = content.match(/## 三、价值与情绪\n([\s\S]*?)(?=##|$)/);
+  if (valueMatch) {
+    const value = valueMatch[1];
+    result._rawJson['三、价值与情绪'] = {
+      知识增量: value.match(/- 知识增量：(.+)/)?.[1] || '',
+      认知颠覆: value.match(/- 认知颠覆：(.+)/)?.[1] || '',
+      情绪价值: value.match(/- 情绪价值：(.+)/)?.[1] || '',
+      实用价值: value.match(/- 实用价值：(.+)/)?.[1] || ''
+    };
+  }
+
+  // 四、爆款基因评估
+  const geneMatch = content.match(/## 四、爆款基因评估\n([\s\S]*?)(?=##|$)/);
+  if (geneMatch) {
+    const gene = geneMatch[1];
+    const geneData: any = {};
+    const items = ['标题吸引力', '开头留存力', '内容价值度', '情绪感染力', '传播设计度', '排版美观度'];
+
+    items.forEach(item => {
+      const match = gene.match(new RegExp(`- ${item}：打分(\\d+)分，亮点(.+)`));
+      if (match) {
+        geneData[item] = { 打分: parseInt(match[1]), 亮点: match[2] };
+      }
+    });
+
+    result._rawJson['爆款基因评估'] = geneData;
+  }
+
+  // 五、高光与传播点
+  const highlightMatch = content.match(/## 五、高光与传播点\n([\s\S]*)/);
+  if (highlightMatch) {
+    const highlight = highlightMatch[1];
+    const 金句提取: string[] = [];
+    const goldMatches = highlight.matchAll(/\d+\. (.+)/g);
+    for (const match of goldMatches) {
+      金句提取.push(match[1]);
+    }
+    const 互动诱饵 = highlight.match(/互动诱饵：(.+)/)?.[1] || '';
+
+    result._rawJson['高光与传播点'] = {
+      金句提取: 金句提取.map(c => ({ 内容: c })),
+      金句: 金句提取.map(c => ({ 内容: c })),
+      互动诱饵
+    };
+  }
+
+  // 检查是否成功解析到数据
+  if (Object.keys(result._rawJson).length === 0) {
+    return null;
+  }
+
+  return result;
+}
+
+/**
  * 生成单平台内容
+ * @param mergeTitleAndContent 是否合并标题和正文（一次调用生成标题+正文）
  */
 export async function generatePlatformContent(
   platformId: string,
@@ -293,18 +339,66 @@ export async function generatePlatformContent(
     audience?: string;
     category?: string;
     style?: string;
+    // 前置信息
+    platform?: string;
+    contentType?: string;
+    track?: string;
+    likes?: number;
+    collectCount?: number;
+    viewCount?: number;
+    shareCount?: number;
   },
-  options: LLMServiceOptions = {}
+  options: LLMServiceOptions = {},
+  mergeTitleAndContent: boolean = false
 ): Promise<{
   titles: string[];
   content: string;
   coverPrompt: string;
 }> {
-  const { ai, platforms } = useSettingsStore.getState();
-  const template = platforms.templates.find(t => t.id === platformId);
+  const { ai, platforms, testMode } = useSettingsStore.getState();
+  const platform = platforms.platforms.find(p => p.id === platformId);
+  const template = platform?.templates.find(t => t.id === (platform.defaultTemplateId || platform.templates[0]?.id));
 
   if (!template) {
     throw new Error(`Platform template not found: ${platformId}`);
+  }
+
+  // 测试模式：返回模拟数据
+  if (testMode) {
+    options.onProgress?.(20, 'pending');
+    await new Promise(resolve => setTimeout(resolve, 500));
+    options.onProgress?.(50, 'pending');
+    await new Promise(resolve => setTimeout(resolve, 400));
+    options.onProgress?.(80, 'pending');
+    await new Promise(resolve => setTimeout(resolve, 300));
+    options.onProgress?.(100, 'success');
+
+    const mockTitles = [
+      '测试标题1 - 学会设立边界，让关系更健康',
+      '测试标题2 - 为什么你总是委屈自己？',
+      '测试标题3 - 3个方法帮你学会说"不"',
+      '测试标题4 - 设立边界的正确方式',
+      '测试标题5 - 不好意思拒绝？看完你就懂了'
+    ];
+
+    return {
+      titles: mergeTitleAndContent ? mockTitles : [mockTitles[0]],
+      content: `这是测试模式下生成的模拟内容。
+
+【测试数据】
+
+在人际关系中，你是否经常因为不好意思拒绝而委屈自己？很多人觉得帮助别人是一种美德，但如果因此失去了自己的边界，就会产生越来越多的负面情绪。
+
+其实，真正的善良不是委屈自己成全别人，而是在保护自己的前提下去帮助他人。
+
+学会设立边界，你会发现：
+1. 你的关系变得更健康了
+2. 别人更尊重你了
+3. 你自己也更快乐了
+
+从今天开始，试着勇敢说"不"吧！`,
+      coverPrompt: ''
+    };
   }
 
   options.onProgress?.(10, 'pending');
@@ -320,6 +414,64 @@ export async function generatePlatformContent(
   };
 
   try {
+    // 合并模式：一次调用生成标题+正文
+    if (mergeTitleAndContent) {
+      const mergedPrompt = `你是一个${template.name}内容创作专家。请根据以下原始内容，生成适合该平台的标题和正文。
+
+【原始内容】
+${context.content}
+
+【目标受众】
+${context.audience || '通用'}
+
+【核心关键词】
+${context.keywords || ''}
+
+【情绪基调】
+${context.emotion || ''}
+
+【内容分类】
+${context.category || ''}
+
+【风格】
+${context.style || ''}
+
+请按以下JSON格式输出，不要添加任何解释和markdown标记：
+{
+  "titles": ["标题1", "标题2", "标题3", "标题4", "标题5"],
+  "content": "生成的正文内容..."
+}`;
+
+      const mergedResponse = await llmManager.chat(
+        [
+          { role: 'system', content: `你是一个${template.name}内容创作专家，擅长生成各平台风格的爆款标题和正文。` },
+          { role: 'user', content: mergedPrompt }
+        ],
+        ai.providers,
+        ai.failover
+      );
+
+      // 解析JSON响应
+      try {
+        let jsonStr = mergedResponse.content.trim();
+        if (jsonStr.startsWith('```')) {
+          jsonStr = jsonStr.replace(/^```\w*\n?/, '').replace(/```$/, '');
+        }
+        const parsed = JSON.parse(jsonStr);
+        results.titles = Array.isArray(parsed.titles) ? parsed.titles.slice(0, 5) : [parsed.titles];
+        results.content = parsed.content || '';
+      } catch {
+        // JSON解析失败，尝试按行分割
+        const lines = mergedResponse.content.split('\n').filter(l => l.trim());
+        results.titles = lines.slice(0, 5).map(l => l.replace(/^\d+[.、]\s*/, '').trim());
+        results.content = mergedResponse.content;
+      }
+
+      options.onProgress?.(100, 'success');
+      return results;
+    }
+
+    // 非合并模式：分开调用（原始逻辑）
     // 1. 生成标题
     const titlePrompt = template.titlePrompt
       .replace(/{content}/g, context.content)
@@ -368,17 +520,8 @@ export async function generatePlatformContent(
     results.content = contentResponse.content;
     options.onProgress?.(70, 'pending');
 
-    // 3. 生成封面提示词
-    const coverResponse = await llmManager.chat(
-      [
-        { role: 'system', content: '你是一个AI绘画提示词专家，擅长生成Midjourney风格的图片提示词。' },
-        { role: 'user', content: `请为以下内容生成封面图片的AI绘画提示词：\n\n标题：${results.titles[0] || ''}\n内容摘要：${context.content.slice(0, 200)}` }
-      ],
-      ai.providers,
-      ai.failover
-    );
-
-    results.coverPrompt = coverResponse.content;
+    // 封面提示词已隐藏，保留为空
+    results.coverPrompt = '';
     options.onProgress?.(100, 'success');
 
     return results;
@@ -390,44 +533,79 @@ export async function generatePlatformContent(
 
 /**
  * 一键优化
+ * @param originalContent 原始内容
+ * @param qualityReport 质检报告
+ * @param options 选项
+ * @param platformId 平台ID（用于选择对应平台的优化模板）
  */
 export async function optimizeContent(
   originalContent: string,
   qualityReport: any,
-  options: LLMServiceOptions = {}
+  options: LLMServiceOptions = {},
+  platformId?: string
 ): Promise<string> {
-  const { ai } = useSettingsStore.getState();
+  const { ai, optimization, testMode } = useSettingsStore.getState();
+
+  // 根据平台ID获取对应的优化模板，如果没有传平台ID则使用全局默认
+  let defaultTemplate;
+  if (platformId) {
+    // 查找该平台下的默认模板
+    const platformTemplates = optimization.templates.filter(t => t.platformId === platformId);
+    defaultTemplate = platformTemplates.find(t => t.isDefault) || platformTemplates[0];
+  }
+  // 如果没有找到平台模板，使用全局默认
+  if (!defaultTemplate) {
+    defaultTemplate = optimization.templates.find(t => t.id === optimization.defaultTemplate) || optimization.templates[0];
+  }
+
+  // 测试模式：返回模拟数据
+  if (testMode) {
+    options.onProgress?.(30, 'pending');
+    await new Promise(resolve => setTimeout(resolve, 600));
+    options.onProgress?.(70, 'pending');
+    await new Promise(resolve => setTimeout(resolve, 400));
+    options.onProgress?.(100, 'success');
+
+    return `【测试模式优化后的内容】
+
+在人际关系中，你是否经常因为不好意思拒绝而委屈自己？很多人觉得帮助别人是一种美德，但如果因此失去了自己的边界，就会产生越来越多的负面情绪。
+
+其实，真正的善良不是委屈自己成全别人，而是在保护自己的前提下去帮助他人。
+
+学会设立边界，你会发现：
+1. 你的关系变得更健康了
+2. 别人更尊重你了
+3. 你自己也更快乐了
+
+从今天开始，试着勇敢说"不"吧！
+
+【优化说明】这是测试模式下返回的模拟优化结果。`;
+  }
+
+  if (!defaultTemplate) {
+    throw new Error('未找到优化报告模板');
+  }
 
   options.onProgress?.(10, 'pending');
 
-  const reportText = `
-未通过项：
-${qualityReport.checklist?.filter((c: any) => !c.passed).map((c: any) => `- ${c.item}: ${c.reason}`).join('\n') || '无'}
+  // 构建质检报告文本
+  const checklistText = qualityReport.checklist?.filter((c: any) => !c.passed)
+    .map((c: any) => `- ${c.item}: ${c.reason}`)
+    .join('\n') || '无';
 
-优化建议：
-${qualityReport.optimizationSuggestions?.join('\n') || '无'}
-`;
+  const suggestionsText = qualityReport.optimizationSuggestions
+    ?.map((s: any) => s.content)
+    .join('\n') || '无';
 
-  const optimizePrompt = `请根据以下质检报告对内容进行针对性优化。
-
-## 原始内容
-${originalContent}
-
-## 质检报告
-${reportText}
-
-## 优化要求
-1. 只修改质检报告中标记为"未通过"或"不足"的部分
-2. 其他内容保持不变
-3. 保持内容的完整性、逻辑流畅度、风格、语调、情绪
-4. 修改后的内容要自然流畅，不要有拼接感
-
-请直接输出优化后的完整内容，不要添加任何解释。`;
+  // 使用模板的优化提示词
+  const optimizePrompt = defaultTemplate.optimizePrompt
+    .replace(/{originalContent}/g, originalContent)
+    .replace(/{qualityReport}/g, `未通过项：\n${checklistText}\n\n优化建议：\n${suggestionsText}`);
 
   try {
     const response = await llmManager.chat(
       [
-        { role: 'system', content: '你是一个内容优化专家，擅长根据质检报告进行针对性优化。只修改需要改进的部分，其他保持原样。' },
+        { role: 'system', content: defaultTemplate.systemPrompt },
         { role: 'user', content: optimizePrompt }
       ],
       ai.providers,

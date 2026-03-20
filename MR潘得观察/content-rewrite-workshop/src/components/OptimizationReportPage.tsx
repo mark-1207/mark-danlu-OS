@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   MessageSquare,
   Layers,
@@ -16,8 +16,11 @@ import {
   BarChart3,
   Lightbulb,
   Edit3,
-  Home
+  Home,
+  ChevronDown,
+  FileArchive
 } from 'lucide-react';
+import JSZip from 'jszip';
 import {
   RadarChart,
   PolarGrid,
@@ -27,6 +30,7 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import { optimizeContent, hasApiConfig } from '../services/llm/llmService';
+import { useSettingsStore } from '../stores/settingsStore';
 
 // 类型定义
 interface QualityReport {
@@ -342,10 +346,25 @@ export default function OptimizationReportPage({
   onStepClick: (step: number) => void;
   onRestart: () => void;
 }) {
+  const testMode = useSettingsStore((state) => state.testMode);
   const [currentPlatform, setCurrentPlatform] = useState<string>('gzh');
   const [isLoading, setIsLoading] = useState(false);
   const [showCompareModal, setShowCompareModal] = useState(false);
   const [completedSteps] = useState<number[]>([1, 2, 3]);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isExportingZip, setIsExportingZip] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  // 点击外部关闭导出菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // 各平台的内容数据
   const [platformsData, setPlatformsData] = useState<{
@@ -461,8 +480,8 @@ export default function OptimizationReportPage({
 
   // 一键优化处理
   const handleOptimize = async () => {
-    // 检查 API 配置
-    if (!hasApiConfig()) {
+    // 检查 API 配置（测试模式下跳过）
+    if (!testMode && !hasApiConfig()) {
       alert('请先在设置中配置AI供应商');
       return;
     }
@@ -474,7 +493,7 @@ export default function OptimizationReportPage({
       const currentData = platformsData[currentPlatform];
       const qualityReport = currentData.qualityReport;
 
-      // 调用 AI 一键优化
+      // 调用 AI 一键优化，传入平台ID以选择对应的优化模板
       const optimizedText = await optimizeContent(
         currentData.content,
         { checklist: qualityReport.checklist, optimizationSuggestions: qualityReport.optimizationSuggestions },
@@ -482,7 +501,8 @@ export default function OptimizationReportPage({
           onProgress: () => {
             // 可以在此处更新进度状态
           }
-        }
+        },
+        currentPlatform // 传入平台ID
       );
 
       // 解析优化后的内容（假设 AI 返回的是完整内容，可能包含标题）
@@ -553,18 +573,60 @@ export default function OptimizationReportPage({
     setShowCompareModal(false);
   };
 
-  // 导出功能
+  // 导出当前平台功能
   const handleExport = () => {
     const data = platformsData[currentPlatform];
+    const platformNames: { [key: string]: string } = {
+      gzh: '公众号',
+      xhs: '小红书',
+      douyin: '抖音'
+    };
     const content = `# ${data.title}\n\n${data.content}\n\n---\n\n## 封面提示词\n${data.coverPrompt}`;
 
     const blob = new Blob([content], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${currentPlatform}_content.md`;
+    a.download = `${platformNames[currentPlatform] || currentPlatform}_${data.title.slice(0, 20)}.md`;
     a.click();
     URL.revokeObjectURL(url);
+    setShowExportMenu(false);
+  };
+
+  // 导出所有平台 ZIP 功能
+  const handleExportAllZip = async () => {
+    setIsExportingZip(true);
+    setShowExportMenu(false);
+
+    try {
+      const zip = new JSZip();
+      const platformNames: { [key: string]: string } = {
+        gzh: '公众号',
+        xhs: '小红书',
+        douyin: '抖音'
+      };
+
+      // 为每个平台生成 Markdown 文件
+      for (const [platform, data] of Object.entries(platformsData)) {
+        const content = `# ${data.title}\n\n${data.content}\n\n---\n\n## 封面提示词\n${data.coverPrompt}`;
+        const filename = `${platformNames[platform] || platform}_${data.title.slice(0, 20)}.md`;
+        zip.file(filename, content);
+      }
+
+      // 生成 ZIP 文件
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `爆款文案_${new Date().toISOString().slice(0, 10)}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('导出ZIP失败:', error);
+      alert('导出失败，请重试');
+    } finally {
+      setIsExportingZip(false);
+    }
   };
 
   return (
@@ -802,13 +864,50 @@ export default function OptimizationReportPage({
             上一步
           </button>
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-2 px-6 py-2.5 bg-white hover:bg-slate-100 text-slate-700 rounded-lg border border-slate-200 font-medium transition-colors"
-            >
-              <Download className="w-5 h-5" />
-              导出内容
-            </button>
+            {/* 导出下拉菜单 */}
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                disabled={isExportingZip}
+                className="flex items-center gap-2 px-6 py-2.5 bg-white hover:bg-slate-100 text-slate-700 rounded-lg border border-slate-200 font-medium transition-colors disabled:opacity-50"
+              >
+                {isExportingZip ? (
+                  <div className="w-5 h-5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Download className="w-5 h-5" />
+                )}
+                {isExportingZip ? '导出中...' : '导出内容'}
+                <ChevronDown className={`w-4 h-4 transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* 下拉菜单 */}
+              {showExportMenu && (
+                <div className="absolute bottom-full mb-2 right-0 bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[200px] z-10">
+                  <button
+                    onClick={handleExport}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-slate-700 hover:bg-slate-100 transition-colors"
+                  >
+                    <FileText className="w-4 h-4 text-blue-500" />
+                    <div className="text-left">
+                      <div className="text-sm font-medium">导出当前平台</div>
+                      <div className="text-xs text-slate-400">导出为 Markdown 文件</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={handleExportAllZip}
+                    disabled={isExportingZip}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50"
+                  >
+                    <FileArchive className="w-4 h-4 text-purple-500" />
+                    <div className="text-left">
+                      <div className="text-sm font-medium">导出全部平台</div>
+                      <div className="text-xs text-slate-400">打包下载为 ZIP 文件</div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+
             <button
               onClick={onRestart}
               className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
