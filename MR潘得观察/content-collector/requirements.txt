@@ -11,6 +11,11 @@ larksuite-oapi>=1.0.0
 # 浏览器自动化（用于动态内容）
 playwright>=1.40.0
 
+# 翻译（可选，选择其一安装）
+# pip install googletrans  # Google翻译（免费）
+# pip install deepl        # DeepL翻译（付费）
+# pip install openai       # OpenAI翻译（付费）
+
 # 工具库
 python-dateutil>=2.8.0
 tqdm>=4.65.0

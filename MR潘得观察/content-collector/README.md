@@ -36,12 +36,39 @@
 pip install -r requirements.txt
 ```
 
+可选翻译服务（选择一种安装）：
+```bash
+# Google翻译（免费，但不稳定）
+pip install googletrans
+
+# DeepL翻译（付费，更准确）
+pip install deepl
+
+# OpenAI翻译（付费，质量最高）
+pip install openai
+```
+
 如果使用 Playwright（可选，用于动态内容）：
 ```bash
 playwright install chromium
 ```
 
-### 2. 配置飞书
+### 2. 配置翻译（可选）
+
+在 `config.py` 中设置翻译服务：
+
+```python
+TRANSLATION_SERVICE = "google"  # google / deepL / openai
+
+# 如使用OpenAI翻译
+import os
+os.environ["OPENAI_API_KEY"] = "your-key"
+
+# 如使用DeepL翻译
+os.environ["DEEPL_API_KEY"] = "your-key"
+```
+
+### 3. 配置飞书
 
 1. 打开 [飞书开放平台](https://open.feishu.cn/)
 2. 创建企业应用
@@ -57,10 +84,12 @@ playwright install chromium
 |--------|------|------|
 | 标题 | 文本 | 文章标题 |
 | 链接 | 链接 | 文章URL |
-| 来源 | 单选 | 公众号/知乎等 |
+| 来源 | 单选 | 公众号/知乎/Medium等 |
 | 作者 | 文本 | 文章作者 |
 | 发布日期 | 日期 | 发布时间 |
-| 内容摘要 | 文本 | 文章摘要 |
+| 正文 | 文本 | 完整文章正文 |
+| 内容摘要 | 文本 | 文章摘要（200字） |
+| 译文 | 文本 | 外网内容的中文翻译 |
 | 点赞数 | 数字 | 点赞数量 |
 | 阅读数 | 数字 | 阅读量 |
 | 评论数 | 数字 | 评论数量 |

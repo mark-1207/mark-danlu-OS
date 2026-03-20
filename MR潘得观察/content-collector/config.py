@@ -27,6 +27,16 @@ MAX_RETRIES = 3
 # 请求超时（秒）
 REQUEST_TIMEOUT = 30
 
+# ========== 翻译配置 ==========
+# 翻译服务: google / deepL / openai
+TRANSLATION_SERVICE = "google"
+
+# OpenAI API Key (如果使用openai翻译)
+# OPENAI_API_KEY = "your-openai-key"
+
+# DeepL API Key (如果使用deepL翻译)
+# DEEPL_API_KEY = "your-deepl-key"
+
 # ========== 多维表格字段映射 ==========
 # 请确保与你的飞书多维表格列名一致
 FIELDS_MAPPING = {
@@ -35,7 +45,9 @@ FIELDS_MAPPING = {
     "source": "来源",
     "author": "作者",
     "publish_date": "发布日期",
+    "content": "正文",
     "summary": "内容摘要",
+    "translation": "译文",
     "likes": "点赞数",
     "views": "阅读数",
     "comments_count": "评论数",

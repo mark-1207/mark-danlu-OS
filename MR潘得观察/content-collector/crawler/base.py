@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Optional, List
 from datetime import datetime
 from config import REQUEST_DELAY, MAX_RETRIES, REQUEST_TIMEOUT
+from translator import translate_to_chinese, detect_language
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,26 @@ class BaseCrawler(ABC):
             logger.warning(f"⚠️ 评论提取失败: {str(e)}")
             content["comments_count"] = 0
             content["top_comments"] = ""
+
+        # 翻译（非中文内容）
+        try:
+            source_name = self.get_source_name()
+            # 对非中文来源进行翻译
+            if source_name not in ["公众号", "知乎", "微博"]:
+                full_content = content.get("content", "")
+                if full_content and len(full_content) > 50:
+                    # 检测语言
+                    lang = detect_language(full_content)
+                    if lang != "zh":
+                        logger.info(f"🌐 检测到 {lang} 内容，开始翻译...")
+                        # 翻译正文（截取前10000字符，避免过长）
+                        translation = translate_to_chinese(full_content[:10000])
+                        if translation:
+                            content["translation"] = translation
+                            logger.info(f"✅ 翻译完成，译文长度: {len(translation)} 字符")
+        except Exception as e:
+            logger.warning(f"⚠️ 翻译失败: {str(e)}")
+            content["translation"] = ""
 
         logger.info(f"✅ 爬取完成: {content.get('title', '未知')}")
         return {"success": True, "data": content}
