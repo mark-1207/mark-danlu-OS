@@ -177,10 +177,33 @@ export default function ProModePanel({
     { id: 'douyin', name: '抖音', icon: dyIcon },
   ];
 
-  // 默认选中公众号
+  // 平台名称到ID的映射
+  const platformNameToId: Record<string, string> = {
+    '公众号': 'gzh',
+    '小红书': 'xhs',
+    '抖音': 'douyin',
+    '视频号': 'sp',
+    '微博': 'wb',
+  };
+
+  // 根据前置信息设置默认选中的平台
   useEffect(() => {
     if (selectedPlatforms.length === 0) {
-      setSelectedPlatforms(['gzh']);
+      let defaultPlatformId = platforms[0].id; // 默认选中第一个
+
+      // 如果前置信息有平台，根据前置信息设置
+      if (preInfo?.platform) {
+        const mappedId = platformNameToId[preInfo.platform];
+        if (mappedId) {
+          // 检查映射的ID是否在可用平台中
+          const exists = platforms.find(p => p.id === mappedId);
+          if (exists) {
+            defaultPlatformId = mappedId;
+          }
+        }
+      }
+
+      setSelectedPlatforms([defaultPlatformId]);
     }
   }, []);
 
