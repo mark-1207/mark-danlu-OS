@@ -10,8 +10,10 @@ import {
   MessageSquare,
   Layers,
   Target,
+  Sparkles,
+  Copy,
 } from 'lucide-react';
-import { hasApiConfig, getApiConfigError, generatePlatformContent } from '../services/llm/llmService';
+import { hasApiConfig, getApiConfigError, generatePlatformContent, quickOptimizeContent } from '../services/llm/llmService';
 import { useSettingsStore } from '../stores/settingsStore';
 
 // 平台结果类型
@@ -49,6 +51,11 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
   const [previewPlatform, setPreviewPlatform] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+
+  // 预览弹窗内的优化状态
+  const [optimizedContent, setOptimizedContent] = useState<string | null>(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [selectedVersions, setSelectedVersions] = useState<{ original: boolean; optimized: boolean }>({ original: true, optimized: false });
 
   // 判断生成进度是否全部完成
   const isAllStepsCompleted = generationSteps.length > 0 && generationSteps.every(s => s.status === 'success');
@@ -182,8 +189,23 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
   };
 
   // 下载处理
-  const handleDownload = (platform: string) => {
-    alert(`正在下载 ${platform} 平台的内容包...`);
+  const handleDownload = (platform: string, version?: 'original' | 'optimized', content?: string) => {
+    const platformName = platform === 'gzh' ? '公众号' : platform === 'xhs' ? '小红书' : '抖音';
+    const versionLabel = version === 'optimized' ? '【优化版】' : version === 'original' ? '【原版】' : '';
+    const title = results[platform]?.title || '无标题';
+    const textContent = content || results[platform]?.content || '';
+
+    // 创建下载内容
+    const fullContent = `${versionLabel}${platformName}内容\n\n标题：${title}\n\n${textContent}`;
+    const blob = new Blob([fullContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${platformName}_${title.slice(0, 20)}${versionLabel ? '_' + versionLabel.trim() : ''}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   // 重新生成处理
@@ -256,7 +278,26 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
             <Wand2 className="w-10 h-10 text-blue-600" />
           </div>
           <h3 className="text-xl font-semibold text-slate-800 mb-2">一键生成爆款内容</h3>
-          <p className="text-slate-500 mb-8">AI将自动分析内容并生成适配各平台的爆款文案</p>
+          <p className="text-slate-500 mb-4">AI将自动分析内容并生成适配各平台的爆款文案</p>
+
+          {/* 流程说明 */}
+          <div className="max-w-md mx-auto mb-8 p-4 bg-slate-50 rounded-xl border border-slate-100">
+            <div className="flex items-start gap-3 text-left">
+              <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5">1</div>
+              <div className="flex-1">
+                <p className="text-sm text-slate-700 font-medium mb-0.5">调用平台改写模板生成内容</p>
+                <p className="text-xs text-slate-400">根据前置信息判断平台：平台为空则三平台全生成，有值则只生成对应平台</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 text-left mt-3">
+              <div className="w-6 h-6 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5">2</div>
+              <div className="flex-1">
+                <p className="text-sm text-slate-700 font-medium mb-0.5">预览时一键优化（无需质检）</p>
+                <p className="text-xs text-slate-400">点击预览可对生成内容进行快速优化，同时展示原版和优化版供你选择</p>
+              </div>
+            </div>
+          </div>
+
           <button
             onClick={handleGenerate}
             className="inline-flex items-center gap-2 px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-lg transition-all shadow-lg shadow-blue-600/20"
@@ -368,8 +409,12 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
       {/* 预览浮层 */}
       {showPreview && previewPlatform && results[previewPlatform] && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowPreview(false)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden m-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => {
+            setShowPreview(false);
+            setOptimizedContent(null);
+            setSelectedVersions({ original: true, optimized: false });
+          }} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden m-4">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
@@ -387,24 +432,177 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
                   <p className="text-sm text-slate-500">生成结果详情</p>
                 </div>
               </div>
-              <button onClick={() => setShowPreview(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
+              <button onClick={() => {
+                setShowPreview(false);
+                setOptimizedContent(null);
+                setSelectedVersions({ original: true, optimized: false });
+              }} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
-              <div className="mb-6">
+            <div className="p-6 overflow-y-auto max-h-[55vh]">
+              {/* 标题 */}
+              <div className="mb-4">
                 <div className="text-sm text-slate-500 mb-2">标题</div>
                 <div className="text-lg font-semibold text-slate-800">
                   {results[previewPlatform]?.title}
                 </div>
               </div>
-              <div className="mb-6">
-                <div className="text-sm text-slate-500 mb-2">正文内容</div>
-                <div className="p-4 bg-slate-50 rounded-lg text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">
-                  {results[previewPlatform]?.content}
+
+              {/* 内容版本对比 */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* 原版 */}
+                <div className={`p-4 rounded-xl border-2 transition-all ${
+                  selectedVersions.original
+                    ? 'border-blue-500 bg-blue-50/50'
+                    : 'border-slate-200 bg-slate-50'
+                }`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                        selectedVersions.original
+                          ? 'border-blue-500 bg-blue-500'
+                          : 'border-slate-300'
+                      }`}>
+                        {selectedVersions.original && <CheckCircle className="w-3.5 h-3.5 text-white" />}
+                      </div>
+                      <span className="text-sm font-medium text-slate-700">原版</span>
+                    </div>
+                    <button
+                      onClick={() => setSelectedVersions(v => ({ ...v, original: !v.original }))}
+                      className={`text-xs px-2 py-1 rounded-full transition-colors ${
+                        selectedVersions.original
+                          ? 'bg-blue-100 text-blue-600'
+                          : 'bg-slate-100 text-slate-400'
+                      }`}
+                    >
+                      {selectedVersions.original ? '已选择' : '选择'}
+                    </button>
+                  </div>
+                  <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">
+                    {results[previewPlatform]?.content}
+                  </div>
+                </div>
+
+                {/* 优化版 */}
+                <div className={`p-4 rounded-xl border-2 transition-all ${
+                  selectedVersions.optimized && optimizedContent
+                    ? 'border-purple-500 bg-purple-50/50'
+                    : optimizedContent
+                      ? 'border-slate-200 bg-slate-50'
+                      : 'border-dashed border-slate-200 bg-slate-50/50'
+                }`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                        selectedVersions.optimized && optimizedContent
+                          ? 'border-purple-500 bg-purple-500'
+                          : 'border-slate-300'
+                      }`}>
+                        {selectedVersions.optimized && optimizedContent && <CheckCircle className="w-3.5 h-3.5 text-white" />}
+                      </div>
+                      <span className="text-sm font-medium text-slate-700">优化版</span>
+                    </div>
+                    {optimizedContent && (
+                      <button
+                        onClick={() => setSelectedVersions(v => ({ ...v, optimized: !v.optimized }))}
+                        className={`text-xs px-2 py-1 rounded-full transition-colors ${
+                          selectedVersions.optimized
+                            ? 'bg-purple-100 text-purple-600'
+                            : 'bg-slate-100 text-slate-400'
+                        }`}
+                      >
+                        {selectedVersions.optimized ? '已选择' : '选择'}
+                      </button>
+                    )}
+                  </div>
+                  {optimizedContent ? (
+                    <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">
+                      {optimizedContent}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+                      <Sparkles className="w-8 h-8 mb-2 opacity-50" />
+                      <p className="text-xs">点击下方"一键优化"生成优化版</p>
+                    </div>
+                  )}
                 </div>
               </div>
-              {/* 封面提示词已隐藏 */}
+
+              {/* 一键优化按钮 */}
+              {!optimizedContent && (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    onClick={async () => {
+                      setIsOptimizing(true);
+                      try {
+                        const result = await quickOptimizeContent(
+                          results[previewPlatform]?.content || '',
+                          previewPlatform,
+                          {}
+                        );
+                        setOptimizedContent(result);
+                        setSelectedVersions({ original: true, optimized: true });
+                      } catch (err: any) {
+                        alert('优化失败: ' + (err.message || '未知错误'));
+                      } finally {
+                        setIsOptimizing(false);
+                      }
+                    }}
+                    disabled={isOptimizing}
+                    className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white rounded-xl font-medium shadow-lg shadow-purple-500/25 transition-all disabled:opacity-50"
+                  >
+                    {isOptimizing ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        优化中...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-5 h-5" />
+                        一键优化（无需质检）
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* 重新优化按钮 */}
+              {optimizedContent && (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    onClick={async () => {
+                      setIsOptimizing(true);
+                      try {
+                        const result = await quickOptimizeContent(
+                          results[previewPlatform]?.content || '',
+                          previewPlatform,
+                          {}
+                        );
+                        setOptimizedContent(result);
+                      } catch (err: any) {
+                        alert('优化失败: ' + (err.message || '未知错误'));
+                      } finally {
+                        setIsOptimizing(false);
+                      }
+                    }}
+                    disabled={isOptimizing}
+                    className="flex items-center gap-2 px-4 py-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg text-sm transition-colors"
+                  >
+                    {isOptimizing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin" />
+                        优化中...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4" />
+                        重新优化
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
             <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-slate-50">
               <button
@@ -415,12 +613,38 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
                 重新生成
               </button>
               <div className="flex gap-3">
-                <button onClick={() => setShowPreview(false)} className="px-4 py-2 text-slate-600 hover:bg-white rounded-lg border border-slate-200">
+                <button onClick={() => {
+                  setShowPreview(false);
+                  setOptimizedContent(null);
+                  setSelectedVersions({ original: true, optimized: false });
+                }} className="px-4 py-2 text-slate-600 hover:bg-white rounded-lg border border-slate-200">
                   关闭
                 </button>
-                <button onClick={() => handleDownload(previewPlatform)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
+                <button
+                  onClick={() => {
+                    // 根据选择下载对应版本
+                    const hasOriginal = selectedVersions.original;
+                    const hasOptimized = selectedVersions.optimized && optimizedContent;
+
+                    if (hasOriginal && hasOptimized) {
+                      // 两个版本都下载
+                      handleDownload(previewPlatform, 'original', results[previewPlatform]?.content);
+                      handleDownload(previewPlatform, 'optimized', optimizedContent);
+                    } else if (hasOptimized) {
+                      handleDownload(previewPlatform, 'optimized', optimizedContent);
+                    } else if (hasOriginal) {
+                      handleDownload(previewPlatform, 'original', results[previewPlatform]?.content);
+                    }
+                  }}
+                  disabled={!selectedVersions.original && (!selectedVersions.optimized || !optimizedContent)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+                >
                   <Download className="w-4 h-4" />
-                  下载内容包
+                  {selectedVersions.original && selectedVersions.optimized && optimizedContent
+                    ? '下载全部'
+                    : selectedVersions.optimized && optimizedContent
+                      ? '下载优化版'
+                      : '下载原版'}
                 </button>
               </div>
             </div>

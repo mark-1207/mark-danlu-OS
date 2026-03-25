@@ -619,3 +619,481 @@ export async function optimizeContent(
     throw error;
   }
 }
+
+/**
+ * 快速优化（无需质检报告）
+ * @param originalContent 原始内容
+ * @param platformId 平台ID（用于选择对应平台的优化模板）
+ * @param options 选项
+ */
+export async function quickOptimizeContent(
+  originalContent: string,
+  platformId: string,
+  options: LLMServiceOptions = {}
+): Promise<string> {
+  const { ai, optimization, testMode } = useSettingsStore.getState();
+
+  // 根据平台ID获取对应的优化模板
+  let defaultTemplate;
+  if (platformId) {
+    const platformTemplates = optimization.templates.filter(t => t.platformId === platformId);
+    defaultTemplate = platformTemplates.find(t => t.isDefault) || platformTemplates[0];
+  }
+  if (!defaultTemplate) {
+    defaultTemplate = optimization.templates.find(t => t.id === optimization.defaultTemplate) || optimization.templates[0];
+  }
+
+  // 测试模式：返回模拟数据
+  if (testMode) {
+    options.onProgress?.(30, 'pending');
+    await new Promise(resolve => setTimeout(resolve, 600));
+    options.onProgress?.(70, 'pending');
+    await new Promise(resolve => setTimeout(resolve, 400));
+    options.onProgress?.(100, 'success');
+
+    return `【测试模式优化后的内容】
+
+在人际关系中，你是否经常因为不好意思拒绝而委屈自己？很多人觉得帮助别人是一种美德，但如果因此失去了自己的边界，就会产生越来越多的负面情绪。
+
+其实，真正的善良不是委屈自己成全别人，而是在保护自己的前提下去帮助他人。
+
+学会设立边界，你会发现：
+1. 你的关系变得更健康了
+2. 别人更尊重你了
+3. 你自己也更快乐了
+
+从今天开始，试着勇敢说"不"吧！
+
+【优化说明】这是测试模式下返回的模拟优化结果。`;
+  }
+
+  if (!defaultTemplate) {
+    throw new Error('未找到优化报告模板');
+  }
+
+  options.onProgress?.(10, 'pending');
+
+  // 快速优化：不传入质检报告，使用空内容提示
+  const optimizePrompt = defaultTemplate.optimizePrompt
+    .replace(/{originalContent}/g, originalContent)
+    .replace(/{qualityReport}/g, '（快速优化模式，无需质检报告）');
+
+  try {
+    const response = await llmManager.chat(
+      [
+        { role: 'system', content: defaultTemplate.systemPrompt },
+        { role: 'user', content: optimizePrompt }
+      ],
+      ai.providers,
+      ai.failover
+    );
+
+    options.onProgress?.(100, 'success');
+    return response.content;
+  } catch (error) {
+    options.onProgress?.(0, 'error');
+    throw error;
+  }
+}
+
+/**
+ * 六维质检分析
+ * @param content 要质检的内容
+ * @param platformId 平台ID（用于选择对应平台的质检模板）
+ * @param options 选项
+ */
+export async function analyzeContentQuality(
+  content: string,
+  platformId: string,
+  options: LLMServiceOptions = {}
+): Promise<{
+  overallScore: number;
+  grade: 'excellent' | 'good' | 'average' | 'poor';
+  dimensions: {
+    titleAppeal: number;
+    openingRetention: number;
+    contentValue: number;
+    emotionInfluence: number;
+    viralDesign: number;
+    layoutBeauty: number;
+  };
+  checklist: Array<{
+    id: string;
+    item: string;
+    passed: boolean;
+    reason: string;
+  }>;
+  optimizationSuggestions: Array<{
+    id: string;
+    content: string;
+    position?: string;
+    priority: 'high' | 'medium' | 'low';
+  }>;
+}> {
+  const { ai, qualityAnalysis, testMode } = useSettingsStore.getState();
+
+  // 根据平台ID获取对应的质检模板
+  let defaultTemplate;
+  if (platformId) {
+    const platformTemplates = qualityAnalysis.templates.filter(t => t.platformId === platformId);
+    defaultTemplate = platformTemplates.find(t => t.isDefault) || platformTemplates[0];
+  }
+  if (!defaultTemplate) {
+    defaultTemplate = qualityAnalysis.templates.find(t => t.id === qualityAnalysis.defaultTemplate) || qualityAnalysis.templates[0];
+  }
+
+  // 测试模式：返回模拟数据
+  if (testMode) {
+    options.onProgress?.(20, 'pending');
+    await new Promise(resolve => setTimeout(resolve, 500));
+    options.onProgress?.(50, 'pending');
+    await new Promise(resolve => setTimeout(resolve, 400));
+    options.onProgress?.(80, 'pending');
+    await new Promise(resolve => setTimeout(resolve, 300));
+    options.onProgress?.(100, 'success');
+
+    const baseScore = platformId === 'gzh' ? 8.2 : platformId === 'xhs' ? 7.5 : 7.8;
+    return {
+      overallScore: baseScore,
+      grade: baseScore >= 8 ? 'good' : 'average',
+      dimensions: {
+        titleAppeal: platformId === 'gzh' ? 9 : platformId === 'xhs' ? 8 : 8.5,
+        openingRetention: platformId === 'gzh' ? 8 : platformId === 'xhs' ? 7 : 8,
+        contentValue: platformId === 'gzh' ? 9 : platformId === 'xhs' ? 8 : 7,
+        emotionInfluence: platformId === 'gzh' ? 7 : platformId === 'xhs' ? 9 : 8,
+        viralDesign: platformId === 'gzh' ? 8 : platformId === 'xhs' ? 7 : 9,
+        layoutBeauty: platformId === 'gzh' ? 8 : platformId === 'xhs' ? 6 : 7,
+      },
+      checklist: [
+        { id: '1', item: '标题长度合适', passed: true, reason: '字数在13-25字之间' },
+        { id: '2', item: '开头有钩子', passed: true, reason: '前50字包含悬念或痛点' },
+        { id: '3', item: '包含金句引用', passed: false, reason: '正文未引用金句' },
+        { id: '4', item: '结尾有CTA', passed: true, reason: '包含明确的行动号召' },
+        { id: '5', item: '信息密度足够', passed: true, reason: '包含2个以上知识点' },
+        { id: '6', item: '情感表达恰当', passed: true, reason: '情绪浓度适中' },
+        { id: '7', item: '互动引导充分', passed: false, reason: '未包含评论引导' },
+        { id: '8', item: '排版规范清晰', passed: true, reason: '段落清晰，重点标记明显' },
+      ],
+      optimizationSuggestions: [
+        { id: '1', content: '在第2段开头加入一个金句引用，增加内容的深度和说服力', position: '正文第2段', priority: 'high' },
+        { id: '2', content: '结尾增加互动引导，如"你有什么看法？欢迎在评论区留言"', position: '结尾', priority: 'medium' },
+      ],
+    };
+  }
+
+  if (!defaultTemplate) {
+    throw new Error('未找到六维质检模板');
+  }
+
+  if (ai.providers.length === 0) {
+    throw new Error('请先在设置中配置 AI 供应商');
+  }
+
+  options.onProgress?.(10, 'pending');
+
+  // 构建质检提示词
+  const qualityPrompt = defaultTemplate.qualityPrompt.replace(/{content}/g, content);
+
+  try {
+    const response = await llmManager.chat(
+      [
+        { role: 'system', content: '你是一个专业的内容质检专家，擅长从多个维度评估内容质量。' },
+        { role: 'user', content: qualityPrompt }
+      ],
+      ai.providers,
+      ai.failover
+    );
+
+    options.onProgress?.(60, 'pending');
+
+    // 解析返回结果
+    const result = parseQualityResponse(response.content, platformId);
+
+    options.onProgress?.(100, 'success');
+    return result;
+  } catch (error) {
+    options.onProgress?.(0, 'error');
+    throw error;
+  }
+}
+
+/**
+ * 解析质检响应
+ */
+function parseQualityResponse(
+  content: string,
+  platformId: string
+): {
+  overallScore: number;
+  grade: 'excellent' | 'good' | 'average' | 'poor';
+  dimensions: {
+    titleAppeal: number;
+    openingRetention: number;
+    contentValue: number;
+    emotionInfluence: number;
+    viralDesign: number;
+    layoutBeauty: number;
+  };
+  checklist: Array<{
+    id: string;
+    item: string;
+    passed: boolean;
+    reason: string;
+  }>;
+  optimizationSuggestions: Array<{
+    id: string;
+    content: string;
+    position?: string;
+    priority: 'high' | 'medium' | 'low';
+  }>;
+} {
+  // 尝试解析为 JSON
+  try {
+    let jsonStr = content.trim();
+    if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/^```\w*\n?/, '').replace(/```$/, '');
+    }
+    const parsed = JSON.parse(jsonStr);
+    return transformQualityResponse(parsed, platformId);
+  } catch {
+    // JSON 解析失败，使用文本解析
+    return parseQualityFromText(content, platformId);
+  }
+}
+
+/**
+ * 转换质检响应格式
+ */
+function transformQualityResponse(
+  parsed: any,
+  platformId: string
+): {
+  overallScore: number;
+  grade: 'excellent' | 'good' | 'average' | 'poor';
+  dimensions: {
+    titleAppeal: number;
+    openingRetention: number;
+    contentValue: number;
+    emotionInfluence: number;
+    viralDesign: number;
+    layoutBeauty: number;
+  };
+  checklist: Array<{
+    id: string;
+    item: string;
+    passed: boolean;
+    reason: string;
+  }>;
+  optimizationSuggestions: Array<{
+    id: string;
+    content: string;
+    position?: string;
+    priority: 'high' | 'medium' | 'low';
+  }>;
+} {
+  // 处理 dimensions
+  const dims = parsed.dimensions || parsed.scores || {};
+  const overallScore = parsed.overallScore || parsed.score || 7;
+
+  // 映射维度名称到标准字段
+  const dimensionMapping: Record<string, string> = {
+    '标题吸引力': 'titleAppeal',
+    '吸引力': 'titleAppeal',
+    '标题': 'titleAppeal',
+    '开头留存力': 'openingRetention',
+    '开头': 'openingRetention',
+    '留存力': 'openingRetention',
+    '内容价值度': 'contentValue',
+    '价值力': 'contentValue',
+    '价值': 'contentValue',
+    '内容价值': 'contentValue',
+    '情绪感染力': 'emotionInfluence',
+    '情绪': 'emotionInfluence',
+    '共鸣力': 'emotionInfluence',
+    '传播设计度': 'viralDesign',
+    '传播力': 'viralDesign',
+    '传播': 'viralDesign',
+    '排版美观度': 'layoutBeauty',
+    '排版': 'layoutBeauty',
+    '美观': 'layoutBeauty',
+  };
+
+  const mapDimension = (name: string): string => {
+    return dimensionMapping[name] || 'titleAppeal';
+  };
+
+  const dimensions: any = {
+    titleAppeal: 7,
+    openingRetention: 7,
+    contentValue: 7,
+    emotionInfluence: 7,
+    viralDesign: 7,
+    layoutBeauty: 7,
+  };
+
+  // 解析各个维度
+  for (const [key, value] of Object.entries(dims)) {
+    const mappedKey = mapDimension(key);
+    if (mappedKey && typeof value === 'object' && value !== null) {
+      const val = value as { score?: number; 分数?: number };
+      dimensions[mappedKey] = val.score || val.分数 || 7;
+    } else if (mappedKey && typeof value === 'number') {
+      dimensions[mappedKey] = value;
+    }
+  }
+
+  // 处理 checklist
+  const checklist = (parsed.checklist || []).map((item: any, index: number) => ({
+    id: String(index + 1),
+    item: item.item || item.name || item.项目 || `检查项${index + 1}`,
+    passed: item.passed || item.result === 'pass' || item.结果 === '通过',
+    reason: item.reason || item.reasoning || item.reasoning || '',
+  }));
+
+  // 处理优化建议
+  const optimizationSuggestions = (parsed.optimizationSuggestions || parsed.suggestions || []).map((item: any, index: number) => ({
+    id: String(index + 1),
+    content: item.content || item.suggestion || item.建议 || '',
+    position: item.position || item.location || undefined,
+    priority: item.priority || item.level || 'medium',
+  }));
+
+  // 计算 grade
+  let grade: 'excellent' | 'good' | 'average' | 'poor' = 'average';
+  if (overallScore >= 9) grade = 'excellent';
+  else if (overallScore >= 8) grade = 'good';
+  else if (overallScore >= 6) grade = 'average';
+  else grade = 'poor';
+
+  return {
+    overallScore,
+    grade,
+    dimensions,
+    checklist,
+    optimizationSuggestions,
+  };
+}
+
+/**
+ * 从文本解析质检结果
+ */
+function parseQualityFromText(
+  content: string,
+  platformId: string
+): {
+  overallScore: number;
+  grade: 'excellent' | 'good' | 'average' | 'poor';
+  dimensions: {
+    titleAppeal: number;
+    openingRetention: number;
+    contentValue: number;
+    emotionInfluence: number;
+    viralDesign: number;
+    layoutBeauty: number;
+  };
+  checklist: Array<{
+    id: string;
+    item: string;
+    passed: boolean;
+    reason: string;
+  }>;
+  optimizationSuggestions: Array<{
+    id: string;
+    content: string;
+    position?: string;
+    priority: 'high' | 'medium' | 'low';
+  }>;
+} {
+  // 默认值
+  let overallScore = 7;
+  const dimensions = {
+    titleAppeal: 7,
+    openingRetention: 7,
+    contentValue: 7,
+    emotionInfluence: 7,
+    viralDesign: 7,
+    layoutBeauty: 7,
+  };
+  const checklist: any[] = [];
+  const optimizationSuggestions: any[] = [];
+
+  // 解析综合评分
+  const scoreMatch = content.match(/(?:综合[评]?[分|爆款概率]|总体[评]?分|整体[评]?分)[：:]\s*(\d+\.?\d*)/i);
+  if (scoreMatch) {
+    overallScore = parseFloat(scoreMatch[1]);
+  }
+
+  // 解析各维度评分
+  const dimensionPatterns = [
+    { name: '标题吸引力', key: 'titleAppeal' },
+    { name: '开头留存力', key: 'openingRetention' },
+    { name: '内容价值度', key: 'contentValue' },
+    { name: '情绪感染力', key: 'emotionInfluence' },
+    { name: '传播设计度', key: 'viralDesign' },
+    { name: '排版美观度', key: 'layoutBeauty' },
+  ];
+
+  for (const pattern of dimensionPatterns) {
+    const regex = new RegExp(`${pattern.name}[：:]*\\s*(\\d+\\.?\\d*)`, 'i');
+    const match = content.match(regex);
+    if (match) {
+      dimensions[pattern.key as keyof typeof dimensions] = parseFloat(match[1]);
+    }
+  }
+
+  // 解析 checklist (通过/未通过)
+  const checkItems = content.split(/[###]?\s*(?:质检清单|检查项|评估项)/i)[1]?.split(/(?=通过|未通过|❌|✅|\d+\.)/) || [];
+  for (let i = 0; i < checkItems.length; i++) {
+    const item = checkItems[i].trim();
+    if (item) {
+      const passed = item.includes('通过') || item.includes('✅') || item.includes('合格');
+      checklist.push({
+        id: String(checklist.length + 1),
+        item: item.replace(/^[✅❌✓✗]/, '').trim(),
+        passed,
+        reason: '',
+      });
+    }
+  }
+
+  // 解析优化建议
+  const suggestSection = content.split(/[###]?\s*(?:优化建议|改进建议|建议)/i)[1];
+  if (suggestSection) {
+    const suggestions = suggestSection.split(/(?=^\d+[.、:：])/m).filter(s => s.trim());
+    for (const sug of suggestions) {
+      const match = sug.match(/^(\d+)[.、:：]\s*(.*)/);
+      if (match) {
+        optimizationSuggestions.push({
+          id: String(optimizationSuggestions.length + 1),
+          content: match[2].trim(),
+          priority: 'medium',
+        });
+      }
+    }
+  }
+
+  // 如果没有解析到数据，使用默认
+  if (checklist.length === 0) {
+    checklist.push({
+      id: '1',
+      item: '内容完整性',
+      passed: true,
+      reason: '通过初步检查',
+    });
+  }
+
+  // 计算 grade
+  let grade: 'excellent' | 'good' | 'average' | 'poor' = 'average';
+  if (overallScore >= 9) grade = 'excellent';
+  else if (overallScore >= 8) grade = 'good';
+  else if (overallScore >= 6) grade = 'average';
+  else grade = 'poor';
+
+  return {
+    overallScore,
+    grade,
+    dimensions,
+    checklist,
+    optimizationSuggestions,
+  };
+}

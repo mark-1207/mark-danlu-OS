@@ -927,7 +927,7 @@ function ContentCreationPage({
                       ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30'
                       : 'bg-slate-100 text-slate-600 group-hover:bg-blue-50 group-hover:text-blue-600'
                   }`}>
-                    {mode === 'quick' ? '🚀 立即生成' : '选择此模式'}
+                    {mode === 'quick' ? '选择此模式' : '选择此模式'}
                   </div>
                 </div>
               </button>
