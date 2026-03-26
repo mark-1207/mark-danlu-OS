@@ -1,6 +1,20 @@
 import { llmManager } from './manager';
 import { useSettingsStore } from '../../stores/settingsStore';
 import type { Message } from './types';
+import type {
+  QualityReport,
+  Dimension,
+  ChecklistItem,
+  OptimizationSuggestion,
+  calculateDimensionStatus,
+  calculateGrade,
+  normalizeDimensionName,
+} from '../../types/quality';
+import {
+  calculateDimensionStatus as calcStatus,
+  calculateGrade as calcGrade,
+  normalizeDimensionName as normDimName,
+} from '../../types/quality';
 
 export type ProgressCallback = (progress: number, status: 'pending' | 'success' | 'error') => void;
 
@@ -697,7 +711,7 @@ export async function quickOptimizeContent(
 }
 
 /**
- * 六维质检分析
+ * 质检分析
  * @param content 要质检的内容
  * @param platformId 平台ID（用于选择对应平台的质检模板）
  * @param options 选项
@@ -706,30 +720,7 @@ export async function analyzeContentQuality(
   content: string,
   platformId: string,
   options: LLMServiceOptions = {}
-): Promise<{
-  overallScore: number;
-  grade: 'excellent' | 'good' | 'average' | 'poor';
-  dimensions: {
-    titleAppeal: number;
-    openingRetention: number;
-    contentValue: number;
-    emotionInfluence: number;
-    viralDesign: number;
-    layoutBeauty: number;
-  };
-  checklist: Array<{
-    id: string;
-    item: string;
-    passed: boolean;
-    reason: string;
-  }>;
-  optimizationSuggestions: Array<{
-    id: string;
-    content: string;
-    position?: string;
-    priority: 'high' | 'medium' | 'low';
-  }>;
-}> {
+): Promise<QualityReport> {
   const { ai, platforms, testMode } = useSettingsStore.getState();
 
   // 根据平台ID获取对应的质检模板
@@ -747,30 +738,75 @@ export async function analyzeContentQuality(
     options.onProgress?.(100, 'success');
 
     const baseScore = platformId === 'gzh' ? 8.2 : platformId === 'xhs' ? 7.5 : 7.8;
+
+    // 各平台动态维度
+    const platformDimensions = {
+      gzh: [
+        { id: 'titleSpread', name: '标题传播性', score: 22, maxScore: 25, evidence: '原文："你不是懒，你只是太焦虑了"（第1行）——判定：戳中焦虑情绪，有传播性', reason: '戳中情绪，有社交货币' },
+        { id: 'crowdAccuracy', name: '人群精准度', score: 12, maxScore: 15, evidence: '原文："你是否也有过这样的经历"（第2行）——判定：精准定位目标人群', reason: '有目标人群筛选' },
+        { id: 'socialCurrency', name: '社交货币', score: 18, maxScore: 25, evidence: '原文："从现在开始，哪怕只是迈出一小步"（结尾）——判定：有转发触发点', reason: '有可传播的金句' },
+        { id: 'contentDensity', name: '内容密度', score: 15, maxScore: 20, evidence: '原文："第一...第二...第三..."（第4-6段）——判定：有方法论' },
+        { id: 'retentionDesign', name: '留存设计', score: 8, maxScore: 15, evidence: '原文："凌晨1点..."（开头）——判定：开头有悬念' },
+      ],
+      xhs: [
+        { id: 'titleHook', name: '标题/首图钩子', score: 16, maxScore: 20, evidence: '原文："职场人必看"（第1行）——判定：精准人群+行动号召' },
+        { id: 'crowdAccuracy', name: '人群精准度', score: 12, maxScore: 15, evidence: '原文："职场人必看"（第1行）——判定：精准定位职场人群' },
+        { id: 'collectableValue', name: '可收藏价值', score: 20, maxScore: 25, evidence: '原文："3个亲测有效的方法"（第3行）——判定：有可操作的方法' },
+        { id: 'seoKeyword', name: 'SEO关键词', score: 14, maxScore: 20, evidence: '原文："#职场心理 #自我提升"（结尾标签）——判定：有关键词布局' },
+        { id: 'interactionDesign', name: '互动设计', score: 15, maxScore: 20, evidence: '原文："你认同吗？评论区说说"（结尾）——判定：有互动引导' },
+      ],
+      douyin: [
+        { id: 'hook3s', name: '3秒钩子', score: 20, maxScore: 25, evidence: '原文："你为什么总是拖延"（0-3s）——判定：痛点提问+人群筛选' },
+        { id: 'hotPoint15s', name: '15秒爆点', score: 15, maxScore: 20, evidence: '原文："告诉你3个方法"（15s）——判定：15秒内给干货' },
+        { id: 'rhythmDensity', name: '节奏密度', score: 24, maxScore: 30, evidence: '原文："第一个...第二个...第三个..."——判定：节奏紧凑' },
+        { id: 'interactionKeyword', name: '互动关键词', score: 10, maxScore: 15, evidence: '原文："你认同吗？评论区说说"（结尾）——判定：有互动引导' },
+        { id: 'forwardGuide', name: '转发引导', score: 7, maxScore: 10, evidence: '原文：无明确转发触发——判定：缺少转发引导' },
+      ],
+    };
+
+    const dims = platformDimensions[platformId as keyof typeof platformDimensions] || platformDimensions.gzh;
+
     return {
       overallScore: baseScore,
       grade: baseScore >= 8 ? 'good' : 'average',
-      dimensions: {
-        titleAppeal: platformId === 'gzh' ? 9 : platformId === 'xhs' ? 8 : 8.5,
-        openingRetention: platformId === 'gzh' ? 8 : platformId === 'xhs' ? 7 : 8,
-        contentValue: platformId === 'gzh' ? 9 : platformId === 'xhs' ? 8 : 7,
-        emotionInfluence: platformId === 'gzh' ? 7 : platformId === 'xhs' ? 9 : 8,
-        viralDesign: platformId === 'gzh' ? 8 : platformId === 'xhs' ? 7 : 9,
-        layoutBeauty: platformId === 'gzh' ? 8 : platformId === 'xhs' ? 6 : 7,
-      },
+      dimensions: dims.map(d => ({
+        id: d.id,
+        name: d.name,
+        score: d.score,
+        maxScore: d.maxScore,
+        status: calcStatus(d.score, d.maxScore),
+        evidence: d.evidence,
+        reason: d.reason || '',
+      })),
       checklist: [
-        { id: '1', item: '标题长度合适', passed: true, reason: '字数在13-25字之间' },
-        { id: '2', item: '开头有钩子', passed: true, reason: '前50字包含悬念或痛点' },
-        { id: '3', item: '包含金句引用', passed: false, reason: '正文未引用金句' },
-        { id: '4', item: '结尾有CTA', passed: true, reason: '包含明确的行动号召' },
-        { id: '5', item: '信息密度足够', passed: true, reason: '包含2个以上知识点' },
-        { id: '6', item: '情感表达恰当', passed: true, reason: '情绪浓度适中' },
-        { id: '7', item: '互动引导充分', passed: false, reason: '未包含评论引导' },
-        { id: '8', item: '排版规范清晰', passed: true, reason: '段落清晰，重点标记明显' },
+        { id: '1', name: '标题长度合适', passed: true, reason: '字数在13-25字之间', evidence: '你不是懒，你只是太焦虑了' },
+        { id: '2', name: '开头有钩子', passed: true, reason: '前50字包含悬念或痛点', evidence: '凌晨1点，我又一次...' },
+        { id: '3', name: '包含金句引用', passed: false, reason: '正文未引用金句', evidence: '' },
+        { id: '4', name: '结尾有CTA', passed: true, reason: '包含明确的行动号召', evidence: '从现在开始...' },
+        { id: '5', name: '信息密度足够', passed: true, reason: '包含2个以上知识点', evidence: '第一...第二...第三...' },
+        { id: '6', name: '情感表达恰当', passed: true, reason: '情绪浓度适中', evidence: '焦虑+拖延...' },
+        { id: '7', name: '互动引导充分', passed: false, reason: '未包含评论引导', evidence: '' },
+        { id: '8', name: '排版规范清晰', passed: true, reason: '段落清晰，重点标记明显', evidence: '每段3-5行...' },
       ],
       optimizationSuggestions: [
-        { id: '1', content: '在第2段开头加入一个金句引用，增加内容的深度和说服力', position: '正文第2段', priority: 'high' },
-        { id: '2', content: '结尾增加互动引导，如"你有什么看法？欢迎在评论区留言"', position: '结尾', priority: 'medium' },
+        {
+          id: '1',
+          content: '在第2段开头加入一个金句引用，增加内容的深度和说服力',
+          position: '正文第2段',
+          priority: 'high',
+          original: '科学研究表明，拖延症的本质不是懒惰，而是情绪调节失败。',
+          optimized: '🔥心理学研究显示：拖延不是懒，是大脑在保护你。——《纽约时报》',
+          logic: '增加金句引用，增强说服力和权威性',
+        },
+        {
+          id: '2',
+          content: '结尾增加互动引导，如提问或投票，提高用户参与度',
+          position: '结尾部分',
+          priority: 'medium',
+          original: '记住，拖延不是你的错，但改变是你的选择。',
+          optimized: '记住，拖延不是你的错，但改变是你的选择。你有什么想说的？评论区聊聊～',
+          logic: '增加互动引导，提高评论区活跃度',
+        },
       ],
     };
   }
@@ -812,35 +848,9 @@ export async function analyzeContentQuality(
 }
 
 /**
- * 解析质检响应
+ * 解析质检响应 - 动态版本
  */
-function parseQualityResponse(
-  content: string,
-  platformId: string
-): {
-  overallScore: number;
-  grade: 'excellent' | 'good' | 'average' | 'poor';
-  dimensions: {
-    titleAppeal: number;
-    openingRetention: number;
-    contentValue: number;
-    emotionInfluence: number;
-    viralDesign: number;
-    layoutBeauty: number;
-  };
-  checklist: Array<{
-    id: string;
-    item: string;
-    passed: boolean;
-    reason: string;
-  }>;
-  optimizationSuggestions: Array<{
-    id: string;
-    content: string;
-    position?: string;
-    priority: 'high' | 'medium' | 'low';
-  }>;
-} {
+function parseQualityResponse(content: string, platformId: string): QualityReport {
   // 尝试解析为 JSON
   try {
     let jsonStr = content.trim();
@@ -848,7 +858,7 @@ function parseQualityResponse(
       jsonStr = jsonStr.replace(/^```\w*\n?/, '').replace(/```$/, '');
     }
     const parsed = JSON.parse(jsonStr);
-    return transformQualityResponse(parsed, platformId);
+    return transformQualityResponse(parsed);
   } catch {
     // JSON 解析失败，使用文本解析
     return parseQualityFromText(content, platformId);
@@ -856,112 +866,60 @@ function parseQualityResponse(
 }
 
 /**
- * 转换质检响应格式
+ * 转换质检响应格式 - 动态版本
+ * 不再假设固定维度，完全透传 AI 返回的数据
  */
-function transformQualityResponse(
-  parsed: any,
-  platformId: string
-): {
-  overallScore: number;
-  grade: 'excellent' | 'good' | 'average' | 'poor';
-  dimensions: {
-    titleAppeal: number;
-    openingRetention: number;
-    contentValue: number;
-    emotionInfluence: number;
-    viralDesign: number;
-    layoutBeauty: number;
-  };
-  checklist: Array<{
-    id: string;
-    item: string;
-    passed: boolean;
-    reason: string;
-  }>;
-  optimizationSuggestions: Array<{
-    id: string;
-    content: string;
-    position?: string;
-    priority: 'high' | 'medium' | 'low';
-  }>;
-} {
-  // 处理 dimensions
-  const dims = parsed.dimensions || parsed.scores || {};
+function transformQualityResponse(parsed: any): QualityReport {
   const overallScore = parsed.overallScore || parsed.score || 7;
 
-  // 映射维度名称到标准字段
-  const dimensionMapping: Record<string, string> = {
-    '标题吸引力': 'titleAppeal',
-    '吸引力': 'titleAppeal',
-    '标题': 'titleAppeal',
-    '开头留存力': 'openingRetention',
-    '开头': 'openingRetention',
-    '留存力': 'openingRetention',
-    '内容价值度': 'contentValue',
-    '价值力': 'contentValue',
-    '价值': 'contentValue',
-    '内容价值': 'contentValue',
-    '情绪感染力': 'emotionInfluence',
-    '情绪': 'emotionInfluence',
-    '共鸣力': 'emotionInfluence',
-    '传播设计度': 'viralDesign',
-    '传播力': 'viralDesign',
-    '传播': 'viralDesign',
-    '排版美观度': 'layoutBeauty',
-    '排版': 'layoutBeauty',
-    '美观': 'layoutBeauty',
-  };
+  // 处理 dimensions - 动态转换
+  const dimensions: Dimension[] = [];
+  const dims = parsed.dimensions || parsed.scores || {};
 
-  const mapDimension = (name: string): string => {
-    return dimensionMapping[name] || 'titleAppeal';
-  };
+  for (const [id, data] of Object.entries<any>(dims)) {
+    const score = data.score ?? data.分数 ?? 0;
+    const maxScore = data.maxScore ?? data.满分 ?? 10;
 
-  const dimensions: any = {
-    titleAppeal: 7,
-    openingRetention: 7,
-    contentValue: 7,
-    emotionInfluence: 7,
-    viralDesign: 7,
-    layoutBeauty: 7,
-  };
-
-  // 解析各个维度
-  for (const [key, value] of Object.entries(dims)) {
-    const mappedKey = mapDimension(key);
-    if (mappedKey && typeof value === 'object' && value !== null) {
-      const val = value as { score?: number; 分数?: number };
-      dimensions[mappedKey] = val.score || val.分数 || 7;
-    } else if (mappedKey && typeof value === 'number') {
-      dimensions[mappedKey] = value;
-    }
+    dimensions.push({
+      id,
+      name: normDimName(id),
+      score,
+      maxScore,
+      status: calcStatus(score, maxScore),
+      evidence: data.evidence || data.引用 || '',
+      reason: data.reason || data.判定理由 || '',
+    });
   }
 
-  // 处理 checklist
-  const checklist = (parsed.checklist || []).map((item: any, index: number) => ({
-    id: String(index + 1),
-    item: item.item || item.name || item.项目 || `检查项${index + 1}`,
-    passed: item.passed || item.result === 'pass' || item.结果 === '通过',
-    reason: item.reason || item.reasoning || item.reasoning || '',
+  // 处理 checklist - 动态转换
+  const checklist: ChecklistItem[] = (parsed.checklist || parsed.checkItems || []).map((item: any, index: number) => ({
+    id: item.id || String(index + 1),
+    name: item.name || item.item || item.项目 || `检查项${index + 1}`,
+    passed: item.passed ?? item.result === 'pass' ?? item.结果 === '通过' ?? false,
+    reason: item.reason || item.reasoning || '',
+    evidence: item.evidence || item.原文引用 || '',
+    position: item.position || item.location || '',
   }));
 
-  // 处理优化建议
-  const optimizationSuggestions = (parsed.optimizationSuggestions || parsed.suggestions || []).map((item: any, index: number) => ({
-    id: String(index + 1),
+  // 处理 optimizationSuggestions - 动态转换，支持 original/optimized
+  const optimizationSuggestions: OptimizationSuggestion[] = (
+    parsed.optimizations ||
+    parsed.optimizationSuggestions ||
+    parsed.suggestions ||
+    []
+  ).map((item: any, index: number) => ({
+    id: item.id || String(index + 1),
     content: item.content || item.suggestion || item.建议 || '',
-    position: item.position || item.location || undefined,
+    position: item.position || item.location || '',
     priority: item.priority || item.level || 'medium',
+    original: item.original || '',
+    optimized: item.optimized || '',
+    logic: item.logic || '',
   }));
-
-  // 计算 grade
-  let grade: 'excellent' | 'good' | 'average' | 'poor' = 'average';
-  if (overallScore >= 9) grade = 'excellent';
-  else if (overallScore >= 8) grade = 'good';
-  else if (overallScore >= 6) grade = 'average';
-  else grade = 'poor';
 
   return {
     overallScore,
-    grade,
+    grade: calcGrade(overallScore),
     dimensions,
     checklist,
     optimizationSuggestions,
@@ -969,123 +927,33 @@ function transformQualityResponse(
 }
 
 /**
- * 从文本解析质检结果
+ * 从文本解析质检结果 - 动态版本（JSON解析失败时的后备）
  */
-function parseQualityFromText(
-  content: string,
-  platformId: string
-): {
-  overallScore: number;
-  grade: 'excellent' | 'good' | 'average' | 'poor';
-  dimensions: {
-    titleAppeal: number;
-    openingRetention: number;
-    contentValue: number;
-    emotionInfluence: number;
-    viralDesign: number;
-    layoutBeauty: number;
-  };
-  checklist: Array<{
-    id: string;
-    item: string;
-    passed: boolean;
-    reason: string;
-  }>;
-  optimizationSuggestions: Array<{
-    id: string;
-    content: string;
-    position?: string;
-    priority: 'high' | 'medium' | 'low';
-  }>;
-} {
+function parseQualityFromText(content: string, platformId: string): QualityReport {
   // 默认值
-  let overallScore = 7;
-  const dimensions = {
-    titleAppeal: 7,
-    openingRetention: 7,
-    contentValue: 7,
-    emotionInfluence: 7,
-    viralDesign: 7,
-    layoutBeauty: 7,
-  };
-  const checklist: any[] = [];
-  const optimizationSuggestions: any[] = [];
+  const dimensions: Dimension[] = [
+    { id: 'default', name: '综合评分', score: 7, maxScore: 10, status: 'warning', reason: '无法解析结构化数据' },
+  ];
+  const checklist: ChecklistItem[] = [];
+  const optimizationSuggestions: OptimizationSuggestion[] = [];
 
   // 解析综合评分
   const scoreMatch = content.match(/(?:综合[评]?[分|爆款概率]|总体[评]?分|整体[评]?分)[：:]\s*(\d+\.?\d*)/i);
-  if (scoreMatch) {
-    overallScore = parseFloat(scoreMatch[1]);
-  }
-
-  // 解析各维度评分
-  const dimensionPatterns = [
-    { name: '标题吸引力', key: 'titleAppeal' },
-    { name: '开头留存力', key: 'openingRetention' },
-    { name: '内容价值度', key: 'contentValue' },
-    { name: '情绪感染力', key: 'emotionInfluence' },
-    { name: '传播设计度', key: 'viralDesign' },
-    { name: '排版美观度', key: 'layoutBeauty' },
-  ];
-
-  for (const pattern of dimensionPatterns) {
-    const regex = new RegExp(`${pattern.name}[：:]*\\s*(\\d+\\.?\\d*)`, 'i');
-    const match = content.match(regex);
-    if (match) {
-      dimensions[pattern.key as keyof typeof dimensions] = parseFloat(match[1]);
-    }
-  }
-
-  // 解析 checklist (通过/未通过)
-  const checkItems = content.split(/[###]?\s*(?:质检清单|检查项|评估项)/i)[1]?.split(/(?=通过|未通过|❌|✅|\d+\.)/) || [];
-  for (let i = 0; i < checkItems.length; i++) {
-    const item = checkItems[i].trim();
-    if (item) {
-      const passed = item.includes('通过') || item.includes('✅') || item.includes('合格');
-      checklist.push({
-        id: String(checklist.length + 1),
-        item: item.replace(/^[✅❌✓✗]/, '').trim(),
-        passed,
-        reason: '',
-      });
-    }
-  }
-
-  // 解析优化建议
-  const suggestSection = content.split(/[###]?\s*(?:优化建议|改进建议|建议)/i)[1];
-  if (suggestSection) {
-    const suggestions = suggestSection.split(/(?=^\d+[.、:：])/m).filter(s => s.trim());
-    for (const sug of suggestions) {
-      const match = sug.match(/^(\d+)[.、:：]\s*(.*)/);
-      if (match) {
-        optimizationSuggestions.push({
-          id: String(optimizationSuggestions.length + 1),
-          content: match[2].trim(),
-          priority: 'medium',
-        });
-      }
-    }
-  }
+  const overallScore = scoreMatch ? parseFloat(scoreMatch[1]) : 7;
 
   // 如果没有解析到数据，使用默认
   if (checklist.length === 0) {
     checklist.push({
       id: '1',
-      item: '内容完整性',
+      name: '内容完整性',
       passed: true,
       reason: '通过初步检查',
     });
   }
 
-  // 计算 grade
-  let grade: 'excellent' | 'good' | 'average' | 'poor' = 'average';
-  if (overallScore >= 9) grade = 'excellent';
-  else if (overallScore >= 8) grade = 'good';
-  else if (overallScore >= 6) grade = 'average';
-  else grade = 'poor';
-
   return {
     overallScore,
-    grade,
+    grade: calcGrade(overallScore),
     dimensions,
     checklist,
     optimizationSuggestions,

@@ -4,8 +4,6 @@ import {
   Layers,
   Target,
   ChevronLeft,
-  CheckCircle,
-  XCircle,
   RefreshCw,
   Download,
   Sparkles,
@@ -18,91 +16,85 @@ import {
   Edit3,
   Home,
   ChevronDown,
-  FileArchive
+  FileArchive,
+  CheckCircle
 } from 'lucide-react';
 import JSZip from 'jszip';
-import {
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-  ResponsiveContainer
-} from 'recharts';
 import { optimizeContent, hasApiConfig } from '../services/llm/llmService';
 import { useSettingsStore } from '../stores/settingsStore';
-
-// 类型定义
-interface QualityReport {
-  overallScore: number;
-  grade: 'excellent' | 'good' | 'average' | 'poor';
-  dimensions: {
-    titleAppeal: number;
-    openingRetention: number;
-    contentValue: number;
-    emotionInfluence: number;
-    viralDesign: number;
-    layoutBeauty: number;
-  };
-  checklist: Array<{
-    id: string;
-    item: string;
-    passed: boolean;
-    reason: string;
-  }>;
-  optimizationSuggestions: Array<{
-    id: string;
-    content: string;
-    position?: string;
-    priority: 'high' | 'medium' | 'low';
-  }>;
-}
+import type { QualityReport as QualityReportType } from '../types/quality';
+import {
+  OverallScoreCard,
+  DimensionList,
+  Checklist,
+  SuggestionList,
+} from './QualityReport';
 
 interface PlatformContent {
   platform: 'gzh' | 'xhs' | 'douyin';
   title: string;
   content: string;
   coverPrompt: string;
-  qualityReport: QualityReport;
+  qualityReport: QualityReportType;
   isOptimized: boolean;
   optimizedVersion?: {
     title: string;
     content: string;
-    qualityReport: QualityReport;
+    qualityReport: QualityReportType;
   };
 }
 
-// 模拟质检数据
-const generateMockQualityReport = (platform: string): QualityReport => {
-  const baseScore = platform === 'gzh' ? 8.2 : platform === 'xhs' ? 7.5 : 7.8;
+// 临时 Mock 函数 - 使用新的动态类型
+// TODO: 后续应通过 analyzeContentQuality 实际调用生成
+function getMockQualityReport(platformId: string): QualityReportType {
+  const baseScore = platformId === 'gzh' ? 8.2 : platformId === 'xhs' ? 7.5 : 7.8;
+
+  const platformDimensions = {
+    gzh: [
+      { id: 'titleSpread', name: '标题传播性', score: 22, maxScore: 25, status: 'pass' as const, evidence: '原文："你不是懒，你只是太焦虑了"（第1行）', reason: '戳中情绪，有社交货币' },
+      { id: 'crowdAccuracy', name: '人群精准度', score: 12, maxScore: 15, status: 'pass' as const, evidence: '原文："你是否也有过这样的经历"（第2行）', reason: '有目标人群筛选' },
+      { id: 'socialCurrency', name: '社交货币', score: 18, maxScore: 25, status: 'warning' as const, evidence: '原文："从现在开始..."（结尾）', reason: '有可传播的金句' },
+      { id: 'contentDensity', name: '内容密度', score: 15, maxScore: 20, status: 'warning' as const, reason: '有方法论' },
+      { id: 'retentionDesign', name: '留存设计', score: 8, maxScore: 15, status: 'warning' as const, reason: '开头有悬念' },
+    ],
+    xhs: [
+      { id: 'titleHook', name: '标题/首图钩子', score: 16, maxScore: 20, status: 'warning' as const, evidence: '原文："职场人必看"（第1行）', reason: '精准人群+行动号召' },
+      { id: 'crowdAccuracy', name: '人群精准度', score: 12, maxScore: 15, status: 'pass' as const, evidence: '原文："职场人必看"（第1行）', reason: '精准定位职场人群' },
+      { id: 'collectableValue', name: '可收藏价值', score: 20, maxScore: 25, status: 'pass' as const, evidence: '原文："3个亲测有效的方法"（第3行）', reason: '有可操作的方法' },
+      { id: 'seoKeyword', name: 'SEO关键词', score: 14, maxScore: 20, status: 'warning' as const, evidence: '原文："#职场心理 #自我提升"（结尾标签）', reason: '有关键词布局' },
+      { id: 'interactionDesign', name: '互动设计', score: 15, maxScore: 20, status: 'warning' as const, evidence: '原文："你认同吗？评论区说说"（结尾）', reason: '有互动引导' },
+    ],
+    douyin: [
+      { id: 'hook3s', name: '3秒钩子', score: 20, maxScore: 25, status: 'pass' as const, evidence: '原文："你为什么总是拖延"（0-3s）', reason: '痛点提问+人群筛选' },
+      { id: 'hotPoint15s', name: '15秒爆点', score: 15, maxScore: 20, status: 'warning' as const, evidence: '原文："告诉你3个方法"（15s）', reason: '15秒内给干货' },
+      { id: 'rhythmDensity', name: '节奏密度', score: 24, maxScore: 30, status: 'pass' as const, evidence: '原文："第一个...第二个...第三个..."', reason: '节奏紧凑' },
+      { id: 'interactionKeyword', name: '互动关键词', score: 10, maxScore: 15, status: 'warning' as const, evidence: '原文："你认同吗？评论区说说"（结尾）', reason: '有互动引导' },
+      { id: 'forwardGuide', name: '转发引导', score: 7, maxScore: 10, status: 'warning' as const, reason: '缺少转发引导' },
+    ],
+  };
+
+  const dims = platformDimensions[platformId as keyof typeof platformDimensions] || platformDimensions.gzh;
+
   return {
     overallScore: baseScore,
     grade: baseScore >= 8 ? 'good' : 'average',
-    dimensions: {
-      titleAppeal: platform === 'gzh' ? 9 : platform === 'xhs' ? 8 : 8.5,
-      openingRetention: platform === 'gzh' ? 8 : platform === 'xhs' ? 7 : 8,
-      contentValue: platform === 'gzh' ? 9 : platform === 'xhs' ? 8 : 7,
-      emotionInfluence: platform === 'gzh' ? 7 : platform === 'xhs' ? 9 : 8,
-      viralDesign: platform === 'gzh' ? 8 : platform === 'xhs' ? 7 : 9,
-      layoutBeauty: platform === 'gzh' ? 8 : platform === 'xhs' ? 6 : 7,
-    },
+    dimensions: dims,
     checklist: [
-      { id: '1', item: '标题长度合适', passed: true, reason: '字数在13-25字之间' },
-      { id: '2', item: '开头有钩子', passed: true, reason: '前50字包含悬念或痛点' },
-      { id: '3', item: '包含金句引用', passed: false, reason: '正文未引用金句' },
-      { id: '4', item: '结尾有CTA', passed: true, reason: '包含明确的行动号召' },
-      { id: '5', item: '信息密度足够', passed: true, reason: '包含2个以上知识点' },
-      { id: '6', item: '情感表达恰当', passed: true, reason: '情绪浓度适中' },
-      { id: '7', item: '互动引导充分', passed: false, reason: '未包含评论引导' },
-      { id: '8', item: '排版规范清晰', passed: true, reason: '段落清晰，重点标记明显' },
+      { id: '1', name: '标题长度合适', passed: true, reason: '字数在13-25字之间', evidence: '你不是懒，你只是太焦虑了' },
+      { id: '2', name: '开头有钩子', passed: true, reason: '前50字包含悬念或痛点', evidence: '凌晨1点，我又一次...' },
+      { id: '3', name: '包含金句引用', passed: false, reason: '正文未引用金句', evidence: '' },
+      { id: '4', name: '结尾有CTA', passed: true, reason: '包含明确的行动号召', evidence: '从现在开始...' },
+      { id: '5', name: '信息密度足够', passed: true, reason: '包含2个以上知识点', evidence: '第一...第二...第三...' },
+      { id: '6', name: '情感表达恰当', passed: true, reason: '情绪浓度适中', evidence: '焦虑+拖延...' },
+      { id: '7', name: '互动引导充分', passed: false, reason: '未包含评论引导', evidence: '' },
+      { id: '8', name: '排版规范清晰', passed: true, reason: '段落清晰，重点标记明显', evidence: '每段3-5行...' },
     ],
     optimizationSuggestions: [
-      { id: '1', content: '在第2段开头加入一个金句引用，增加内容的深度和说服力', position: '正文第2段', priority: 'high' },
-      { id: '2', content: '在结尾增加互动引导，如提问或投票，提高用户参与度', position: '结尾部分', priority: 'medium' },
-      { id: '3', content: '标题可增加热点词汇，如"2026"或行业关键词，提升点击率', position: '标题', priority: 'low' },
+      { id: '1', content: '在第2段开头加入一个金句引用，增加内容的深度和说服力', position: '正文第2段', priority: 'high', original: '科学研究表明，拖延症的本质不是懒惰，而是情绪调节失败。', optimized: '🔥心理学研究显示：拖延不是懒，是大脑在保护你。——《纽约时报》', logic: '增加金句引用，增强说服力和权威性' },
+      { id: '2', content: '结尾增加互动引导，如提问或投票，提高用户参与度', position: '结尾部分', priority: 'medium', original: '记住，拖延不是你的错，但改变是你的选择。', optimized: '记住，拖延不是你的错，但改变是你的选择。你有什么想说的？评论区聊聊～', logic: '增加互动引导，提高评论区活跃度' },
     ],
   };
-};
+}
 
 // 平台信息
 const platforms = [
@@ -391,7 +383,7 @@ export default function OptimizationReportPage({
 
 记住，拖延不是你的错，但改变是你的选择。从现在开始，哪怕只是迈出一小步，也比原地踏步强。`,
       coverPrompt: 'Professional office scene, modern minimalist style',
-      qualityReport: generateMockQualityReport('gzh'),
+      qualityReport: getMockQualityReport('gzh'),
       isOptimized: false,
     },
     xhs: {
@@ -416,7 +408,7 @@ export default function OptimizationReportPage({
 
 #职场心理 #自我提升 #拖延症 #拒绝焦虑`,
       coverPrompt: 'Modern office illustration, cute style',
-      qualityReport: generateMockQualityReport('xhs'),
+      qualityReport: getMockQualityReport('xhs'),
       isOptimized: false,
     },
     douyin: {
@@ -440,32 +432,13 @@ export default function OptimizationReportPage({
 
 #职场 #成长 #拖延症 #干货`,
       coverPrompt: 'Dynamic social media style, bold colors',
-      qualityReport: generateMockQualityReport('douyin'),
+      qualityReport: getMockQualityReport('douyin'),
       isOptimized: false,
     },
   });
 
   const currentData = platformsData[currentPlatform];
   const currentReport = currentData?.qualityReport;
-
-  // 雷达图数据
-  const radarData = currentReport ? [
-    { subject: '标题吸引力', value: currentReport.dimensions.titleAppeal, fullMark: 10 },
-    { subject: '开头留存力', value: currentReport.dimensions.openingRetention, fullMark: 10 },
-    { subject: '内容价值度', value: currentReport.dimensions.contentValue, fullMark: 10 },
-    { subject: '情绪感染力', value: currentReport.dimensions.emotionInfluence, fullMark: 10 },
-    { subject: '传播设计度', value: currentReport.dimensions.viralDesign, fullMark: 10 },
-    { subject: '排版美观度', value: currentReport.dimensions.layoutBeauty, fullMark: 10 },
-  ] : [];
-
-  const getGradeLabel = (grade: string) => {
-    switch (grade) {
-      case 'excellent': return { text: '爆款潜质', stars: '⭐⭐⭐', color: 'text-amber-500' };
-      case 'good': return { text: '优质内容', stars: '⭐⭐', color: 'text-green-500' };
-      case 'average': return { text: '合格内容', stars: '⭐', color: 'text-blue-500' };
-      default: return { text: '需优化', stars: '⚠️', color: 'text-red-500' };
-    }
-  };
 
   const getPlatformColor = (platform: string) => {
     switch (platform) {
@@ -477,6 +450,12 @@ export default function OptimizationReportPage({
   };
 
   const platformColor = getPlatformColor(currentPlatform);
+
+  // 定位处理函数
+  const handleLocate = (position?: string) => {
+    console.log('定位到:', position);
+    // TODO: 实现滚动定位
+  };
 
   // 一键优化处理
   const handleOptimize = async () => {
@@ -526,7 +505,7 @@ export default function OptimizationReportPage({
           optimizedVersion: {
             title: optimizedTitle,
             content: optimizedContent,
-            qualityReport: generateMockQualityReport(currentPlatform),
+            qualityReport: getMockQualityReport(currentPlatform),
           },
         },
       }));
@@ -725,70 +704,32 @@ export default function OptimizationReportPage({
 
               {/* 右侧：优化报告 */}
               <div className="space-y-4 max-h-[700px] overflow-y-auto">
-                {/* 雷达图 + 整体评分 */}
-                <div className="grid grid-cols-2 gap-4">
-                  {/* 雷达图 */}
-                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-                    <div className="text-sm font-medium text-slate-700 mb-3">六维度分析</div>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
-                        <PolarGrid stroke="#e2e8f0" />
-                        <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: '#64748b' }} />
-                        <PolarRadiusAxis angle={30} domain={[0, 10]} tick={{ fontSize: 9 }} />
-                        <Radar
-                          name="评分"
-                          dataKey="value"
-                          stroke={platformColor === 'blue' ? '#3b82f6' : platformColor === 'pink' ? '#ec4899' : '#06b6d4'}
-                          fill={platformColor === 'blue' ? '#3b82f6' : platformColor === 'pink' ? '#ec4899' : '#06b6d4'}
-                          fillOpacity={0.3}
-                        />
-                      </RadarChart>
-                    </ResponsiveContainer>
-                  </div>
-
+                {/* 整体评分 + 维度列表 */}
+                <div className="grid grid-cols-1 gap-4">
                   {/* 整体评分 */}
-                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col">
-                    <div className="text-sm font-medium text-slate-700 mb-3">整体评分</div>
-                    <div className="flex-1 flex flex-col items-center justify-center">
-                      <div className="text-5xl font-bold text-slate-800 mb-2">
-                        {currentReport?.overallScore}
-                        <span className="text-2xl text-slate-400">/10</span>
-                      </div>
-                      <div className={`text-lg font-medium mb-1 ${getGradeLabel(currentReport?.grade || '').color}`}>
-                        {getGradeLabel(currentReport?.grade || '').stars}
-                      </div>
-                      <div className={`text-sm font-medium ${getGradeLabel(currentReport?.grade || '').color}`}>
-                        {getGradeLabel(currentReport?.grade || '').text}
-                      </div>
+                  {currentReport && (
+                    <OverallScoreCard
+                      score={currentReport.overallScore}
+                      grade={currentReport.grade}
+                    />
+                  )}
+
+                  {/* 维度分析 */}
+                  {currentReport && currentReport.dimensions.length > 0 && (
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                      <div className="text-sm font-medium text-slate-700 mb-3">维度分析</div>
+                      <DimensionList dimensions={currentReport.dimensions} />
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* 质检清单 */}
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                   <div className="text-sm font-medium text-slate-700 mb-3">质检清单</div>
-                  <div className="space-y-2">
-                    {currentReport?.checklist.map(item => (
-                      <div
-                        key={item.id}
-                        className={`flex items-start gap-3 p-3 rounded-lg ${
-                          item.passed ? 'bg-green-50' : 'bg-red-50'
-                        }`}
-                      >
-                        {item.passed ? (
-                          <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                        ) : (
-                          <XCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                        )}
-                        <div className="flex-1">
-                          <div className={`text-sm font-medium ${item.passed ? 'text-green-700' : 'text-red-700'}`}>
-                            {item.item}
-                          </div>
-                          <div className="text-xs text-slate-500 mt-0.5">{item.reason}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <Checklist
+                    items={currentReport?.checklist || []}
+                    onLocate={handleLocate}
+                  />
                 </div>
 
                 {/* 优化建议 */}
@@ -797,38 +738,10 @@ export default function OptimizationReportPage({
                     <Lightbulb className="w-5 h-5 text-amber-500" />
                     <span className="text-sm font-medium text-slate-700">优化建议</span>
                     <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">
-                      {currentReport?.optimizationSuggestions.length}条
+                      {currentReport?.optimizationSuggestions.length || 0}条
                     </span>
                   </div>
-                  <div className="space-y-3">
-                    {currentReport?.optimizationSuggestions.map((suggestion, idx) => (
-                      <div
-                        key={suggestion.id}
-                        className="p-3 bg-amber-50 rounded-lg border border-amber-100"
-                      >
-                        <div className="flex items-start gap-2">
-                          <span className="flex-shrink-0 w-5 h-5 bg-amber-200 text-amber-700 rounded-full text-xs flex items-center justify-center font-medium">
-                            {idx + 1}
-                          </span>
-                          <div className="flex-1">
-                            <div className="text-sm text-amber-800">{suggestion.content}</div>
-                            {suggestion.position && (
-                              <div className="text-xs text-amber-600 mt-1">位置：{suggestion.position}</div>
-                            )}
-                          </div>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            suggestion.priority === 'high'
-                              ? 'bg-red-100 text-red-700'
-                              : suggestion.priority === 'medium'
-                              ? 'bg-orange-100 text-orange-700'
-                              : 'bg-slate-100 text-slate-600'
-                          }`}>
-                            {suggestion.priority === 'high' ? '高' : suggestion.priority === 'medium' ? '中' : '低'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <SuggestionList suggestions={currentReport?.optimizationSuggestions || []} />
                 </div>
 
                 {/* 一键优化按钮 */}
