@@ -3,7 +3,7 @@
  * 动态渲染清单列表
  */
 import { ChecklistItem } from './ChecklistItem';
-import type { ChecklistItem as ChecklistItemType } from '../../../types/quality';
+import type { ChecklistItem as ChecklistItemType } from '../../types/quality';
 
 interface ChecklistProps {
   items: ChecklistItemType[];

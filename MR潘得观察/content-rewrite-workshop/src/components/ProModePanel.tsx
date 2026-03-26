@@ -8,9 +8,11 @@ import {
   ArrowRight,
   AlertCircle,
   Wand2,
+  HelpCircle,
 } from 'lucide-react';
 import { hasApiConfig, getApiConfigError, generatePlatformContent } from '../services/llm/llmService';
 import { useSettingsStore } from '../stores/settingsStore';
+import { getFormulaDetail } from '../data/titleFormulas';
 import gzhIcon from '../assets/公众号.png';
 import xhsIcon from '../assets/小红书.jpg';
 import dyIcon from '../assets/抖音.jpg';
@@ -316,6 +318,14 @@ export default function ProModePanel({
           emotion: analysisResult?.情绪基调?.join(', ') || '',
           audience: analysisResult?.目标受众 || '',
           category: analysisResult?.主题分类 || '',
+          // 新增：完整的分析结果字段
+          contentStructure: analysisResult?._rawJson?.['二、结构脉络']
+            ? JSON.stringify(analysisResult._rawJson['二、结构脉络'])
+            : '',
+          valuePoints: analysisResult?._rawJson?.['三、价值与情绪']
+            ? JSON.stringify(analysisResult._rawJson['三、价值与情绪'])
+            : '',
+          highlightClips: analysisResult?.金句?.map((g: any) => typeof g === 'string' ? g : g.内容).join(' | ') || '',
           // 前置信息
           platform: preInfo?.platform || '',
           contentType: preInfo?.contentType || '',
@@ -571,9 +581,29 @@ export default function ProModePanel({
                                     <span className={`text-xs font-medium ${isTitleSelected ? 'text-blue-600' : 'text-slate-500'}`}>
                                       {title.score}/10
                                     </span>
-                                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                                      {title.type}
-                                    </span>
+                                    {/* 公式类型 - 带气泡提示 */}
+                                    <div className="relative group">
+                                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 cursor-help flex items-center gap-1">
+                                        {title.type}
+                                        <HelpCircle className="w-3 h-3" />
+                                      </span>
+                                      {/* 公式详情气泡 */}
+                                      {(() => {
+                                        const formulaDetail = getFormulaDetail(platform.id, title.type);
+                                        if (!formulaDetail) return null;
+                                        return (
+                                          <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-10 w-72">
+                                            <div className="bg-slate-800 text-white text-xs rounded-lg p-3 shadow-xl">
+                                              <div className="font-semibold text-amber-400 mb-1">{formulaDetail.name}</div>
+                                              <div className="text-slate-300 mb-2">结构：{formulaDetail.structure}</div>
+                                              <div className="text-slate-400 text-[11px] mb-2">{formulaDetail.description}</div>
+                                              <div className="text-emerald-400 text-[11px] italic">例：{formulaDetail.example}</div>
+                                              <div className="text-slate-500 text-[10px] mt-2">适用：{formulaDetail.applicable}</div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
+                                    </div>
                                   </div>
 
                                   {/* 选择按钮 */}
@@ -668,13 +698,40 @@ export default function ProModePanel({
         >
           上一步
         </button>
+
+        {/* 生成进度可视化 */}
+        {isGenerating && selectedPlatforms.length > 0 && (
+          <div className="flex-1 mx-8 max-w-md">
+            <div className="space-y-2">
+              {selectedPlatforms.map(platformId => {
+                const platform = platforms.find(p => p.id === platformId);
+                return (
+                  <div key={platformId} className="flex items-center gap-3">
+                    <span className="text-xs text-slate-500 w-16 truncate">{platform?.name || platformId}</span>
+                    <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500 rounded-full"
+                        style={{ width: '100%' }}
+                      />
+                    </div>
+                    <span className="text-xs text-slate-500 w-12 text-right">生成中...</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <button
           onClick={handleGenerate}
           disabled={!canGenerate || isGenerating}
           className="flex items-center gap-2 px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-medium text-base transition-colors ml-auto"
         >
           {isGenerating ? (
-            <>生成中...</>
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              生成中...
+            </>
           ) : (
             <>
               爆款制作启动

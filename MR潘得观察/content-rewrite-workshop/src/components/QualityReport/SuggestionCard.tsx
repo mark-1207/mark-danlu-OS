@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { OriginalOptimizedCompare } from './OriginalOptimizedCompare';
-import type { OptimizationSuggestion } from '../../../types/quality';
+import type { OptimizationSuggestion } from '../../types/quality';
 
 interface SuggestionCardProps {
   suggestion: OptimizationSuggestion;
@@ -13,7 +13,7 @@ interface SuggestionCardProps {
   onApply?: (suggestion: OptimizationSuggestion) => void;
 }
 
-const priorityConfig = {
+const priorityConfig: Record<string, { label: string; bgColor: string; textColor: string }> = {
   high: { label: '高优', bgColor: 'bg-red-100', textColor: 'text-red-700' },
   medium: { label: '中优', bgColor: 'bg-orange-100', textColor: 'text-orange-700' },
   low: { label: '低优', bgColor: 'bg-slate-100', textColor: 'text-slate-600' },

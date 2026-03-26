@@ -3,21 +3,22 @@
  * 支持 evidence 显示和点击定位
  */
 import { CheckCircle, XCircle, AlertTriangle, MapPin } from 'lucide-react';
-import type { ChecklistItem } from '../../../types/quality';
+import type { ChecklistItem } from '../../types/quality';
 
 interface ChecklistItemProps {
   item: ChecklistItem;
   onLocate?: (position?: string) => void;
 }
 
-const passedConfig = {
+const passedConfig: Record<string, { icon: typeof CheckCircle; bgColor: string; borderColor: string; iconColor: string; textColor: string }> = {
   true: { icon: CheckCircle, bgColor: 'bg-green-50', borderColor: 'border-green-200', iconColor: 'text-green-500', textColor: 'text-green-700' },
   false: { icon: XCircle, bgColor: 'bg-red-50', borderColor: 'border-red-200', iconColor: 'text-red-500', textColor: 'text-red-700' },
   partial: { icon: AlertTriangle, bgColor: 'bg-amber-50', borderColor: 'border-amber-200', iconColor: 'text-amber-500', textColor: 'text-amber-700' },
 };
 
 export function ChecklistItem({ item, onLocate }: ChecklistItemProps) {
-  const config = passedConfig[item.passed];
+  const passedKey = typeof item.passed === 'boolean' ? String(item.passed) : item.passed;
+  const config = passedConfig[passedKey] || passedConfig.false;
 
   return (
     <div

@@ -16,13 +16,23 @@ import {
 import { hasApiConfig, getApiConfigError, generatePlatformContent, quickOptimizeContent } from '../services/llm/llmService';
 import { useSettingsStore } from '../stores/settingsStore';
 
-// 平台结果类型
+// 内容版本类型
+interface ContentVersion {
+  id: string;
+  content: string;
+  type: 'original' | 'optimized';
+  createdAt: Date;
+}
+
+// 平台结果类型（支持版本历史）
 interface PlatformResult {
   title: string;
   content: string;
   coverPrompt: string;
   progress: number;
   status: 'generating' | 'completed' | 'error';
+  versions: ContentVersion[];  // 版本历史
+  currentVersionId: string;    // 当前显示的版本ID
 }
 
 // Props类型
@@ -96,10 +106,18 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
     setIsGenerating(true);
     setGenerationSteps(steps);
 
-    // 初始化结果
+    // 初始化结果（支持版本）
     const initialResults: { [key: string]: PlatformResult } = {};
     platformsToGenerate.forEach(p => {
-      initialResults[p] = { title: '', content: '', coverPrompt: '', progress: 0, status: 'generating' };
+      initialResults[p] = {
+        title: '',
+        content: '',
+        coverPrompt: '',
+        progress: 0,
+        status: 'generating',
+        versions: [],
+        currentVersionId: ''
+      };
     });
     setResults(initialResults);
 
@@ -146,14 +164,25 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
           }
         }, true); // mergeTitleAndContent = true
 
+        // 创建新版本
+        const newVersion: ContentVersion = {
+          id: `v${Date.now()}`,
+          content: result.content,
+          type: 'original',
+          createdAt: new Date()
+        };
+
         setResults(prev => ({
           ...prev,
           [platform]: {
+            ...prev[platform],
             status: 'completed',
             progress: 100,
             title: result.titles[0] || '',
             content: result.content,
-            coverPrompt: result.coverPrompt
+            coverPrompt: result.coverPrompt,
+            versions: [newVersion],
+            currentVersionId: newVersion.id
           }
         }));
 
@@ -228,6 +257,14 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
         emotion: analysisResult?.情绪基调?.join(', ') || '',
         audience: analysisResult?.目标受众 || '',
         category: analysisResult?.主题分类 || '',
+        // 新增：完整的分析结果字段
+        contentStructure: analysisResult?._rawJson?.['二、结构脉络']
+          ? JSON.stringify(analysisResult._rawJson['二、结构脉络'])
+          : '',
+        valuePoints: analysisResult?._rawJson?.['三、价值与情绪']
+          ? JSON.stringify(analysisResult._rawJson['三、价值与情绪'])
+          : '',
+        highlightClips: analysisResult?.金句?.map((g: any) => typeof g === 'string' ? g : g.内容).join(' | ') || '',
         // 前置信息
         platform: preInfo?.platform || '',
         contentType: preInfo?.contentType || '',
@@ -248,6 +285,14 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
         }
       }, true);
 
+      // 创建新版本（重新生成视为新版本）
+      const newVersion: ContentVersion = {
+        id: `v${Date.now()}`,
+        content: result.content,
+        type: 'original',
+        createdAt: new Date()
+      };
+
       setResults(prev => ({
         ...prev,
         [platform]: {
@@ -256,7 +301,9 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
           progress: 100,
           title: result.titles[0] || '',
           content: result.content,
-          coverPrompt: result.coverPrompt
+          coverPrompt: result.coverPrompt,
+          versions: [...(prev[platform]?.versions || []), newVersion],
+          currentVersionId: newVersion.id
         }
       }));
     } catch (error: any) {

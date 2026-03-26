@@ -10,6 +10,9 @@ export const titlePrompt = `【内容类型】{contentType}
 【目标受众】{audience}
 【关键词】{keywords}
 【情绪基调】{emotion}
+【内容结构】{contentStructure}
+【核心价值点】{valuePoints}
+【高光片段】{highlightClips}
 
 ---
 
@@ -74,6 +77,9 @@ export const contentPrompt = `【内容类型】{contentType}
 【目标受众】{audience}
 【关键词】{keywords}
 【情绪基调】{emotion}
+【内容结构】{contentStructure}
+【核心价值点】{valuePoints}
+【高光片段/金句】{highlightClips}
 
 ---
 

@@ -797,40 +797,46 @@ function ContentCreationPage({
                 </div>
               </div>
 
-              {/* AI洞察卡片 */}
-              <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-5 hover:shadow-md transition-shadow">
+              {/* 本次生成使用的分析要素卡片 */}
+              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl border border-emerald-200/60 shadow-sm p-5 hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
-                    <Sparkles className="w-4 h-4 text-purple-600" />
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
                   </div>
-                  <span className="font-semibold text-slate-800">AI分析洞察</span>
+                  <span className="font-semibold text-emerald-800">本次生成将使用以下分析要素</span>
                 </div>
-                <div className="space-y-3">
-                  {analysisResult?.主题分类 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-500">主题分类</span>
-                      <span className="text-sm font-medium text-slate-700">{analysisResult.主题分类}</span>
+                <div className="space-y-2.5">
+                  {analysisResult?.核心议题 && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-emerald-600 text-xs font-medium w-16 flex-shrink-0">核心议题</span>
+                      <span className="text-sm text-slate-700">{analysisResult.核心议题}</span>
                     </div>
                   )}
                   {analysisResult?.情绪基调 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-500">情绪基调</span>
-                      <span className="text-sm font-medium text-slate-700">
-                        {Array.isArray(analysisResult.情绪基调) ? analysisResult.情绪基调.join('+') : analysisResult.情绪基调}
+                    <div className="flex items-start gap-2">
+                      <span className="text-emerald-600 text-xs font-medium w-16 flex-shrink-0">情绪基调</span>
+                      <span className="text-sm text-slate-700">
+                        {Array.isArray(analysisResult.情绪基调) ? analysisResult.情绪基调.join(' + ') : analysisResult.情绪基调}
                       </span>
                     </div>
                   )}
                   {analysisResult?.目标受众 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-500">目标受众</span>
-                      <span className="text-sm font-medium text-slate-700">{analysisResult.目标受众}</span>
+                    <div className="flex items-start gap-2">
+                      <span className="text-emerald-600 text-xs font-medium w-16 flex-shrink-0">目标受众</span>
+                      <span className="text-sm text-slate-700">{analysisResult.目标受众}</span>
                     </div>
                   )}
-                  {analysisResult?.基因评估?.标题吸引力 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-500">标题评分</span>
-                      <span className="text-sm font-medium text-slate-700">
-                        {analysisResult.基因评估.标题吸引力?.分数 || '-'} /10
+                  {analysisResult?._rawJson?.['二、结构脉络']?.开篇钩子?.内容 && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-emerald-600 text-xs font-medium w-16 flex-shrink-0">开篇钩子</span>
+                      <span className="text-sm text-slate-700">{analysisResult._rawJson['二、结构脉络'].开篇钩子.内容}</span>
+                    </div>
+                  )}
+                  {analysisResult?.金句?.[0] && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-emerald-600 text-xs font-medium w-16 flex-shrink-0">高光片段</span>
+                      <span className="text-sm text-slate-700 italic">
+                        "{typeof analysisResult.金句[0] === 'string' ? analysisResult.金句[0] : analysisResult.金句[0].内容}"
                       </span>
                     </div>
                   )}

@@ -22,6 +22,8 @@ import { ProviderEditForm } from './ProviderEditForm';
 import { ApiDebugPanel } from './ApiDebugPanel';
 import { CompareModal } from './CompareModal';
 import { autoFormatTemplate, type FormatOutput } from '../services/autoFormatService';
+import { slimAndFormat } from '../services/templateFormatter';
+import { checkPromptLength, getRiskLevelColor, getRiskLevelBorderColor, type LengthCheckResult } from '../services/promptLengthChecker';
 
 // Tab 类型
 type TabType = 'ai' | 'platforms' | 'analysis' | 'quality' | 'optimization' | 'other' | 'templates';
@@ -485,6 +487,15 @@ function PlatformsTab() {
   const [formatResult, setFormatResult] = useState<FormatOutput | null>(null);
   const [showCompareModal, setShowCompareModal] = useState(false);
 
+  // 精简相关状态
+  const [slimMode, setSlimMode] = useState<'format' | 'slim'>('format');
+  const [slimResult, setSlimResult] = useState<{
+    slimmed: string;
+    removedSections: { content: string; reason: string }[];
+    statistics: { originalLength: number; slimmedLength: number; removedLength: number; removedPercentage: number };
+  } | null>(null);
+  const [lengthCheckResult, setLengthCheckResult] = useState<LengthCheckResult | null>(null);
+
   // 新增平台表单状态
   const [newPlatform, setNewPlatform] = useState({
     name: '',
@@ -630,6 +641,67 @@ function PlatformsTab() {
     // 合并内容用于格式化
     const mergedContent = `# 标题提示词\n${titlePrompt || ''}\n\n# 正文提示词\n${contentPrompt || ''}`;
 
+    // 先进行字数检测
+    const titleLengthCheck = checkPromptLength(titlePrompt || '', 'titlePrompt');
+    const contentLengthCheck = checkPromptLength(contentPrompt || '', 'contentPrompt');
+
+    // 保存字数检测结果
+    setLengthCheckResult(contentLengthCheck); // 主要关注正文提示词的检测
+
+    // 如果需要精简或用户需要精简
+    if (slimMode === 'slim' || contentLengthCheck.recommendation === 'slim_and_format') {
+      // 类型守卫：确保 platformId 有效
+      const platformId = selectedPlatform.id as 'gzh' | 'xhs' | 'douyin';
+
+      // 执行精简+格式化
+      const { slimResult: titleSlim, formatResult: titleFormat } = slimAndFormat(
+        mergedContent,
+        'titlePrompt',
+        platformId
+      );
+      const { slimResult: contentSlim, formatResult: contentFormat } = slimAndFormat(
+        mergedContent,
+        'contentPrompt',
+        platformId
+      );
+
+      // 合并变更
+      const allChanges = [...titleFormat.changes, ...contentFormat.changes];
+      const allWarnings = [...titleFormat.warnings, ...contentFormat.warnings,
+        ...(titleSlim.removedSections.length > 0 ? [`精简标题提示词：移除 ${titleSlim.statistics.removedLength} 字`] : []),
+        ...(contentSlim.removedSections.length > 0 ? [`精简正文提示词：移除 ${contentSlim.statistics.removedLength} 字`] : [])
+      ];
+
+      // 解析格式化后的内容
+      const { titlePrompt: fmtTitle, contentPrompt: fmtContent } = parsePromptContent(titleFormat.formatted);
+
+      // 设置精简结果
+      setSlimResult({
+        slimmed: `# 标题提示词\n${fmtTitle}\n\n# 正文提示词\n${fmtContent}`,
+        removedSections: [
+          ...titleSlim.removedSections.map(s => ({ content: s.content, reason: `标题: ${s.reason}` })),
+          ...contentSlim.removedSections.map(s => ({ content: s.content, reason: `正文: ${s.reason}` })),
+        ],
+        statistics: {
+          originalLength: titleSlim.statistics.originalLength + contentSlim.statistics.originalLength,
+          slimmedLength: titleSlim.statistics.slimmedLength + contentSlim.statistics.slimmedLength,
+          removedLength: titleSlim.statistics.removedLength + contentSlim.statistics.removedLength,
+          removedPercentage: (titleSlim.statistics.removedLength + contentSlim.statistics.removedLength) /
+            (titleSlim.statistics.originalLength + contentSlim.statistics.originalLength || 1),
+        },
+      });
+
+      setFormatResult({
+        formatted: `# 标题提示词\n${fmtTitle}\n\n# 正文提示词\n${fmtContent}`,
+        strategy: titleFormat.strategy,
+        changes: allChanges,
+        warnings: allWarnings,
+      });
+      setShowCompareModal(true);
+      return;
+    }
+
+    // 标准格式化流程（不精简）
     // 格式化标题提示词
     const titleResult = autoFormatTemplate(mergedContent, 'titlePrompt', selectedPlatform.id);
 
@@ -672,6 +744,8 @@ function PlatformsTab() {
     setEditingTemplate(null);
     setTempContent('');
     setFormatResult(null);
+    setSlimResult(null);
+    setLengthCheckResult(null);
     setShowCompareModal(false);
   };
 
@@ -695,6 +769,8 @@ function PlatformsTab() {
     setEditingTemplate(null);
     setTempContent('');
     setFormatResult(null);
+    setSlimResult(null);
+    setLengthCheckResult(null);
     setShowCompareModal(false);
   };
 
@@ -965,6 +1041,50 @@ function PlatformsTab() {
 你是一个公众号内容创作专家，根据用户提供的素材生成文章`}
                 />
 
+                {/* 字数检测结果 - 仅自定义模板 */}
+                {!isBuiltIn && (() => {
+                  const { titlePrompt, contentPrompt } = parsePromptContent(tempContent);
+                  const titleCheck = checkPromptLength(titlePrompt || '', 'titlePrompt');
+                  const contentCheck = checkPromptLength(contentPrompt || '', 'contentPrompt');
+
+                  const renderCheckBadge = (check: LengthCheckResult) => {
+                    const colorClass = getRiskLevelColor(check.riskLevel);
+                    const borderClass = getRiskLevelBorderColor(check.riskLevel);
+                    return (
+                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${borderClass} ${colorClass.split(' ')[1]}`}>
+                        <span className="text-xs font-medium">{check.currentLength} / {check.limit} 字</span>
+                        <span className="text-xs opacity-75">({check.percentageDisplay})</span>
+                        {check.riskLevel !== 'safe' && (
+                          <span className="text-xs">⚠️ {check.riskLevel === 'warning' ? '接近限制' : '超过限制'}</span>
+                        )}
+                      </div>
+                    );
+                  };
+
+                  return (
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500">标题：</span>
+                        {renderCheckBadge(titleCheck)}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500">正文：</span>
+                        {renderCheckBadge(contentCheck)}
+                      </div>
+                      {(titleCheck.recommendation !== 'none' || contentCheck.recommendation !== 'none') && (
+                        <div className="w-full mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                          <p className="text-xs text-amber-700">
+                            💡 {titleCheck.recommendationText || contentCheck.recommendationText}
+                            {titleCheck.recommendation === 'slim_and_format' || contentCheck.recommendation === 'slim_and_format'
+                              ? ' 保存时可选择"精简+格式化"模式。'
+                              : ''}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {/* 提示 - 仅自定义模板 */}
                 {!isBuiltIn && (
                   <div className="mt-4 p-3 bg-blue-50 rounded-lg">
@@ -1012,6 +1132,12 @@ function PlatformsTab() {
         formatted={formatResult?.formatted || ''}
         changes={formatResult?.changes || []}
         warnings={formatResult?.warnings || []}
+        slimmed={slimResult?.slimmed}
+        removedSections={slimResult?.removedSections || []}
+        statistics={slimResult?.statistics}
+        showSlimOption={slimResult !== null}
+        mode={slimMode}
+        onModeChange={setSlimMode}
         onConfirm={handleConfirmFormat}
         onUseOriginal={handleUseOriginal}
         onCancel={handleCancelEdit}

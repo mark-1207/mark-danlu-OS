@@ -348,11 +348,17 @@ export async function generatePlatformContent(
   context: {
     content: string;
     title?: string;
-    keywords?: string;
-    emotion?: string;
-    audience?: string;
-    category?: string;
+    keywords?: string;          // 核心议题
+    emotion?: string;          // 情绪基调
+    audience?: string;         // 目标受众
+    category?: string;         // 主题分类
     style?: string;
+    // 新增：分析结果完整字段
+    contentStructure?: string;  // 内容结构（开篇钩子、主线脉络、高潮时刻、收尾方式）
+    valuePoints?: string;      // 价值点（知识增量、认知颠覆、情绪价值、实用价值）
+    highlightClips?: string;   // 高光片段/金句
+    goldSentences?: string[];  // 金句列表
+    interactiveHook?: string;   // 互动诱饵
     // 前置信息
     platform?: string;
     contentType?: string;
@@ -493,7 +499,11 @@ ${context.style || ''}
       .replace(/{emotion}/g, context.emotion || '')
       .replace(/{audience}/g, context.audience || '')
       .replace(/{category}/g, context.category || '')
-      .replace(/{style}/g, context.style || '');
+      .replace(/{style}/g, context.style || '')
+      // 新增分析结果字段
+      .replace(/{contentStructure}/g, context.contentStructure || '')
+      .replace(/{valuePoints}/g, context.valuePoints || '')
+      .replace(/{highlightClips}/g, context.highlightClips || '');
 
     const titleResponse = await llmManager.chat(
       [
@@ -520,7 +530,11 @@ ${context.style || ''}
       .replace(/{emotion}/g, context.emotion || '')
       .replace(/{audience}/g, context.audience || '')
       .replace(/{category}/g, context.category || '')
-      .replace(/{style}/g, context.style || '');
+      .replace(/{style}/g, context.style || '')
+      // 新增分析结果字段
+      .replace(/{contentStructure}/g, context.contentStructure || '')
+      .replace(/{valuePoints}/g, context.valuePoints || '')
+      .replace(/{highlightClips}/g, context.highlightClips || '');
 
     const contentResponse = await llmManager.chat(
       [
@@ -745,22 +759,22 @@ export async function analyzeContentQuality(
         { id: 'titleSpread', name: '标题传播性', score: 22, maxScore: 25, evidence: '原文："你不是懒，你只是太焦虑了"（第1行）——判定：戳中焦虑情绪，有传播性', reason: '戳中情绪，有社交货币' },
         { id: 'crowdAccuracy', name: '人群精准度', score: 12, maxScore: 15, evidence: '原文："你是否也有过这样的经历"（第2行）——判定：精准定位目标人群', reason: '有目标人群筛选' },
         { id: 'socialCurrency', name: '社交货币', score: 18, maxScore: 25, evidence: '原文："从现在开始，哪怕只是迈出一小步"（结尾）——判定：有转发触发点', reason: '有可传播的金句' },
-        { id: 'contentDensity', name: '内容密度', score: 15, maxScore: 20, evidence: '原文："第一...第二...第三..."（第4-6段）——判定：有方法论' },
-        { id: 'retentionDesign', name: '留存设计', score: 8, maxScore: 15, evidence: '原文："凌晨1点..."（开头）——判定：开头有悬念' },
+        { id: 'contentDensity', name: '内容密度', score: 15, maxScore: 20, evidence: '原文："第一...第二...第三..."（第4-6段）——判定：有方法论', reason: '有知识增量' },
+        { id: 'retentionDesign', name: '留存设计', score: 8, maxScore: 15, evidence: '原文："凌晨1点..."（开头）——判定：开头有悬念', reason: '开头有钩子' },
       ],
       xhs: [
-        { id: 'titleHook', name: '标题/首图钩子', score: 16, maxScore: 20, evidence: '原文："职场人必看"（第1行）——判定：精准人群+行动号召' },
-        { id: 'crowdAccuracy', name: '人群精准度', score: 12, maxScore: 15, evidence: '原文："职场人必看"（第1行）——判定：精准定位职场人群' },
-        { id: 'collectableValue', name: '可收藏价值', score: 20, maxScore: 25, evidence: '原文："3个亲测有效的方法"（第3行）——判定：有可操作的方法' },
-        { id: 'seoKeyword', name: 'SEO关键词', score: 14, maxScore: 20, evidence: '原文："#职场心理 #自我提升"（结尾标签）——判定：有关键词布局' },
-        { id: 'interactionDesign', name: '互动设计', score: 15, maxScore: 20, evidence: '原文："你认同吗？评论区说说"（结尾）——判定：有互动引导' },
+        { id: 'titleHook', name: '标题/首图钩子', score: 16, maxScore: 20, evidence: '原文："职场人必看"（第1行）——判定：精准人群+行动号召', reason: '人群精准+行动号召' },
+        { id: 'crowdAccuracy', name: '人群精准度', score: 12, maxScore: 15, evidence: '原文："职场人必看"（第1行）——判定：精准定位职场人群', reason: '人群标签明确' },
+        { id: 'collectableValue', name: '可收藏价值', score: 20, maxScore: 25, evidence: '原文："3个亲测有效的方法"（第3行）——判定：有可操作的方法', reason: '有实用方法论' },
+        { id: 'seoKeyword', name: 'SEO关键词', score: 14, maxScore: 20, evidence: '原文："#职场心理 #自我提升"（结尾标签）——判定：有关键词布局', reason: '关键词覆盖充分' },
+        { id: 'interactionDesign', name: '互动设计', score: 15, maxScore: 20, evidence: '原文："你认同吗？评论区说说"（结尾）——判定：有互动引导', reason: '有互动引导' },
       ],
       douyin: [
-        { id: 'hook3s', name: '3秒钩子', score: 20, maxScore: 25, evidence: '原文："你为什么总是拖延"（0-3s）——判定：痛点提问+人群筛选' },
-        { id: 'hotPoint15s', name: '15秒爆点', score: 15, maxScore: 20, evidence: '原文："告诉你3个方法"（15s）——判定：15秒内给干货' },
-        { id: 'rhythmDensity', name: '节奏密度', score: 24, maxScore: 30, evidence: '原文："第一个...第二个...第三个..."——判定：节奏紧凑' },
-        { id: 'interactionKeyword', name: '互动关键词', score: 10, maxScore: 15, evidence: '原文："你认同吗？评论区说说"（结尾）——判定：有互动引导' },
-        { id: 'forwardGuide', name: '转发引导', score: 7, maxScore: 10, evidence: '原文：无明确转发触发——判定：缺少转发引导' },
+        { id: 'hook3s', name: '3秒钩子', score: 20, maxScore: 25, evidence: '原文："你为什么总是拖延"（0-3s）——判定：痛点提问+人群筛选', reason: '痛点精准+人群明确' },
+        { id: 'hotPoint15s', name: '15秒爆点', score: 15, maxScore: 20, evidence: '原文："告诉你3个方法"（15s）——判定：15秒内给干货', reason: '有干货密度' },
+        { id: 'rhythmDensity', name: '节奏密度', score: 24, maxScore: 30, evidence: '原文："第一个...第二个...第三个..."——判定：节奏紧凑', reason: '节奏快而不乱' },
+        { id: 'interactionKeyword', name: '互动关键词', score: 10, maxScore: 15, evidence: '原文："你认同吗？评论区说说"（结尾）——判定：有互动引导', reason: '有互动引导' },
+        { id: 'forwardGuide', name: '转发引导', score: 7, maxScore: 10, evidence: '原文：无明确转发触发——判定：缺少转发引导', reason: '缺少转发触发' },
       ],
     };
 
@@ -895,7 +909,7 @@ function transformQualityResponse(parsed: any): QualityReport {
   const checklist: ChecklistItem[] = (parsed.checklist || parsed.checkItems || []).map((item: any, index: number) => ({
     id: item.id || String(index + 1),
     name: item.name || item.item || item.项目 || `检查项${index + 1}`,
-    passed: item.passed ?? item.result === 'pass' ?? item.结果 === '通过' ?? false,
+    passed: item.passed ?? (item.result === 'pass' || item.结果 === '通过' || false),
     reason: item.reason || item.reasoning || '',
     evidence: item.evidence || item.原文引用 || '',
     position: item.position || item.location || '',

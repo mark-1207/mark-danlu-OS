@@ -1,28 +1,7 @@
 # 内容改写工坊 - 开发进度记录
 
 **最后更新**: 2026-03-26
-**状态**: 进行中（项目修复后）
-
----
-
-## ⚠️ 重要说明（必读）
-
-### 2026-03-26 项目断裂与修复
-
-**问题**：项目在 `3ff2522` 提交时存在预先存在的断裂问题：
-- `QualityParser.ts` 引用了 `types.ts` 中不存在的类型（`QualityReport`、`PlatformId`、`QualityCheckItem` 等）
-- `settingsStore.ts` 引用了不存在的 `qualityAnalysis` 属性
-- `QualityAnalysisTab` 组件引用了不存在的 store 方法
-
-**修复**（提交 `a7d7a38`）：
-- 删除了损坏的 `QualityParser.ts`
-- 修复了 `settingsStore.ts`、`llmService.ts`、`SettingsPage.tsx`
-- 简化了 `QualityAnalysisTab` 为占位组件
-- 修复了 `verbatimModuleSyntax` 类型导入问题
-
-**注意**：
-- E1 实施工作（模板格式规范化）的第一阶段代码（`templateSpecs.ts`、`templateFormatter.ts` 中的平台规范定义）已存在，但因修复过程中被重置，需要确认完整性
-- 质检功能仍可正常使用（通过平台模板中的 `qualityPrompt` 配置）
+**状态**: E1 + F 完成，待开始 G
 
 ---
 
@@ -35,15 +14,10 @@
 | A | 质检准确性优化 | ✅ 完成 | 2026-03-26 |
 | B | 内容生成质量优化 | ✅ 完成 | 2026-03-26 |
 | E | 模板格式规范化设计 | ✅ 完成 | 2026-03-26 |
-| - | 项目断裂修复 | ✅ 完成 | 2026-03-26 |
-
-### ⏳ 进行中（高优先级）
-
-| 序号 | 任务 | 状态 | 备注 |
-|-----|------|------|------|
-| E1 | 实施模板格式规范化 | 🔄 进行中 | 设计已完成，需确认代码完整性后继续 |
-| F | 质检报告UI展示优化 | ⏳ 待开始 | 依赖E1完成后 |
-| G | 内容生成流程交互优化 | ⏳ 待开始 | 依赖E1完成后 |
+| E1 | 实施模板格式规范化 | ✅ 完成 | 2026-03-26 |
+| F | 质检报告UI展示优化 | ✅ 完成 | 2026-03-26 |
+| H | LLM调用逻辑修复 + 提示词字数检测与智能精简 | ✅ 完成 | 2026-03-26 |
+| G | 内容生成流程交互优化 | ✅ 完成 | 2026-03-26 |
 
 ### ⏳ 待讨论
 
@@ -103,69 +77,136 @@
 
 ## ⏳ 进行中任务详情
 
-### E1) 实施模板格式规范化 🔄
+### E1) 实施模板格式规范化 ✅
 
-**前置条件**: 设计已批准（2026-03-26）
+**完成日期**: 2026-03-26
 
-**设计文档核心需求**：
-> "当我自定义新模版时，只需要将内容粘贴进去，系统自动修正我的内容格式使之符合要求，不需要我去微调格式"
+**实施文档**: `docs/superpowers/specs/2026-03-26-template-format-integration.md`
 
-**核心流程**：
-```
-用户粘贴内容
-    ↓
-保存时 → 系统自动格式化（分级判断）
-    ↓
-显示对比（原内容 vs 格式化后）
-    ↓
-用户确认 → 保存
-```
+**完成改动**:
 
-**格式化策略**：
-| 内容情况 | 判断方式 | 策略 |
-|---------|---------|------|
-| 结构清晰 | 关键词匹配（公式、示例、禁止等） | 智能提取关键部分，按规范放到正确位置 |
-| 结构混乱 | 段落过长（>50行）或无结构关键词 | 整体重写，保留核心意思 |
-| 模糊情况 | 关键词匹配不明确 | AI辅助判断 |
+| 文件 | 操作 | 说明 |
+|-----|------|------|
+| `src/components/CompareModal.tsx` | 新增 | 格式化对比弹窗 |
+| `src/services/autoFormatService.ts` | 新增 | 格式化服务封装 |
+| `src/services/validator/TemplateValidator.ts` | 修改 | 简化为只保留 validateTemplate |
+| `src/services/validator/index.ts` | 修改 | 简化导出 |
+| `src/components/SettingsPage.tsx` | 重构 | 区分内置/自定义模板 |
 
-**待做**：
+**核心功能**:
+- 内置模板只读展示（查看按钮）
+- 自定义模板可编辑（编辑按钮）
+- 保存时自动格式化 + 对比弹窗
+- 对比弹窗支持：确认格式化 / 使用原版 / 取消
 
-1. **确认 `src/data/templateSpecs.ts` 代码完整性**
-   - [ ] 三平台的 titlePrompt 规范（5个公式 + JSON输出格式）
-   - [ ] 三平台的 contentPrompt 规范（4种内容类型差异化）
-   - [ ] 三平台的 qualityPrompt 规范（维度判定标准）
+### F) 质检报告UI展示优化 ✅
 
-2. **确认/创建 `src/services/templateFormatter.ts`**
-   - [ ] detectStructureLevel() - 关键词快速判断
-   - [ ] smartExtract() - 智能提取
-   - [ ] fullRewrite() - 整体重写
-   - [ ] format() - 格式化入口
+**完成日期**: 2026-03-26
 
-3. **更新 settingsStore**
-   - [ ] 模板保存时调用格式化
-   - [ ] 返回格式化结果供用户确认
+**设计文档**: `docs/superpowers/specs/2026-03-26-quality-report-ui-redesign.md`
 
-4. **更新设置页面组件**
-   - [ ] 添加对比确认弹窗
-   - [ ] 用户确认后保存
+**完成改动**:
 
-### F) 质检报告UI展示优化
+| 文件 | 操作 | 说明 |
+|-----|------|------|
+| `src/types/quality.ts` | 新增 | 动态类型定义 |
+| `src/components/QualityReport/*.tsx` | 新增 | 8个新组件 |
+| `src/services/llm/llmService.ts` | 修改 | 动态维度解析 |
+| `src/components/OptimizationReportPage.tsx` | 修改 | 使用新组件，移除雷达图 |
 
-**前置条件**: E1 实施模板格式规范化完成后
+**核心功能**:
+- 维度动态渲染（无论模板返回什么都能展示）
+- 移除雷达图，使用条形维度列表
+- Checklist 支持 evidence 显示（点击定位待实现）
+- 优化建议支持展开/收起 + original/optimized 对照
+- 整体评分为独立组件
 
-**待做**:
-- [ ] 展示原文引用（evidence字段）
-- [ ] 优化判定理由展示效果
-- [ ] 优化建议表格化展示
+### G) 内容生成流程交互优化 ✅
 
-### G) 内容生成流程交互优化
+**完成日期**: 2026-03-26
 
-**前置条件**: E1 实施模板格式规范化完成后
+**改动文件**:
 
-**待做**:
-- [ ] 标题选择时展示公式类型
-- [ ] 生成进度可视化
-- [ ] 预览体验优化
+| 文件 | 操作 | 说明 |
+|-----|------|------|
+| `src/services/llm/llmService.ts` | 修改 | context 类型扩展，传入完整分析数据 |
+| `src/components/ProModePanel.tsx` | 修改 | 导入公式配置 + 气泡展示 + 进度条 |
+| `src/components/QuickModePanel.tsx` | 修改 | 版本历史支持（types扩展） |
+| `src/components/App.tsx` | 修改 | 分析要素卡片重设计 |
+| `src/data/titleFormulas.ts` | 新增 | 公式配置数据（各平台公式详情） |
+| `src/data/gzhContentPrompt.ts` | 修改 | 新变量占位 {contentStructure}/{valuePoints}/{highlightClips} |
+| `src/data/xhsContentPrompt.ts` | 修改 | 新变量占位 |
+| `src/data/douyinContentPrompt.ts` | 修改 | 新变量占位 |
+
+**核心功能**:
+
+#### 1. 分析结果完整传入生成函数
+- 新增 context 字段：`contentStructure`、`valuePoints`、`highlightClips`、`goldSentences`、`interactiveHook`
+- `parseMarkdownResult` 解析的结构化数据（_rawJson）正确传入
+- 提示词模板新增变量占位，AI 生成时使用完整分析上下文
+
+#### 2. 内容创作页分析要素展示
+- 原"AI洞察卡片"改为"本次生成将使用以下分析要素"
+- 展示：核心议题、情绪基调、目标受众、开篇钩子、高光片段
+- 视觉设计：渐变绿色背景，emerald 色系
+
+#### 3. 标题公式气泡展示
+- 悬停标题类型标签显示公式详情
+- 详情包含：公式名称、结构、描述、示例、适用范围
+- 支持公众号8公式、小红书6公式、抖音10公式
+
+#### 4. 生成进度可视化
+- ProModePanel 底部添加平台独立进度条
+- 生成时显示加载动画和文字提示
+
+#### 5. 快速模式版本管理
+- PlatformResult 类型扩展支持 `versions[]` 和 `currentVersionId`
+- 重新生成时创建新版本，保留历史版本
+
+---
+
+### H) LLM调用逻辑修复 + 提示词字数检测与智能精简 ✅
+
+---
+
+### H) LLM调用逻辑修复 + 提示词字数检测与智能精简 ✅
+
+**完成日期**: 2026-03-26
+
+**改动文件**:
+
+| 文件 | 操作 | 说明 |
+|-----|------|------|
+| `src/services/llm/manager.ts` | 修改 | 修复重试逻辑Bug + 429指数退避 |
+| `src/services/llm/adapters.ts` | 修改 | 添加timeout + 修复Anthropic baseUrl |
+| `src/services/promptLengthChecker.ts` | 新增 | 提示词字数检测服务 |
+| `src/services/templateFormatter.ts` | 修改 | 添加智能精简功能 |
+| `src/components/CompareModal.tsx` | 修改 | 支持精简对比模式 |
+| `src/components/SettingsPage.tsx` | 修改 | 集成字数检测和精简功能 |
+| `src/components/QualityReport/*.tsx` | 修改 | 修复类型导入路径 |
+| `src/services/llm/llmService.ts` | 修改 | 修复测试数据类型错误 |
+
+**核心功能**:
+
+#### 1. LLM 调用逻辑修复
+- **重试逻辑 Bug 修复**: 修复 break 位置错误，可重试错误继续重试，不可重试才切换供应商
+- **429 指数退避**: 429 错误携带 retryAfterMs，避免立即重试加剧 rate limit
+- **axios 超时配置**: 所有适配器添加 `timeout: 120000`（2分钟）
+- **Anthropic baseUrl**: 修复硬编码，支持中转站配置
+
+#### 2. 提示词字数检测
+- **字数限制标准**:
+  - titlePrompt: 1500 字
+  - contentPrompt: 3000 字
+  - qualityPrompt: 2500 字
+- **风险等级**: safe (≤80%) / warning (80%-100%) / high (>100%)
+- **超限警告**: 提示可能导致的 429、耗时增加等问题
+
+#### 3. 智能精简功能
+- **触发条件**: 提示词超限时
+- **精简策略**: 移除重复解释、简化过长示例、清理冗余格式
+- **对比弹窗**: 显示原版/格式化版/精简版三列对比
+- **高亮显示**: 被删除内容高亮标注，用户决策是否接受精简
 
 ---
 
@@ -224,8 +265,11 @@
 
 ### 当前状态
 - ✅ 项目可正常运行（`npm run dev`）
-- ⚠️ E1 实施工作需确认代码完整性后继续
-- ⚠️ 质检功能正常但质检Tab页面暂时为占位状态
+- ✅ LLM 调用逻辑已修复（重试、429、超时）
+- ✅ 提示词字数检测和智能精简功能已完成
+- ✅ 内容创作页分析要素展示已完成
+- ✅ 构建通过（`npm run build` 成功）
+- ⏳ 待讨论任务：C)UI交互体验优化、D)生成稳定性优化
 
 ---
 

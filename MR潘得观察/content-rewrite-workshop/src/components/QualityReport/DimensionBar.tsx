@@ -3,13 +3,13 @@
  * 展示单个维度的得分条形图
  */
 import { CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
-import type { Dimension } from '../../../types/quality';
+import type { Dimension } from '../../types/quality';
 
 interface DimensionBarProps {
   dimension: Dimension;
 }
 
-const statusConfig = {
+const statusConfig: Record<string, { icon: typeof CheckCircle; color: string; bgColor: string }> = {
   pass: { icon: CheckCircle, color: 'text-green-500', bgColor: 'bg-green-500' },
   warning: { icon: AlertTriangle, color: 'text-amber-500', bgColor: 'bg-amber-500' },
   fail: { icon: XCircle, color: 'text-red-500', bgColor: 'bg-red-500' },

@@ -40,6 +40,7 @@ export class OpenAIAdapter implements LLMAdapter {
           'Authorization': `Bearer ${providerConfig.apiKey}`,
           'Content-Type': 'application/json',
         },
+        timeout: 120000, // 2分钟超时
       }
     );
 
@@ -91,8 +92,10 @@ export class AnthropicAdapter implements LLMAdapter {
     const systemMessage = config.messages.find(m => m.role === 'system');
     const userMessages = config.messages.filter(m => m.role !== 'system');
 
+    const baseUrl = providerConfig.baseUrl || 'https://api.anthropic.com/v1';
+
     const response = await axios.post(
-      'https://api.anthropic.com/v1/messages',
+      `${baseUrl}/messages`,
       {
         model: config.model,
         max_tokens: config.maxTokens || 1024,
@@ -106,6 +109,7 @@ export class AnthropicAdapter implements LLMAdapter {
           'anthropic-version': '2023-06-01',
           'Content-Type': 'application/json',
         },
+        timeout: 120000, // 2分钟超时
       }
     );
 
@@ -176,6 +180,7 @@ export class MiniMaxAdapter implements LLMAdapter {
           'Authorization': `Bearer ${providerConfig.apiKey}`,
           'Content-Type': 'application/json',
         },
+        timeout: 120000, // 2分钟超时
       }
     );
 
@@ -246,6 +251,7 @@ export class KimiAdapter implements LLMAdapter {
           'Authorization': `Bearer ${providerConfig.apiKey}`,
           'Content-Type': 'application/json',
         },
+        timeout: 120000, // 2分钟超时
       }
     );
 
@@ -332,6 +338,7 @@ export class ArkAdapter implements LLMAdapter {
           'Authorization': `Bearer ${providerConfig.apiKey}`,
           'Content-Type': 'application/json',
         },
+        timeout: 120000, // 2分钟超时
       }
     );
 
@@ -364,7 +371,7 @@ export class ArkAdapter implements LLMAdapter {
         `${baseUrl}/api/v3/chat/completions`,
         {
           model: providerConfig.model,
-          messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }],
+          messages: [{ role: 'user', content: 'Hi' }],
           max_tokens: 1,
         },
         {
@@ -403,6 +410,7 @@ export class DeepSeekAdapter implements LLMAdapter {
           'Authorization': `Bearer ${providerConfig.apiKey}`,
           'Content-Type': 'application/json',
         },
+        timeout: 120000, // 2分钟超时
       }
     );
 
@@ -475,6 +483,7 @@ export class CustomAdapter implements LLMAdapter {
           'Authorization': `Bearer ${providerConfig.apiKey}`,
           'Content-Type': 'application/json',
         },
+        timeout: 120000, // 2分钟超时
       }
     );
 

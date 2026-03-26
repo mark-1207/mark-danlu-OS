@@ -14,18 +14,21 @@ export class APIError extends Error {
   provider: string;
   statusCode?: number;
   isRetryable: boolean;
+  retryAfterMs?: number; // 429 等错误需要等待的时间
 
   constructor(
     message: string,
     provider: string,
     statusCode?: number,
-    isRetryable: boolean = false
+    isRetryable: boolean = false,
+    retryAfterMs?: number
   ) {
     super(message);
     this.name = 'APIError';
     this.provider = provider;
     this.statusCode = statusCode;
     this.isRetryable = isRetryable;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -113,17 +116,20 @@ export class LLMManager {
           retries++;
           lastError = this.normalizeError(error, provider.name);
 
-          // 如果是不可重试的错误，直接抛出
+          // 如果是不可重试的错误，直接切换供应商
           if (!lastError.isRetryable) {
             if (!failover.enabled) {
               throw lastError;
             }
-            break;
+            break; // 不可重试的错误，切换到下一个供应商
           }
 
-          // 如果还有重试次数，等待后重试
+          // 可重试错误：检查是否还有重试次数
           if (retries <= failover.maxRetries) {
-            await this.sleep(failover.retryDelay);
+            // 使用错误中携带的退避时间（如果有的话，如 429）
+            const retryDelay = (lastError as any).retryAfterMs || failover.retryDelay;
+            await this.sleep(retryDelay);
+            continue; // 继续重试当前供应商
           }
         }
       }
@@ -168,13 +174,7 @@ export class LLMManager {
         const axiosError = error as any;
         const statusCode = axiosError.response?.status;
 
-        // 常见可重试的状态码
-        const retryableCodes = [429, 500, 502, 503, 504];
-        const isRetryable = retryableCodes.includes(statusCode) ||
-          error.message.includes('timeout') ||
-          error.message.includes('ECONNREFUSED');
-
-        // 额度用完
+        // 额度用完（不可重试）
         if (statusCode === 401 || statusCode === 403) {
           return new APIError(
             'API 密钥无效或额度已用完',
@@ -183,6 +183,31 @@ export class LLMManager {
             false // 不可重试
           );
         }
+
+        // 429 Rate Limit - 需要指数退避
+        if (statusCode === 429) {
+          // 尝试从响应头获取 retry-after
+          const retryAfterHeader = axiosError.response?.headers?.['retry-after'];
+          let retryAfterSeconds = 5; // 默认 5 秒
+          if (retryAfterHeader) {
+            retryAfterSeconds = parseInt(retryAfterHeader, 10) || 5;
+          }
+          // 指数退避：如果是多次重试失败，增加等待时间
+          const retryAfterMs = retryAfterSeconds * 1000;
+          return new APIError(
+            `Rate limit exceeded. Please wait ${retryAfterSeconds}s`,
+            providerName,
+            statusCode,
+            true, // 可重试
+            retryAfterMs
+          );
+        }
+
+        // 其他可重试的状态码
+        const retryableCodes = [500, 502, 503, 504];
+        const isRetryable = retryableCodes.includes(statusCode) ||
+          error.message.includes('timeout') ||
+          error.message.includes('ECONNREFUSED');
 
         return new APIError(
           error.message,

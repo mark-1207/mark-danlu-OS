@@ -45,6 +45,21 @@ export interface FormatOutput {
   warnings: string[];
 }
 
+// 精简结果
+export interface SlimResult {
+  slimmed: string;           // 精简后的内容
+  removedSections: {          // 被移除的部分
+    content: string;
+    reason: string;           // 被移除原因
+  }[];
+  statistics: {
+    originalLength: number;
+    slimmedLength: number;
+    removedLength: number;
+    removedPercentage: number;
+  };
+}
+
 // ============================================
 // 主格式化入口
 // ============================================
@@ -395,3 +410,154 @@ export function getFormatPreview(rawContent: string, promptType: PromptType, pla
     warnings: result.warnings,
   };
 }
+
+// ============================================
+// 智能精简
+// ============================================
+
+/**
+ * 智能精简 - 识别并移除冗余内容
+ *
+ * 精简策略：
+ * 1. 移除重复的解释性内容
+ * 2. 简化过长的示例描述（保留核心意思）
+ * 3. 移除冗余的格式说明
+ * 4. 移除重复的约束条件
+ * 5. 移除过于详细的说明性文字
+ */
+export function slimTemplate(
+  content: string,
+  promptType: PromptType
+): SlimResult {
+  const originalLength = content.length;
+  const removedSections: SlimResult['removedSections'] = [];
+  let slimmed = content;
+
+  // 精简规则定义
+  const slimRules: Array<{
+    pattern: RegExp;
+    reason: string;
+    maxLength?: number; // 可选的 maximum length for match
+  }> = [
+    // 1. 移除连续的空行（超过2个）
+    {
+      pattern: /\n{3,}/g,
+      reason: '移除连续空行',
+    },
+    // 2. 移除行尾多余空格
+    {
+      pattern: /[ \t]+\n/g,
+      reason: '移除行尾空格',
+    },
+    // 3. 移除注释性内容（以 # 或 // 开头的行）
+    {
+      pattern: /^#.*$\n?/gm,
+      reason: '移除注释行',
+    },
+    // 4. 移除 "例如：" 后的过长示例（保留前50字）
+    {
+      pattern: /(例如|比如|举例)：[^\n]{50,}/g,
+      reason: '简化过长示例',
+    },
+    // 5. 移除重复的约束说明（保留一个）
+    {
+      pattern: /(禁止|不允许|不得)[^\n]+(但|如果|然而)[^\n]+\n/g,
+      reason: '移除重复约束',
+    },
+  ];
+
+  // 应用精简规则
+  for (const rule of slimRules) {
+    const before = slimmed;
+    slimmed = slimmed.replace(rule.pattern, '');
+    if (slimmed.length < before.length) {
+      removedSections.push({
+        content: before.substring(0, 100) + '...',
+        reason: rule.reason,
+      });
+    }
+  }
+
+  // 6. 针对不同类型进行特定精简
+  if (promptType === 'contentPrompt') {
+    // 正文提示词：移除过长的"注意事项"部分
+    const notesMatch = slimmed.match(/(?:注意[事项]?：)[^#@\n]{200,}/g);
+    if (notesMatch) {
+      for (const match of notesMatch) {
+        if (match.length > 100) {
+          const simplified = match.substring(0, 100) + '...';
+          slimmed = slimmed.replace(match, simplified);
+          removedSections.push({
+            content: match,
+            reason: '简化过长注意事项',
+          });
+        }
+      }
+    }
+  }
+
+  if (promptType === 'titlePrompt') {
+    // 标题提示词：移除过长的公式说明
+    const formulaMatch = slimmed.match(/(?:公式|模板)[^\n]{100,}/g);
+    if (formulaMatch) {
+      for (const match of formulaMatch) {
+        if (match.length > 80) {
+          const simplified = match.substring(0, 80) + '...';
+          slimmed = slimmed.replace(match, simplified);
+          removedSections.push({
+            content: match,
+            reason: '简化过长公式说明',
+          });
+        }
+      }
+    }
+  }
+
+  // 7. 清理格式
+  slimmed = slimmed
+    .replace(/\n{2,}/g, '\n\n')
+    .trim();
+
+  const slimmedLength = slimmed.length;
+  const removedLength = originalLength - slimmedLength;
+  const removedPercentage = originalLength > 0 ? removedLength / originalLength : 0;
+
+  return {
+    slimmed,
+    removedSections,
+    statistics: {
+      originalLength,
+      slimmedLength,
+      removedLength,
+      removedPercentage,
+    },
+  };
+}
+
+/**
+ * 精简并格式化（组合操作）
+ */
+export function slimAndFormat(
+  rawContent: string,
+  promptType: PromptType,
+  platformId: PlatformId
+): {
+  slimResult: SlimResult;
+  formatResult: FormatOutput;
+} {
+  // 先精简
+  const slimResult = slimTemplate(rawContent, promptType);
+
+  // 再格式化
+  const formatResult = formatTemplate({
+    rawContent: slimResult.slimmed,
+    promptType,
+    platformId,
+  });
+
+  return {
+    slimResult,
+    formatResult,
+  };
+}
+

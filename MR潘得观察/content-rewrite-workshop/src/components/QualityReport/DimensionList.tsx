@@ -3,7 +3,7 @@
  * 动态渲染任意维度的列表
  */
 import { DimensionBar } from './DimensionBar';
-import type { Dimension } from '../../../types/quality';
+import type { Dimension } from '../../types/quality';
 
 interface DimensionListProps {
   dimensions: Dimension[];

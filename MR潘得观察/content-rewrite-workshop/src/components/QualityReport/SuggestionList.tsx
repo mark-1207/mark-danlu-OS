@@ -4,7 +4,7 @@
  */
 import { Lightbulb } from 'lucide-react';
 import { SuggestionCard } from './SuggestionCard';
-import type { OptimizationSuggestion } from '../../../types/quality';
+import type { OptimizationSuggestion } from '../../types/quality';
 
 interface SuggestionListProps {
   suggestions: OptimizationSuggestion[];

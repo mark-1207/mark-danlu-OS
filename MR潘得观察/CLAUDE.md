@@ -83,7 +83,40 @@
 - **模板导入功能**：从文件夹导入提示词模板，标题/正文分离
 
 ### 📋 当前待办（按优先级）
-- 暂无阻塞性问题
+- C) UI交互体验优化（待讨论）
+- D) 生成稳定性优化（待讨论）
+
+### ✅ v2.0 完成 (2026-03-26)
+- **内容创作页分析要素展示**：
+  - 内容创作页右侧卡片改为"本次生成将使用以下分析要素"
+  - 展示核心议题、情绪基调、目标受众、开篇钩子、高光片段
+- **LLM调用完整分析上下文**：
+  - context 新增 contentStructure、valuePoints、highlightClips 等字段
+  - 提示词模板新增变量占位（{contentStructure}/{valuePoints}/{highlightClips}）
+  - AI 生成时使用完整分析结果作为上下文
+- **标题公式气泡**：
+  - 新增 `src/data/titleFormulas.ts` 公式配置数据
+  - ProModePanel 标题卡片悬停显示公式详情（名称、结构、描述、示例、适用范围）
+- **生成进度可视化**：
+  - ProModePanel 底部添加平台独立进度条和加载动画
+- **快速模式版本管理**：
+  - PlatformResult 支持 versions[] 版本历史
+  - 重新生成创建新版本，保留历史版本
+
+### ✅ v1.9 完成 (2026-03-26)
+- **LLM调用逻辑修复**：
+  - 修复重试逻辑Bug（break位置错误导致重试失效）
+  - 429错误指数退避机制（携带retryAfterMs）
+  - 所有适配器添加timeout: 120000（2分钟）
+  - 修复Anthropic baseUrl硬编码问题
+- **提示词字数检测**：
+  - 新增`promptLengthChecker.ts`服务
+  - titlePrompt限制1500字，contentPrompt限制3000字，qualityPrompt限制2500字
+  - 三级风险等级：safe/warning/high
+- **智能精简功能**：
+  - 超限时提供精简建议
+  - 对比弹窗支持原版/格式化版/精简版三列对比
+  - 被删除内容高亮显示，用户决策是否接受
 
 ### ✅ v1.8 完成 (2026-03-25)
 - 新增 `src/data/` 目录存储模板提示词
