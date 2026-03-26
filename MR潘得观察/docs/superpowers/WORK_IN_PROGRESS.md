@@ -86,27 +86,33 @@
 
 **前置条件**: 设计已批准（2026-03-26）
 
-**待做**:
+**实施进度**:
 
-1. **创建 `src/data/templateSpecs.ts`**
-   - [ ] 定义三平台的 titlePrompt 规范
-   - [ ] 定义三平台的 contentPrompt 规范
-   - [ ] 定义三平台的 qualityPrompt 规范
+1. **创建 `src/data/templateSpecs.ts`** ✅
+   - [x] 定义三平台的 titlePrompt 规范
+   - [x] 定义三平台的 contentPrompt 规范
+   - [x] 定义三平台的 qualityPrompt 规范
+   - [x] 扩展变量标准化和结构关键词定义
 
-2. **创建 `src/services/templateFormatter.ts`**
-   - [ ] TemplateFormatter 类
-   - [ ] detectStructureLevel() - 关键词快速判断
-   - [ ] smartExtract() - 智能提取
-   - [ ] fullRewrite() - 整体重写
-   - [ ] format() - 格式化入口
+2. **创建 `src/services/templateFormatter.ts`** ✅
+   - [x] TemplateFormatter 格式化服务
+   - [x] detectStructureLevel() - 关键词快速判断
+   - [x] smartExtract() - 智能提取
+   - [x] fullRewrite() - 整体重写
+   - [x] format() - 格式化入口
 
-3. **更新 settingsStore**
+3. **更新 settingsStore** ⏳ 待开始
    - [ ] 模板保存时调用格式化
    - [ ] 返回格式化结果供用户确认
 
-4. **更新设置页面组件**
+4. **更新设置页面组件** ⏳ 待开始
    - [ ] 添加对比确认弹窗
    - [ ] 用户确认后保存
+
+**已完成文件**:
+- `src/data/templateSpecs.ts` - 平台特定模板规范
+- `src/services/templateFormatter.ts` - 格式化服务
+- `src/data/index.ts` - 导出 templateSpecs
 
 ### F) 质检报告UI展示优化
 
@@ -155,6 +161,8 @@
 
 | 提交 | 内容 |
 |-----|------|
+| `a1d0b44` | docs: 重组待办清单结构 |
+| `96f93b7` | feat: 实施模板格式规范化 - 基础建设 |
 | `45d8c48` | docs: 添加模板格式规范化设计文档 |
 | `3ff2522` | feat: 质检准确性优化 - 重构提示词和解析器 |
 | `6b0d3bb` | feat: 内容生成质量优化 - 精简三平台提示词 |

@@ -11,3 +11,6 @@ export { systemPrompt as xhsSystemPrompt, optimizePrompt as xhsOptimizationPromp
 export { titlePrompt as douyinTitlePrompt, contentPrompt as douyinContentPrompt } from './douyinContentPrompt';
 export { qualityPrompt as douyinQualityPrompt } from './douyinQualityPrompt';
 export { systemPrompt as douyinSystemPrompt, optimizePrompt as douyinOptimizationPrompt } from './douyinOptimizationPrompt';
+
+// 模板格式规范
+export * from './templateSpecs';

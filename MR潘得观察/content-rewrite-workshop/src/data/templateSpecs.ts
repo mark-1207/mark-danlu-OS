@@ -182,6 +182,293 @@ export const STANDARD_TITLE_JSON_FORMAT = `{
 }`;
 
 // ============================================
+// 平台特定模板规范（按设计文档 2026-03-26）
+// ============================================
+
+/**
+ * 标题提示词规范
+ */
+export interface TitlePromptSpec {
+  // 必需区块
+  requiredSections: {
+    key: string;
+    label: string;
+    count: number;
+    fields: {
+      name: string;
+      template?: string;
+      examples?: string[];
+      applicableTo?: string;
+    }[];
+  }[];
+  // 输出格式
+  outputFormat: {
+    label: string;
+    schema: {
+      titles: string;
+      recommended: string;
+    };
+  };
+  // 禁止事项格式
+  prohibitionFormat: string;
+}
+
+/**
+ * 正文提示词规范
+ */
+export interface ContentPromptSpec {
+  // 内容类型差异化
+  contentTypes: {
+    label: string;
+    types: string[];
+  };
+  // 必需区块
+  requiredSections: {
+    key: string;
+    label: string;
+    count: number;
+  }[];
+  // 禁止事项
+  prohibitionFormat: string;
+  // 排版要求
+  layoutRequirements: string[];
+  // 互动触发
+  interactionTypes: string[];
+}
+
+/**
+ * 质检提示词规范
+ */
+export interface QualityPromptSpec {
+  dimensions: {
+    label: string;
+    weight: string;
+    benchmarks: {
+      pass: string;
+      warning: string;
+      fail: string;
+    };
+  }[];
+  scoringRules: string;
+  outputFormat: {
+    label: string;
+    schema: Record<string, string>;
+  };
+}
+
+/**
+ * 平台模板规范
+ */
+export interface PlatformTemplateSpec {
+  platformId: PlatformId;
+  titlePromptSpec: TitlePromptSpec;
+  contentPromptSpec: ContentPromptSpec;
+  qualityPromptSpec?: QualityPromptSpec;
+}
+
+// ============================================
+// 各平台模板规范
+// ============================================
+
+export const PLATFORM_TEMPLATE_SPECS: Record<PlatformId, PlatformTemplateSpec> = {
+  gzh: {
+    platformId: 'gzh',
+    titlePromptSpec: {
+      requiredSections: [
+        {
+          key: 'coreFormulas',
+          label: '核心标题公式',
+          count: 5,
+          fields: [
+            { name: '公式名称' },
+            { name: '结构' },
+            { name: '示例' },
+            { name: '适用场景' },
+          ],
+        },
+      ],
+      outputFormat: {
+        label: '输出格式',
+        schema: {
+          titles: '数组，每个包含 text/type/reason',
+          recommended: '主推标题',
+        },
+      },
+      prohibitionFormat: '❌ 描述',
+    },
+    contentPromptSpec: {
+      contentTypes: {
+        label: '内容类型差异化',
+        types: ['访谈对话类', '故事分享类', '观点评论类', '新闻时事类', '演讲分享类'],
+      },
+      requiredSections: [
+        { key: 'openingFormulas', label: '核心开篇公式', count: 3 },
+        { key: 'bodyStructures', label: '主体结构模式', count: 4 },
+        { key: 'endingFormulas', label: '结尾公式', count: 3 },
+        { key: 'goldenQuotes', label: '金句植入策略', count: 1 },
+      ],
+      prohibitionFormat: '❌ 描述',
+      layoutRequirements: ['每段不超过4行', '关键信息用【】或加粗突出', '金句用「」标注', '每300字一个视觉休息点'],
+      interactionTypes: ['点赞触发', '评论触发', '转发触发'],
+    },
+    qualityPromptSpec: {
+      dimensions: [
+        { label: '标题吸引力', weight: '20%', benchmarks: { pass: '13-25字，关键词前置', warning: '26-30字或缺少关键词', fail: '超过30字或无价值信息' } },
+        { label: '开头留存力', weight: '20%', benchmarks: { pass: '前300字有强钩子', warning: '前300字平淡', fail: '开头冗长无重点' } },
+        { label: '内容价值度', weight: '25%', benchmarks: { pass: '有知识增量或认知颠覆', warning: '有价值但不突出', fail: '空洞无实质内容' } },
+        { label: '情绪感染力', weight: '15%', benchmarks: { pass: '共鸣强，深度足够', warning: '有一定共鸣', fail: '情绪泛滥或冷漠' } },
+        { label: '传播设计度', weight: '20%', benchmarks: { pass: '金句多，转发点明确', warning: '有转发点但不明显', fail: '无金句无转发点' } },
+      ],
+      scoringRules: '每项0-100分，加权求和',
+      outputFormat: {
+        label: '输出格式',
+        schema: {
+          scores: '各维度分数',
+          overall: '总分',
+          checklist: '判定清单',
+          suggestions: '优化建议',
+        },
+      },
+    },
+  },
+
+  xhs: {
+    platformId: 'xhs',
+    titlePromptSpec: {
+      requiredSections: [
+        {
+          key: 'coreFormulas',
+          label: '核心标题公式',
+          count: 5,
+          fields: [
+            { name: '公式名称' },
+            { name: '模板结构' },
+            { name: '示例' },
+            { name: '适用场景' },
+          ],
+        },
+      ],
+      outputFormat: {
+        label: '输出格式',
+        schema: {
+          titles: '数组，每个包含 text/type/reason',
+          recommended: '主推标题',
+        },
+      },
+      prohibitionFormat: '❌ 描述',
+    },
+    contentPromptSpec: {
+      contentTypes: {
+        label: '内容类型差异化',
+        types: ['干货方法类', '情感共鸣类', '经历分享类', '书单/清单类'],
+      },
+      requiredSections: [
+        { key: 'openingFormulas', label: '核心开篇公式', count: 3 },
+        { key: 'bodyStructures', label: '主体结构模式', count: 4 },
+        { key: 'endingFormulas', label: '结尾公式', count: 3 },
+        { key: 'goldenQuotes', label: '金句植入', count: 1 },
+      ],
+      prohibitionFormat: '❌ 描述',
+      layoutRequirements: ['每100-150字一段', '使用emoji作为视觉标记', '重点用「」或加粗突出', '标签：3-5个精准标签'],
+      interactionTypes: ['点赞触发', '收藏触发', '评论触发'],
+    },
+    qualityPromptSpec: {
+      dimensions: [
+        { label: '标题吸引力', weight: '20%', benchmarks: { pass: '20字内，情绪词+关键词', warning: '21-25字', fail: '超过25字' } },
+        { label: '开头留存力', weight: '20%', benchmarks: { pass: '前50字有强代入感', warning: '50-100字才入戏', fail: '开头平淡' } },
+        { label: '内容价值度', weight: '25%', benchmarks: { pass: '实用干货+种草价值', warning: '有价值但不够实用', fail: '空洞' } },
+        { label: '情绪感染力', weight: '15%', benchmarks: { pass: '真实温暖', warning: '有情绪但不够真实', fail: '过于营销' } },
+        { label: '传播设计度', weight: '20%', benchmarks: { pass: '互动引导+收藏点明确', warning: '有但不明显', fail: '无引导' } },
+      ],
+      scoringRules: '每项0-100分，加权求和',
+      outputFormat: {
+        label: '输出格式',
+        schema: {
+          scores: '各维度分数',
+          overall: '总分',
+          checklist: '判定清单',
+          suggestions: '优化建议',
+        },
+      },
+    },
+  },
+
+  douyin: {
+    platformId: 'douyin',
+    titlePromptSpec: {
+      requiredSections: [
+        {
+          key: 'coreFormulas',
+          label: '黄金3秒公式',
+          count: 5,
+          fields: [
+            { name: '公式名称' },
+            { name: '模板结构' },
+            { name: '示例' },
+            { name: '适用场景' },
+          ],
+        },
+      ],
+      outputFormat: {
+        label: '输出格式',
+        schema: {
+          titles: '数组，每个包含 text/type/reason',
+          recommended: '主推标题',
+        },
+      },
+      prohibitionFormat: '❌ 描述',
+    },
+    contentPromptSpec: {
+      contentTypes: {
+        label: '内容类型差异化',
+        types: ['口播讲解类', '访谈/播客混剪类', '剧情演绎类', '知识干货类'],
+      },
+      requiredSections: [
+        { key: 'scriptStructures', label: '脚本结构模板', count: 2 },
+        { key: 'goldenQuotes', label: '金句类型', count: 1 },
+        { key: 'rhythmRequirements', label: '节奏要求', count: 1 },
+        { key: 'interactionDesign', label: '互动触发设计', count: 1 },
+      ],
+      prohibitionFormat: '❌ 描述',
+      layoutRequirements: ['语速比日常说话快1.2倍', '每10秒1个有效信息点', '字幕与情绪同步'],
+      interactionTypes: ['点赞触发', '评论触发', '转发触发', '关注触发'],
+    },
+    qualityPromptSpec: {
+      dimensions: [
+        { label: '标题吸引力', weight: '20%', benchmarks: { pass: '15字内，悬念/冲突', warning: '16-20字', fail: '超过20字' } },
+        { label: '开头留存力', weight: '30%', benchmarks: { pass: '前3秒完播率高', warning: '3-5秒才入戏', fail: '5秒后才有重点' } },
+        { label: '内容价值度', weight: '20%', benchmarks: { pass: '信息密度高，无废话', warning: '有部分废话', fail: '信息密度低' } },
+        { label: '情绪感染力', weight: '15%', benchmarks: { pass: '强烈即时', warning: '有一定情绪', fail: '冷漠平淡' } },
+        { label: '传播设计度', weight: '15%', benchmarks: { pass: '点赞/评论引导明确', warning: '有但不明显', fail: '无引导' } },
+      ],
+      scoringRules: '每项0-100分，加权求和',
+      outputFormat: {
+        label: '输出格式',
+        schema: {
+          scores: '各维度分数',
+          overall: '总分',
+          checklist: '判定清单',
+          suggestions: '优化建议',
+        },
+      },
+    },
+  },
+};
+
+// ============================================
+// 结构清晰度判断关键词
+// ============================================
+
+export const STRUCTURE_KEYWORDS = {
+  // 标题相关
+  title: ['公式', '示例', '禁止', '结构', '类型', '模板', '生成', '输出'],
+  // 正文相关
+  content: ['开头', '主体', '结尾', '金句', '禁止', '排版', '互动', '类型', '案例'],
+  // 通用
+  universal: ['【', '】', '##', '---', '===', '```'],
+};
+
+// ============================================
 // 辅助函数
 // ============================================
 
