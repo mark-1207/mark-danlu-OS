@@ -730,17 +730,11 @@ export async function analyzeContentQuality(
     priority: 'high' | 'medium' | 'low';
   }>;
 }> {
-  const { ai, qualityAnalysis, testMode } = useSettingsStore.getState();
+  const { ai, platforms, testMode } = useSettingsStore.getState();
 
   // 根据平台ID获取对应的质检模板
-  let defaultTemplate;
-  if (platformId) {
-    const platformTemplates = qualityAnalysis.templates.filter(t => t.platformId === platformId);
-    defaultTemplate = platformTemplates.find(t => t.isDefault) || platformTemplates[0];
-  }
-  if (!defaultTemplate) {
-    defaultTemplate = qualityAnalysis.templates.find(t => t.id === qualityAnalysis.defaultTemplate) || qualityAnalysis.templates[0];
-  }
+  const platform = platforms.platforms.find(p => p.id === platformId);
+  const qualityPromptTemplate = platform?.qualityPrompt;
 
   // 测试模式：返回模拟数据
   if (testMode) {
@@ -781,7 +775,7 @@ export async function analyzeContentQuality(
     };
   }
 
-  if (!defaultTemplate) {
+  if (!qualityPromptTemplate) {
     throw new Error('未找到六维质检模板');
   }
 
@@ -792,7 +786,7 @@ export async function analyzeContentQuality(
   options.onProgress?.(10, 'pending');
 
   // 构建质检提示词
-  const qualityPrompt = defaultTemplate.qualityPrompt.replace(/{content}/g, content);
+  const qualityPrompt = qualityPromptTemplate.replace(/{content}/g, content);
 
   try {
     const response = await llmManager.chat(

@@ -6,10 +6,12 @@
  * 2. 自动修正格式，整理成规范模板
  */
 
-import {
+import type {
   AnalysisResult,
   FixedTemplate,
   ValidationResult,
+} from '../../data/templateSpecs';
+import {
   STANDARD_VARIABLES,
   TITLE_SECTION_SPEC,
   CONTENT_SECTION_SPEC,

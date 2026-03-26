@@ -8,10 +8,12 @@
  * 4. format() - 格式化入口
  */
 
-import {
+import type {
   PlatformId,
   PromptType,
   PlatformTemplateSpec,
+} from '../data/templateSpecs';
+import {
   PLATFORM_TEMPLATE_SPECS,
   STRUCTURE_KEYWORDS,
   extractVariables,

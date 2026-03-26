@@ -13,8 +13,6 @@ import {
   type AnalysisTemplate,
   type OptimizationSettings,
   type OptimizationTemplate,
-  type QualityAnalysisSettings,
-  type QualityAnalysisTemplate,
 } from '../services/llm/types';
 import {
   analysisPrompt,
@@ -204,14 +202,6 @@ const createDefaultSettings = (): AppSettings => ({
   platforms: createDefaultPlatformSettings(),
   analysis: createDefaultAnalysisSettings(),
   optimization: createDefaultOptimizationSettings(),
-  qualityAnalysis: {
-    templates: [
-      { id: 'gzh-quality', name: '公众号质检', isBuiltIn: true, isDefault: true, platformId: 'gzh', qualityPrompt: gzhQualityPrompt },
-      { id: 'xhs-quality', name: '小红书质检', isBuiltIn: true, isDefault: true, platformId: 'xhs', qualityPrompt: xhsQualityPrompt },
-      { id: 'douyin-quality', name: '抖音质检', isBuiltIn: true, isDefault: true, platformId: 'douyin', qualityPrompt: douyinQualityPrompt },
-    ],
-    defaultTemplate: 'gzh-quality',
-  },
   testMode: false,
 });
 
