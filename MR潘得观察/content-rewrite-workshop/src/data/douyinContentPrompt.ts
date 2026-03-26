@@ -68,13 +68,6 @@ export const titlePrompt = `【内容类型】{contentType}
 
 生成5个标题，每个公式至少1个。`;
 
-export const contentPrompt = `// 自动生成 - 抖音正文脚本模板
-
-/**
- * 抖音脚本提示词
- * 黄金45秒结构：0-3秒（黄金钩子）→ 3-15秒（痛点放大）→ 15-30秒（核心内容）→ 30-45秒（行动召唤）
- * 核心原则：每3-5秒必须有新信息/情绪刺激
- */
 export const contentPrompt = `【内容类型】{contentType}
 【原文内容】{content}
 【选定标题】{title}

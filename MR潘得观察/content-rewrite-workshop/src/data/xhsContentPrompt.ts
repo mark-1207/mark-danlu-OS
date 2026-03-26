@@ -68,13 +68,6 @@ export const titlePrompt = `【内容类型】{contentType}
 
 生成5个标题，每个公式至少1个。`;
 
-export const contentPrompt = `// 自动生成 - 小红书正文模板
-
-/**
- * 小红书正文提示词
- * 结构：开头（代入感）→ 中间（干货/故事）→ 结尾（互动）
- * 总字数：300-800字（最佳500字左右，1-2分钟阅读）
- */
 export const contentPrompt = `【内容类型】{contentType}
 【原文内容】{content}
 【选定标题】{title}

@@ -4,6 +4,15 @@
  * 定义标题/正文提示词的标准结构，用于自动修正和验证
  */
 
+import { gzhContentPrompt, xhsContentPrompt, douyinContentPrompt } from './index';
+
+// ============================================
+// 平台 ID 类型
+// ============================================
+
+export type PlatformId = 'gzh' | 'xhs' | 'douyin';
+export type PromptType = 'titlePrompt' | 'contentPrompt' | 'qualityPrompt';
+
 // ============================================
 // 标准变量定义
 // ============================================
