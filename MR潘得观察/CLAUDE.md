@@ -68,7 +68,7 @@
 
 ---
 
-## 项目状态摘要 [v1.8]
+## 项目状态摘要 [v2.1]
 
 **内容改写工坊** - 音视频转录爆款文案生成器
 
@@ -84,7 +84,16 @@
 
 ### 📋 当前待办（按优先级）
 - C) UI交互体验优化（待讨论）
-- D) 生成稳定性优化（待讨论）
+- D) 生成稳定性优化（已解决：流式输出）
+
+### ✅ v2.1 完成 (2026-03-27)
+- **流式输出功能**：
+  - 所有适配器新增 `chatStream()` 方法（fetch + SSE）
+  - LLMManager 新增 `chatStream()` 方法
+  - LLMService 新增 `callAIWithStreaming()`、`generateStreamingPlatformContent()`
+  - QuickModePanel/ProModePanel 集成流式内容生成和显示
+  - 流式失败自动降级到非流式模式
+  - 设计文档：`docs/superpowers/specs/2026-03-27-streaming-output-design.md`
 
 ### ✅ v2.0 完成 (2026-03-26)
 - **内容创作页分析要素展示**：
@@ -96,27 +105,12 @@
   - AI 生成时使用完整分析结果作为上下文
 - **标题公式气泡**：
   - 新增 `src/data/titleFormulas.ts` 公式配置数据
-  - ProModePanel 标题卡片悬停显示公式详情（名称、结构、描述、示例、适用范围）
+  - ProModePanel 标题卡片悬停显示公式详情
 - **生成进度可视化**：
   - ProModePanel 底部添加平台独立进度条和加载动画
 - **快速模式版本管理**：
   - PlatformResult 支持 versions[] 版本历史
   - 重新生成创建新版本，保留历史版本
-
-### ✅ v1.9 完成 (2026-03-26)
-- **LLM调用逻辑修复**：
-  - 修复重试逻辑Bug（break位置错误导致重试失效）
-  - 429错误指数退避机制（携带retryAfterMs）
-  - 所有适配器添加timeout: 120000（2分钟）
-  - 修复Anthropic baseUrl硬编码问题
-- **提示词字数检测**：
-  - 新增`promptLengthChecker.ts`服务
-  - titlePrompt限制1500字，contentPrompt限制3000字，qualityPrompt限制2500字
-  - 三级风险等级：safe/warning/high
-- **智能精简功能**：
-  - 超限时提供精简建议
-  - 对比弹窗支持原版/格式化版/精简版三列对比
-  - 被删除内容高亮显示，用户决策是否接受
 
 ### ✅ v1.8 完成 (2026-03-25)
 - 新增 `src/data/` 目录存储模板提示词

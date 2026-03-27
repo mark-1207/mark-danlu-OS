@@ -1177,4 +1177,65 @@ rm -rf scripts/
 
 ---
 
-*最后更新：2026-03-25*
+### 2026-03-26 - 流式输出功能 (v2.0)
+
+**版本号**: v2.0
+
+**完成内容**：
+
+1. **流式输出类型定义** (`src/services/llm/types.ts`)
+   - 新增 `StreamingChunk` - 流式数据块类型
+   - 新增 `StreamError` - 流式错误类型
+   - 新增 `StreamCallback` - 流式回调函数类型
+
+2. **适配器流式方法** (`src/services/llm/adapters.ts`)
+   - 所有适配器新增 `chatStream()` 方法
+   - 使用 fetch API 接收 SSE 流式响应
+   - 支持 OpenAI、Kimi、DeepSeek 等 OpenAI 兼容格式
+   - Anthropic 适配器使用事件格式解析
+
+3. **LLMManager 流式支持** (`src/services/llm/manager.ts`)
+   - 新增 `chatStream()` 方法
+   - 支持供应商自动切换
+   - 快速失败策略（失败立即切换）
+
+4. **LLMService 流式封装** (`src/services/llm/llmService.ts`)
+   - 新增 `callAIWithStreaming()` - 通用流式调用（失败自动降级）
+   - 新增 `generateStreamingPlatformContent()` - 合并模式流式生成
+   - 新增 `generateStreamingContentOnly()` - 非合并模式流式生成
+   - 降级时批量回调（50字符/批，20ms延迟）
+
+5. **QuickModePanel 流式集成** (`src/components/QuickModePanel.tsx`)
+   - 集成流式内容生成和实时显示
+   - 新增 `streamingContents` 状态存储实时内容
+   - `createStreamingCallback()` 工厂函数
+   - 预览弹窗优先显示流式内容
+
+6. **ProModePanel 流式集成** (`src/components/ProModePanel.tsx`)
+   - 集成流式内容生成
+   - 使用 `generateStreamingContentOnly()` 函数
+
+7. **设计文档** (`docs/superpowers/specs/2026-03-27-streaming-output-design.md`)
+
+**涉及文件**：
+- `src/services/llm/types.ts` - 新增流式类型
+- `src/services/llm/adapters.ts` - 所有适配器新增 chatStream()
+- `src/services/llm/manager.ts` - 新增 chatStream()
+- `src/services/llm/llmService.ts` - 新增流式封装函数
+- `src/components/QuickModePanel.tsx` - 集成流式
+- `src/components/ProModePanel.tsx` - 集成流式
+
+**回滚方法**：
+```bash
+cd content-rewrite-workshop
+git checkout HEAD -- src/services/llm/types.ts
+git checkout HEAD -- src/services/llm/adapters.ts
+git checkout HEAD -- src/services/llm/manager.ts
+git checkout HEAD -- src/services/llm/llmService.ts
+git checkout HEAD -- src/components/QuickModePanel.tsx
+git checkout HEAD -- src/components/ProModePanel.tsx
+```
+
+---
+
+*最后更新：2026-03-27*
