@@ -16,6 +16,8 @@ import {
 import { hasApiConfig, getApiConfigError, generatePlatformContent, quickOptimizeContent, callAIWithStreaming, generateStreamingPlatformContent } from '../services/llm/llmService';
 import type { StreamingChunk } from '../services/llm/types';
 import { useSettingsStore } from '../stores/settingsStore';
+import { ProgressBar } from './ui/ProgressBar';
+import { SkeletonCard } from './ui/SkeletonCard';
 
 // 内容版本类型
 interface ContentVersion {
@@ -397,13 +399,18 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
             <h4 className="text-base font-medium text-slate-800 mb-4">生成进度</h4>
             <div className="grid grid-cols-2 gap-3">
               {generationSteps.map((item, idx) => (
-                <div key={idx} className={`flex items-center gap-3 p-3 rounded-lg border ${
-                  item.status === 'success' ? 'bg-green-50 border-green-200' :
-                  item.status === 'error' ? 'bg-red-50 border-red-200' :
-                  'bg-slate-50 border-slate-200'
-                }`}>
+                <div
+                  key={idx}
+                  className={`flex items-center gap-3 p-3 rounded-lg border transition-all duration-300 ${
+                    item.status === 'success'
+                      ? 'bg-green-50 border-green-200 animate-fade-in'
+                      : item.status === 'error'
+                        ? 'bg-red-50 border-red-200'
+                        : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
                   {item.status === 'pending' && (
-                    <div className="w-5 h-5 rounded-full border-2 border-slate-300 flex-shrink-0" />
+                    <div className="w-5 h-5 rounded-full border-2 border-slate-300 flex-shrink-0 animate-pulse" />
                   )}
                   {item.status === 'success' && (
                     <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
@@ -565,7 +572,15 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
                   </div>
                   <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">
                     {/* 优先显示流式内容，否则显示最终结果 */}
-                    {streamingContents[previewPlatform || ''] || results[previewPlatform]?.content}
+                    {/* 流式内容显示时添加打字机光标效果 */}
+                    {streamingContents[previewPlatform || ''] ? (
+                      <span>
+                        {streamingContents[previewPlatform || '']}
+                        <span className="typing-cursor inline-block w-0.5 h-4 bg-blue-500 ml-0.5 animate-pulse" />
+                      </span>
+                    ) : (
+                      results[previewPlatform]?.content
+                    )}
                   </div>
                 </div>
 
@@ -761,17 +776,31 @@ function PlatformCard({
   onRegenerate: () => void;
 }) {
   const colorStyles = {
-    blue: { bg: 'from-blue-50 to-indigo-50', border: 'border-blue-100', iconBg: 'bg-blue-500', iconColor: 'text-white', progress: 'bg-blue-500', text: 'text-blue-600' },
-    pink: { bg: 'from-pink-50 to-rose-50', border: 'border-pink-100', iconBg: 'bg-pink-500', iconColor: 'text-white', progress: 'bg-pink-500', text: 'text-pink-600' },
-    cyan: { bg: 'from-cyan-50 to-sky-50', border: 'border-cyan-100', iconBg: 'bg-cyan-500', iconColor: 'text-white', progress: 'bg-cyan-500', text: 'text-cyan-600' }
+    blue: { bg: 'from-blue-50 to-indigo-50', border: 'border-blue-100', iconBg: 'bg-blue-500', iconColor: 'text-white', progress: 'bg-blue-500', text: 'text-blue-600', gradient: 'from-blue-500 to-blue-600' },
+    pink: { bg: 'from-pink-50 to-rose-50', border: 'border-pink-100', iconBg: 'bg-pink-500', iconColor: 'text-white', progress: 'bg-pink-500', text: 'text-pink-600', gradient: 'from-pink-500 to-pink-600' },
+    cyan: { bg: 'from-cyan-50 to-sky-50', border: 'border-cyan-100', iconBg: 'bg-cyan-500', iconColor: 'text-white', progress: 'bg-cyan-500', text: 'text-cyan-600', gradient: 'from-cyan-500 to-cyan-600' }
   };
 
   const style = colorStyles[color];
   const isGenerating = result?.status === 'generating';
   const isCompleted = result?.status === 'completed';
 
+  // 生成中状态显示骨架屏
+  if (isGenerating) {
+    // 映射 color 到 variant
+    const variantMap = { blue: 'gzh', pink: 'xhs', cyan: 'douyin' } as const;
+    return (
+      <div className="animate-fade-in">
+        <SkeletonCard
+          variant={variantMap[color]}
+          showContent={false}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className={`p-4 bg-gradient-to-br ${style.bg} rounded-xl border ${style.border} flex flex-col`}>
+    <div className={`p-4 bg-gradient-to-br ${style.bg} rounded-xl border ${style.border} flex flex-col card-hover`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className={`w-8 h-8 ${style.iconBg} rounded-lg flex items-center justify-center ${style.iconColor}`}>
@@ -789,8 +818,6 @@ function PlatformCard({
       <div className="flex-1 mb-3">
         {isCompleted ? (
           <div className="text-sm font-medium text-slate-800 line-clamp-2">{result?.title}</div>
-        ) : isGenerating ? (
-          <div className="text-sm text-slate-500">正在生成中...</div>
         ) : isAllStepsCompleted ? (
           <div className="text-sm text-green-600 font-medium">生成完毕</div>
         ) : (
@@ -801,37 +828,31 @@ function PlatformCard({
       <div className="flex gap-2 mb-3">
         {isCompleted ? (
           <>
-            <button onClick={onPreview} className="flex-1 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-lg border border-slate-200">
+            <button onClick={onPreview} className="flex-1 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-lg border border-slate-200 transition-colors">
               预览
             </button>
-            <button onClick={onDownload} className={`flex-1 px-3 py-2 ${style.iconBg} hover:opacity-90 ${style.iconColor} text-sm font-medium rounded-lg flex items-center justify-center gap-1`}>
+            <button onClick={onDownload} className={`flex-1 px-3 py-2 ${style.iconBg} hover:opacity-90 ${style.iconColor} text-sm font-medium rounded-lg flex items-center justify-center gap-1 transition-opacity`}>
               <Download className="w-4 h-4" />
               下载
             </button>
           </>
-        ) : isGenerating ? (
-          <button disabled className="flex-1 px-3 py-2 bg-slate-100 text-slate-400 text-sm font-medium rounded-lg cursor-not-allowed">
-            生成中...
-          </button>
         ) : !isAllStepsCompleted ? (
           <button disabled className="flex-1 px-3 py-2 bg-slate-100 text-slate-400 text-sm font-medium rounded-lg cursor-not-allowed">
             开始生成
           </button>
         ) : (
-          <button onClick={onRegenerate} className={`flex-1 px-3 py-2 ${style.iconBg} hover:opacity-90 ${style.iconColor} text-sm font-medium rounded-lg`}>
+          <button onClick={onRegenerate} className={`flex-1 px-3 py-2 ${style.iconBg} hover:opacity-90 ${style.iconColor} text-sm font-medium rounded-lg transition-opacity`}>
             开始生成
           </button>
         )}
       </div>
 
       <div className="mt-auto">
-        <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-          <span>生成进度</span>
-          <span>{result?.progress || 0}%</span>
-        </div>
-        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-          <div className={`h-full ${style.progress} transition-all duration-300 rounded-full`} style={{ width: `${result?.progress || 0}%` }} />
-        </div>
+        <ProgressBar
+          progress={result?.progress || 0}
+          showLabel
+          size="sm"
+        />
       </div>
     </div>
   );

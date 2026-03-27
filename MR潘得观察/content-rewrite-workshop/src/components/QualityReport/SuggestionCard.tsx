@@ -26,7 +26,7 @@ export function SuggestionCard({ suggestion, index, onApply }: SuggestionCardPro
   const hasCompare = suggestion.original || suggestion.optimized;
 
   return (
-    <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
+    <div className="p-4 bg-amber-50 rounded-lg border border-amber-100 card-hover">
       <div className="flex items-start gap-2">
         <span className="flex-shrink-0 w-5 h-5 bg-amber-200 text-amber-700 rounded-full text-xs flex items-center justify-center font-medium">
           {index + 1}

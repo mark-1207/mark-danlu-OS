@@ -269,22 +269,22 @@ export function CompareModal({
           <div className="flex items-center gap-3">
             <button
               onClick={onCancel}
-              className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+              className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-all duration-200"
             >
               取消
             </button>
             <button
               onClick={onUseOriginal}
-              className="px-4 py-2 text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors"
+              className="px-4 py-2 text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-all duration-200 hover:shadow-sm"
             >
               使用原版
             </button>
             <button
               onClick={() => onConfirm(mode === 'slim')}
-              className={`px-4 py-2 text-white rounded-lg transition-colors flex items-center gap-2 ${
+              className={`px-5 py-2.5 text-white rounded-lg transition-all duration-200 flex items-center gap-2 transform hover:scale-[1.02] active:scale-[0.98] ${
                 mode === 'slim'
-                  ? 'bg-amber-600 hover:bg-amber-700'
-                  : 'bg-blue-600 hover:bg-blue-700'
+                  ? 'bg-amber-600 hover:bg-amber-700 shadow-lg shadow-amber-600/30 hover:shadow-xl hover:shadow-amber-600/40'
+                  : 'bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40'
               }`}
             >
               <Check className="w-4 h-4" />

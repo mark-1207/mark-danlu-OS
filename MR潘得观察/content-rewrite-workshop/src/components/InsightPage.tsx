@@ -330,16 +330,16 @@ export default function InsightPage({
                 </div>
 
                 {/* 统一 Markdown 渲染模块 */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8 markdown-content
                     [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-slate-900 [&_h1]:mb-6 [&_h1]:pb-3 [&_h1]:border-b [&_h1]:border-slate-200
                     [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-slate-800 [&_h2]:mt-8 [&_h2]:mb-4 [&_h2]:pb-2 [&_h2]:border-b [&_h2]:border-slate-100
                     [&_h3]:text-base [&_h3]:font-medium [&_h3]:text-slate-700 [&_h3]:mt-6 [&_h3]:mb-3
-                    [&_p]:text-sm [&_p]:text-slate-600 [&_p]:leading-7 [&_p]:my-3
+                    [&_p]:text-sm [&_p]:text-slate-600 [&_p]:leading-8 [&_p]:my-4
                     [&_ul]:my-4 [&_ul]:pl-5 [&_ul]:space-y-2
                     [&_ol]:my-4 [&_ol]:pl-5 [&_ol]:space-y-2
-                    [&_li]:text-sm [&_li]:text-slate-600 [&_li]:leading-6
+                    [&_li]:text-sm [&_li]:text-slate-600 [&_li]:leading-7
                     [&_blockquote]:border-l-2 [&_blockquote]:border-slate-300 [&_blockquote]:bg-slate-50 [&_blockquote]:py-3 [&_blockquote]:px-4 [&_blockquote]:not-italic [&_blockquote]:rounded-r [&_blockquote]:my-4
-                    [&_blockquote_p]:text-sm [&_blockquote_p]:text-slate-700 [&_blockquote_p]:leading-6
+                    [&_blockquote_p]:text-sm [&_blockquote_p]:text-slate-700 [&_blockquote_p]:leading-7
                     [&_table]:w-full [&_table]:my-4 [&_table]:text-sm
                     [&_th]:bg-slate-50 [&_th]:text-slate-700 [&_th]:font-medium [&_th]:px-4 [&_th]:py-3 [&_th]:text-left [&_th]:border [&_th]:border-slate-200 [&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wider
                     [&_td]:px-4 [&_td]:py-3 [&_td]:text-slate-600 [&_td]:border [&_td]:border-slate-200

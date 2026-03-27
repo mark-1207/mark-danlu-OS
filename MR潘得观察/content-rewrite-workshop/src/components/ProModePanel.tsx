@@ -14,6 +14,7 @@ import { hasApiConfig, getApiConfigError, generatePlatformContent, generateStrea
 import type { StreamingChunk } from '../services/llm/types';
 import { useSettingsStore } from '../stores/settingsStore';
 import { getFormulaDetail } from '../data/titleFormulas';
+import { PlatformProgressBar } from './ui/ProgressBar';
 import gzhIcon from '../assets/公众号.png';
 import xhsIcon from '../assets/小红书.jpg';
 import dyIcon from '../assets/抖音.jpg';
@@ -729,17 +730,15 @@ export default function ProModePanel({
             <div className="space-y-2">
               {selectedPlatforms.map(platformId => {
                 const platform = platforms.find(p => p.id === platformId);
+                const platformColor = platformId === 'xhs' ? 'pink' : platformId === 'douyin' ? 'cyan' : 'blue';
                 return (
-                  <div key={platformId} className="flex items-center gap-3">
-                    <span className="text-xs text-slate-500 w-16 truncate">{platform?.name || platformId}</span>
-                    <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500 rounded-full"
-                        style={{ width: '100%' }}
-                      />
-                    </div>
-                    <span className="text-xs text-slate-500 w-12 text-right">生成中...</span>
-                  </div>
+                  <PlatformProgressBar
+                    key={platformId}
+                    platformName={platform?.name || platformId}
+                    progress={100}
+                    status="generating"
+                    platformColor={platformColor as 'blue' | 'pink' | 'cyan'}
+                  />
                 );
               })}
             </div>
