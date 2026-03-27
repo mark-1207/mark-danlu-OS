@@ -1,6 +1,6 @@
 import { llmManager } from './manager';
 import { useSettingsStore } from '../../stores/settingsStore';
-import type { Message } from './types';
+import type { Message, StreamingChunk } from './types';
 import type {
   QualityReport,
   Dimension,
@@ -69,6 +69,76 @@ export async function callAI(
   } catch (error) {
     options.onProgress?.(0, 'error');
     throw error;
+  }
+}
+
+/**
+ * 流式调用 AI，失败时降级到非流式
+ */
+export async function callAIWithStreaming(
+  messages: Message[],
+  callback: (chunk: StreamingChunk) => void,
+  options: LLMServiceOptions = {}
+): Promise<string> {
+  const { ai } = useSettingsStore.getState();
+  if (ai.providers.length === 0) {
+    throw new Error('请先在设置中配置 AI 供应商');
+  }
+  const enabledProviders = ai.providers.filter(p => p.isEnabled);
+  if (enabledProviders.length === 0) {
+    throw new Error('请至少启用一个 AI 供应商');
+  }
+
+  let fullContent = '';
+
+  try {
+    // 尝试流式
+    await llmManager.chatStream(
+      messages,
+      ai.providers,
+      ai.failover,
+      (chunk) => {
+        if (chunk.done) {
+          return;
+        }
+        fullContent += chunk.content;
+        callback(chunk);
+      },
+      {} // 不传递 options，避免类型不匹配
+    );
+
+    callback({ content: '', done: true });
+    return fullContent;
+
+  } catch (error) {
+    // 流式失败，降级到非流式
+    console.warn('流式调用失败，降级到非流式:', error);
+
+    options.onProgress?.(10, 'pending');
+
+    const response = await llmManager.chat(
+      messages,
+      ai.providers,
+      ai.failover,
+      {} // 不传递 options，避免类型不匹配
+    );
+
+    // 降级模拟：批量回调，体验更自然
+    const BATCH_SIZE = 50; // 每批50字符
+    let pos = 0;
+
+    while (pos < response.content.length) {
+      const batch = response.content.slice(pos, pos + BATCH_SIZE);
+      fullContent += batch;
+      callback({ content: batch, done: false });
+      pos += BATCH_SIZE;
+
+      // 小延迟让 UI 有时间更新
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+
+    callback({ content: '', done: true });
+    return fullContent;
   }
 }
 
@@ -379,11 +449,7 @@ export async function generatePlatformContent(
   const platform = platforms.platforms.find(p => p.id === platformId);
   const template = platform?.templates.find(t => t.id === (platform.defaultTemplateId || platform.templates[0]?.id));
 
-  if (!template) {
-    throw new Error(`Platform template not found: ${platformId}`);
-  }
-
-  // 测试模式：返回模拟数据
+  // 测试模式：模板不存在也继续（使用 mock 数据）
   if (testMode) {
     options.onProgress?.(20, 'pending');
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -419,6 +485,11 @@ export async function generatePlatformContent(
 从今天开始，试着勇敢说"不"吧！`,
       coverPrompt: ''
     };
+  }
+
+  // 非测试模式必须验证模板存在
+  if (!template) {
+    throw new Error(`Platform template not found: ${platformId}`);
   }
 
   options.onProgress?.(10, 'pending');
@@ -553,6 +624,229 @@ ${context.style || ''}
     options.onProgress?.(100, 'success');
 
     return results;
+  } catch (error) {
+    options.onProgress?.(0, 'error');
+    throw error;
+  }
+}
+
+/**
+ * 流式生成单平台内容（合并模式）
+ * 使用流式API，内容实时流回给调用者
+ */
+export async function generateStreamingPlatformContent(
+  platformId: string,
+  context: {
+    content: string;
+    title?: string;
+    keywords?: string;
+    emotion?: string;
+    audience?: string;
+    category?: string;
+    style?: string;
+    contentStructure?: string;
+    valuePoints?: string;
+    highlightClips?: string;
+    goldSentences?: string[];
+    interactiveHook?: string;
+    platform?: string;
+    contentType?: string;
+    track?: string;
+    likes?: number;
+    collectCount?: number;
+    viewCount?: number;
+    shareCount?: number;
+  },
+  callback: (chunk: StreamingChunk) => void,
+  options: LLMServiceOptions = {}
+): Promise<{ titles: string[]; content: string }> {
+  return generateStreamingPlatformContentInternal(platformId, context, callback, options, true);
+}
+
+/**
+ * 流式生成正文内容（非合并模式）
+ */
+export async function generateStreamingContentOnly(
+  platformId: string,
+  context: {
+    content: string;
+    title?: string;
+    keywords?: string;
+    emotion?: string;
+    audience?: string;
+    category?: string;
+    style?: string;
+    contentStructure?: string;
+    valuePoints?: string;
+    highlightClips?: string;
+    goldSentences?: string[];
+    interactiveHook?: string;
+    platform?: string;
+    contentType?: string;
+    track?: string;
+    likes?: number;
+    collectCount?: number;
+    viewCount?: number;
+    shareCount?: number;
+  },
+  callback: (chunk: StreamingChunk) => void,
+  options: LLMServiceOptions = {}
+): Promise<string> {
+  const result = await generateStreamingPlatformContentInternal(platformId, context, callback, options, false);
+  return result.content;
+}
+
+/**
+ * 内部流式生成函数
+ */
+async function generateStreamingPlatformContentInternal(
+  platformId: string,
+  context: {
+    content: string;
+    title?: string;
+    keywords?: string;
+    emotion?: string;
+    audience?: string;
+    category?: string;
+    style?: string;
+    contentStructure?: string;
+    valuePoints?: string;
+    highlightClips?: string;
+    goldSentences?: string[];
+    interactiveHook?: string;
+    platform?: string;
+    contentType?: string;
+    track?: string;
+    likes?: number;
+    collectCount?: number;
+    viewCount?: number;
+    shareCount?: number;
+  },
+  callback: (chunk: StreamingChunk) => void,
+  options: LLMServiceOptions = {},
+  mergeTitleAndContent: boolean
+): Promise<{ titles: string[]; content: string }> {
+  const { ai, platforms, testMode } = useSettingsStore.getState();
+  const platform = platforms.platforms.find(p => p.id === platformId);
+  const template = platform?.templates.find(t => t.id === (platform.defaultTemplateId || platform.templates[0]?.id));
+
+  // 测试模式：不支持流式，直接返回模拟数据
+  if (testMode) {
+    callback({ content: '测试模式不支持流式生成', done: true });
+    return { titles: ['测试标题'], content: '测试内容' };
+  }
+
+  if (!template) {
+    throw new Error(`Platform template not found: ${platformId}`);
+  }
+
+  options.onProgress?.(10, 'pending');
+
+  let messages: { role: 'system' | 'user'; content: string }[];
+  let isJsonOutput = false;
+
+  if (mergeTitleAndContent) {
+    // 合并模式：一次调用生成标题+正文
+    isJsonOutput = true;
+    const mergedPrompt = `你是一个${template.name}内容创作专家。请根据以下原始内容，生成适合该平台的标题和正文。
+
+【原始内容】
+${context.content}
+
+【目标受众】
+${context.audience || '通用'}
+
+【核心关键词】
+${context.keywords || ''}
+
+【情绪基调】
+${context.emotion || ''}
+
+【内容分类】
+${context.category || ''}
+
+【风格】
+${context.style || ''}
+
+请按以下JSON格式输出，不要添加任何解释和markdown标记：
+{
+  "titles": ["标题1", "标题2", "标题3", "标题4", "标题5"],
+  "content": "生成的正文内容..."
+}`;
+    messages = [
+      { role: 'system' as const, content: `你是一个${template.name}内容创作专家，擅长生成各平台风格的爆款标题和正文。` },
+      { role: 'user' as const, content: mergedPrompt }
+    ];
+  } else {
+    // 非合并模式：只生成正文
+    isJsonOutput = false;
+    const contentPrompt = template.contentPrompt
+      .replace(/{content}/g, context.content)
+      .replace(/{title}/g, context.title || '')
+      .replace(/{keywords}/g, context.keywords || '')
+      .replace(/{emotion}/g, context.emotion || '')
+      .replace(/{audience}/g, context.audience || '')
+      .replace(/{category}/g, context.category || '')
+      .replace(/{style}/g, context.style || '')
+      .replace(/{contentStructure}/g, context.contentStructure || '')
+      .replace(/{valuePoints}/g, context.valuePoints || '')
+      .replace(/{highlightClips}/g, context.highlightClips || '');
+    messages = [
+      { role: 'system' as const, content: `你是一个${template.name}内容创作专家，擅长根据平台风格改写内容。` },
+      { role: 'user' as const, content: contentPrompt }
+    ];
+  }
+
+  let fullContent = '';
+
+  try {
+    // 使用流式调用
+    await llmManager.chatStream(
+      messages,
+      ai.providers,
+      ai.failover,
+      (chunk) => {
+        if (chunk.done) {
+          callback({ content: '', done: true });
+          return;
+        }
+        fullContent += chunk.content;
+        callback(chunk);
+      },
+      {} // 传递空对象，避免类型不匹配
+    );
+
+    // 解析返回的内容
+    if (isJsonOutput) {
+      // 合并模式：解析JSON
+      let jsonStr = fullContent.trim();
+      if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replace(/^```\w*\n?/, '').replace(/```$/, '');
+      }
+
+      try {
+        const parsed = JSON.parse(jsonStr);
+        const titles = Array.isArray(parsed.titles) ? parsed.titles.slice(0, 5) : [parsed.titles || ''];
+        const content = parsed.content || '';
+
+        options.onProgress?.(100, 'success');
+        callback({ content: '', done: true });
+        return { titles, content };
+      } catch {
+        // JSON解析失败，尝试按行分割
+        const lines = fullContent.split('\n').filter(l => l.trim());
+        const titles = lines.slice(0, 5).map(l => l.replace(/^\d+[.、]\s*/, '').trim());
+
+        options.onProgress?.(100, 'success');
+        callback({ content: '', done: true });
+        return { titles, content: fullContent };
+      }
+    } else {
+      // 非合并模式：直接返回内容
+      options.onProgress?.(100, 'success');
+      callback({ content: '', done: true });
+      return { titles: [], content: fullContent };
+    }
   } catch (error) {
     options.onProgress?.(0, 'error');
     throw error;

@@ -163,6 +163,26 @@ export interface LLMResponse {
   model: string;
 }
 
+// 流式输出类型
+export interface StreamingChunk {
+  content: string;      // 当前片段内容
+  done: boolean;        // 是否完成
+  usage?: {             // 完成时返回 usage 信息
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  model?: string;       // 完成时返回实际使用的模型
+}
+
+export interface StreamError {
+  message: string;
+  isRetryable: boolean;
+  retryAfterMs?: number;
+}
+
+export type StreamCallback = (chunk: StreamingChunk) => void;
+
 // 供应商信息（用于UI展示）
 export interface ProviderInfo {
   id: string;

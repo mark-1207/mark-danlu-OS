@@ -5,6 +5,8 @@ import type {
   LLMResponse,
 } from './types';
 
+import type { StreamCallback } from './types';
+
 /**
  * LLM 供应商适配器接口
  */
@@ -13,6 +15,8 @@ export interface LLMAdapter {
   name: string;
   /** 调用 API */
   chat(config: LLMRequestConfig, providerConfig: ProviderConfig): Promise<LLMResponse>;
+  /** 流式调用 */
+  chatStream(config: LLMRequestConfig, providerConfig: ProviderConfig, callback: StreamCallback): Promise<void>;
   /** 测试连接 */
   testConnection(providerConfig: ProviderConfig): Promise<boolean>;
 }
@@ -64,6 +68,73 @@ export class OpenAIAdapter implements LLMAdapter {
       },
       model: response.data.model || config.model,
     };
+  }
+
+  async chatStream(
+    config: LLMRequestConfig,
+    providerConfig: ProviderConfig,
+    callback: StreamCallback
+  ): Promise<void> {
+    const baseUrl = providerConfig.baseUrl || 'https://api.openai.com/v1';
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${providerConfig.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: config.model,
+        messages: config.messages,
+        temperature: config.temperature ?? 0.7,
+        max_tokens: config.maxTokens,
+        stream: true,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              callback({ content: '', done: true });
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) {
+                callback({ content, done: false });
+              }
+            } catch {
+              // 忽略解析错误
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    callback({ content: '', done: true });
   }
 
   async testConnection(providerConfig: ProviderConfig): Promise<boolean> {
@@ -133,6 +204,97 @@ export class AnthropicAdapter implements LLMAdapter {
       },
       model: response.data.model || config.model,
     };
+  }
+
+  async chatStream(
+    config: LLMRequestConfig,
+    providerConfig: ProviderConfig,
+    callback: StreamCallback
+  ): Promise<void> {
+    const systemMessage = config.messages.find(m => m.role === 'system');
+    const userMessages = config.messages.filter(m => m.role !== 'system');
+
+    const baseUrl = providerConfig.baseUrl || 'https://api.anthropic.com/v1';
+
+    const response = await fetch(`${baseUrl}/messages`, {
+      method: 'POST',
+      headers: {
+        'x-api-key': providerConfig.apiKey,
+        'anthropic-version': '2023-06-01',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: config.model,
+        max_tokens: config.maxTokens || 1024,
+        system: systemMessage?.content,
+        messages: userMessages.map(m => ({ role: m.role, content: m.content })),
+        temperature: config.temperature ?? 0.7,
+        stream: true,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let eventType = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          // Anthropic 使用 event: 前缀
+          if (line.startsWith('event: ')) {
+            eventType = line.slice(7).trim();
+            continue;
+          }
+          // 数据行
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            try {
+              const parsed = JSON.parse(data);
+
+              // content_block_delta 事件
+              if (eventType === 'content_block_delta' && parsed.delta?.text) {
+                callback({ content: parsed.delta.text, done: false });
+              }
+
+              // message_stop 事件 - 完成
+              if (eventType === 'message_stop') {
+                callback({
+                  content: '',
+                  done: true,
+                  usage: parsed.usage ? {
+                    promptTokens: parsed.usage.input_tokens || 0,
+                    completionTokens: parsed.usage.output_tokens || 0,
+                    totalTokens: (parsed.usage.input_tokens || 0) + (parsed.usage.output_tokens || 0),
+                  } : undefined,
+                  model: parsed.model,
+                });
+                return;
+              }
+            } catch {
+              // 忽略解析错误
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    callback({ content: '', done: true });
   }
 
   async testConnection(providerConfig: ProviderConfig): Promise<boolean> {
@@ -206,6 +368,72 @@ export class MiniMaxAdapter implements LLMAdapter {
     };
   }
 
+  async chatStream(
+    config: LLMRequestConfig,
+    providerConfig: ProviderConfig,
+    callback: StreamCallback
+  ): Promise<void> {
+    // MiniMax 使用不同的 API 端点
+    const baseUrl = providerConfig.baseUrl || 'https://api.minimax.chat/v1';
+
+    const response = await fetch(`${baseUrl}/text/chatcompletion_v2`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${providerConfig.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: providerConfig.model,
+        messages: config.messages,
+        temperature: config.temperature ?? 0.7,
+        max_tokens: config.maxTokens,
+        stream: true,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              callback({ content: '', done: true });
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) {
+                callback({ content, done: false });
+              }
+            } catch {}
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    callback({ content: '', done: true });
+  }
+
   async testConnection(providerConfig: ProviderConfig): Promise<boolean> {
     try {
       const baseUrl = providerConfig.baseUrl || 'https://api.minimax.chat/v1';
@@ -275,6 +503,71 @@ export class KimiAdapter implements LLMAdapter {
       },
       model: response.data.model || config.model,
     };
+  }
+
+  async chatStream(
+    config: LLMRequestConfig,
+    providerConfig: ProviderConfig,
+    callback: StreamCallback
+  ): Promise<void> {
+    const baseUrl = providerConfig.baseUrl || 'https://api.moonshot.cn/v1';
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${providerConfig.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: providerConfig.model,
+        messages: config.messages,
+        temperature: config.temperature ?? 0.7,
+        max_tokens: config.maxTokens,
+        stream: true,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              callback({ content: '', done: true });
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) {
+                callback({ content, done: false });
+              }
+            } catch {}
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    callback({ content: '', done: true });
   }
 
   async testConnection(providerConfig: ProviderConfig): Promise<boolean> {
@@ -364,6 +657,76 @@ export class ArkAdapter implements LLMAdapter {
     };
   }
 
+  async chatStream(
+    config: LLMRequestConfig,
+    providerConfig: ProviderConfig,
+    callback: StreamCallback
+  ): Promise<void> {
+    const baseUrl = providerConfig.baseUrl || 'https://ark.cn-beijing.volces.com';
+
+    const messages = config.messages.map((msg) => {
+      const content = typeof msg.content === 'string' ? msg.content : String(msg.content);
+      return { role: msg.role, content };
+    });
+
+    const response = await fetch(`${baseUrl}/api/v3/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${providerConfig.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: providerConfig.model,
+        messages,
+        temperature: config.temperature ?? 0.7,
+        max_tokens: config.maxTokens,
+        stream: true,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              callback({ content: '', done: true });
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) {
+                callback({ content, done: false });
+              }
+            } catch {}
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    callback({ content: '', done: true });
+  }
+
   async testConnection(providerConfig: ProviderConfig): Promise<boolean> {
     try {
       const baseUrl = providerConfig.baseUrl || 'https://ark.cn-beijing.volces.com';
@@ -434,6 +797,71 @@ export class DeepSeekAdapter implements LLMAdapter {
       },
       model: response.data.model || config.model,
     };
+  }
+
+  async chatStream(
+    config: LLMRequestConfig,
+    providerConfig: ProviderConfig,
+    callback: StreamCallback
+  ): Promise<void> {
+    const baseUrl = providerConfig.baseUrl || 'https://api.deepseek.com/v1';
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${providerConfig.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: providerConfig.model,
+        messages: config.messages,
+        temperature: config.temperature ?? 0.7,
+        max_tokens: config.maxTokens,
+        stream: true,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              callback({ content: '', done: true });
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) {
+                callback({ content, done: false });
+              }
+            } catch {}
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    callback({ content: '', done: true });
   }
 
   async testConnection(providerConfig: ProviderConfig): Promise<boolean> {
@@ -507,6 +935,73 @@ export class CustomAdapter implements LLMAdapter {
       },
       model: response.data.model || config.model,
     };
+  }
+
+  async chatStream(
+    config: LLMRequestConfig,
+    providerConfig: ProviderConfig,
+    callback: StreamCallback
+  ): Promise<void> {
+    if (!providerConfig.baseUrl) {
+      throw new Error('Custom provider requires baseUrl');
+    }
+
+    const response = await fetch(`${providerConfig.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${providerConfig.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: providerConfig.model,
+        messages: config.messages,
+        temperature: config.temperature ?? 0.7,
+        max_tokens: config.maxTokens,
+        stream: true,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              callback({ content: '', done: true });
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) {
+                callback({ content, done: false });
+              }
+            } catch {}
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    callback({ content: '', done: true });
   }
 
   async testConnection(providerConfig: ProviderConfig): Promise<boolean> {

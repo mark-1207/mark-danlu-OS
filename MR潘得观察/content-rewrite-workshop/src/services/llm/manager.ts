@@ -5,6 +5,7 @@ import type {
   Message,
   LLMRequestConfig,
   LLMResponse,
+  StreamCallback,
 } from './types';
 
 /**
@@ -142,6 +143,72 @@ export class LLMManager {
 
     // 所有供应商都失败了
     throw lastError || new APIError('所有 AI 供应商都失败了', 'all', undefined, false);
+  }
+
+  /**
+   * 流式调用 LLM，支持自动切换供应商
+   */
+  async chatStream(
+    messages: Message[],
+    providers: ProviderConfig[],
+    failover: FailoverConfig,
+    callback: StreamCallback,
+    options: {
+      model?: string;
+      temperature?: number;
+      maxTokens?: number;
+    } = {}
+  ): Promise<void> {
+    const availableProviders = providers.filter(p => p.isEnabled);
+
+    if (availableProviders.length === 0) {
+      throw new APIError('没有可用的 AI 供应商', 'none', undefined, false);
+    }
+
+    const sortedProviders = [...availableProviders].sort((a, b) => {
+      if (a.isPrimary && !b.isPrimary) return -1;
+      if (!a.isPrimary && b.isPrimary) return 1;
+      return 0;
+    });
+
+    let lastError: APIError | null = null;
+
+    for (const provider of sortedProviders) {
+      try {
+        const adapter = this.getAdapter(provider.provider);
+        const config: LLMRequestConfig = {
+          model: options.model || provider.model,
+          messages,
+          temperature: options.temperature ?? provider.temperature,
+          maxTokens: options.maxTokens || provider.maxTokens,
+          stream: true,
+        };
+
+        // 尝试流式调用
+        await adapter.chatStream(config, provider, callback);
+        return; // 成功完成
+
+      } catch (error) {
+        lastError = this.normalizeError(error, provider.name);
+
+        // 如果 failover 关闭，只尝试一次
+        if (!failover.enabled) {
+          throw lastError;
+        }
+
+        // 不可重试错误 -> 切换供应商
+        if (!lastError.isRetryable) {
+          continue;
+        }
+
+        // 可重试错误 -> 立即切换供应商（快速失败策略）
+        // 不在当前供应商重试，直接跳到下一个
+        continue;
+      }
+    }
+
+    // 所有供应商流式都失败
+    throw lastError || new APIError('所有 AI 供应商流式调用都失败了', 'all', undefined, false);
   }
 
   /**

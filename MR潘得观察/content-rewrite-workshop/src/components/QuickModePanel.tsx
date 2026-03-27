@@ -13,7 +13,8 @@ import {
   Sparkles,
   Copy,
 } from 'lucide-react';
-import { hasApiConfig, getApiConfigError, generatePlatformContent, quickOptimizeContent } from '../services/llm/llmService';
+import { hasApiConfig, getApiConfigError, generatePlatformContent, quickOptimizeContent, callAIWithStreaming, generateStreamingPlatformContent } from '../services/llm/llmService';
+import type { StreamingChunk } from '../services/llm/types';
 import { useSettingsStore } from '../stores/settingsStore';
 
 // 内容版本类型
@@ -61,6 +62,8 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
   const [previewPlatform, setPreviewPlatform] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  // 流式显示状态 - 存储每个平台的实时显示内容
+  const [streamingContents, setStreamingContents] = useState<{ [platform: string]: string }>({});
 
   // 预览弹窗内的优化状态
   const [optimizedContent, setOptimizedContent] = useState<string | null>(null);
@@ -69,6 +72,46 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
 
   // 判断生成进度是否全部完成
   const isAllStepsCompleted = generationSteps.length > 0 && generationSteps.every(s => s.status === 'success');
+
+  // 流式内容生成回调
+  const createStreamingCallback = (platform: string) => (chunk: StreamingChunk) => {
+    if (chunk.done) {
+      // 流式完成，更新最终结果
+      setResults(prev => {
+        const streamingContent = streamingContents[platform] || '';
+        const newVersion: ContentVersion = {
+          id: `v${Date.now()}`,
+          content: streamingContent,
+          type: 'original',
+          createdAt: new Date()
+        };
+        return {
+          ...prev,
+          [platform]: {
+            ...prev[platform],
+            status: 'completed',
+            progress: 100,
+            content: streamingContent,
+            versions: [newVersion],
+            currentVersionId: newVersion.id
+          }
+        };
+      });
+      // 清除流式显示状态
+      setStreamingContents(prev => {
+        const newContents = { ...prev };
+        delete newContents[platform];
+        return newContents;
+      });
+      return;
+    }
+
+    // 追加内容到流式显示
+    setStreamingContents(prev => ({
+      ...prev,
+      [platform]: (prev[platform] || '') + chunk.content
+    }));
+  };
 
   // 一键生成处理
   const handleGenerate = async () => {
@@ -154,47 +197,45 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
       const platform = platformsToGenerate[i];
 
       try {
-        // 使用合并调用模式（一次调用生成标题+正文）
-        const result = await generatePlatformContent(platform, context, {
-          onProgress: (p) => {
-            setResults(prev => ({
-              ...prev,
-              [platform]: { ...prev[platform], progress: p }
-            }));
+        // 初始化流式显示状态
+        setStreamingContents(prev => ({ ...prev, [platform]: '' }));
+        setResults(prev => ({
+          ...prev,
+          [platform]: { ...prev[platform], status: 'generating', progress: 0 }
+        }));
+
+        // 使用流式生成
+        const result = await generateStreamingPlatformContent(
+          platform,
+          context,
+          createStreamingCallback(platform),
+          {
+            onProgress: (p) => {
+              setResults(prev => ({
+                ...prev,
+                [platform]: { ...prev[platform], progress: Math.min(p, 90) }
+              }));
+            }
           }
-        }, true); // mergeTitleAndContent = true
+        );
 
-        // 创建新版本
-        const newVersion: ContentVersion = {
-          id: `v${Date.now()}`,
-          content: result.content,
-          type: 'original',
-          createdAt: new Date()
-        };
-
+        // 完成后更新标题等信息
         setResults(prev => ({
           ...prev,
           [platform]: {
             ...prev[platform],
-            status: 'completed',
-            progress: 100,
             title: result.titles[0] || '',
-            content: result.content,
-            coverPrompt: result.coverPrompt,
-            versions: [newVersion],
-            currentVersionId: newVersion.id
+            coverPrompt: '',
           }
         }));
 
         // 每个平台生成完成后，逐步完成步骤3和4
         if (i === 0) {
-          // 第一个平台完成后标记步骤3完成
           setGenerationSteps(prev => prev.map((s, idx) =>
             idx === 2 ? { ...s, status: 'success' } : s
           ));
         }
         if (i === platformsToGenerate.length - 1) {
-          // 最后一个平台完成后标记步骤4完成
           setGenerationSteps(prev => prev.map((s, idx) =>
             idx === 3 ? { ...s, status: 'success' } : s
           ));
@@ -250,6 +291,9 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
       [platform]: { ...prev[platform], status: 'generating', progress: 0 }
     }));
 
+    // 初始化流式显示状态
+    setStreamingContents(prev => ({ ...prev, [platform]: '' }));
+
     try {
       const context = {
         content: inputContent,
@@ -275,35 +319,28 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
         shareCount: preInfo?.shareCount,
       };
 
-      // 使用合并调用模式（一次调用生成标题+正文）
-      const result = await generatePlatformContent(platform, context, {
-        onProgress: (p) => {
-          setResults(prev => ({
-            ...prev,
-            [platform]: { ...prev[platform], progress: p }
-          }));
+      // 使用流式生成
+      const result = await generateStreamingPlatformContent(
+        platform,
+        context,
+        createStreamingCallback(platform),
+        {
+          onProgress: (p) => {
+            setResults(prev => ({
+              ...prev,
+              [platform]: { ...prev[platform], progress: Math.min(p, 90) }
+            }));
+          }
         }
-      }, true);
+      );
 
-      // 创建新版本（重新生成视为新版本）
-      const newVersion: ContentVersion = {
-        id: `v${Date.now()}`,
-        content: result.content,
-        type: 'original',
-        createdAt: new Date()
-      };
-
+      // 完成后更新标题
       setResults(prev => ({
         ...prev,
         [platform]: {
           ...prev[platform],
-          status: 'completed',
-          progress: 100,
           title: result.titles[0] || '',
-          content: result.content,
-          coverPrompt: result.coverPrompt,
-          versions: [...(prev[platform]?.versions || []), newVersion],
-          currentVersionId: newVersion.id
+          coverPrompt: '',
         }
       }));
     } catch (error: any) {
@@ -527,7 +564,8 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
                     </button>
                   </div>
                   <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">
-                    {results[previewPlatform]?.content}
+                    {/* 优先显示流式内容，否则显示最终结果 */}
+                    {streamingContents[previewPlatform || ''] || results[previewPlatform]?.content}
                   </div>
                 </div>
 

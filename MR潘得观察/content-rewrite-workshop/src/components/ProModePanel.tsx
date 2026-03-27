@@ -10,7 +10,8 @@ import {
   Wand2,
   HelpCircle,
 } from 'lucide-react';
-import { hasApiConfig, getApiConfigError, generatePlatformContent } from '../services/llm/llmService';
+import { hasApiConfig, getApiConfigError, generatePlatformContent, generateStreamingContentOnly } from '../services/llm/llmService';
+import type { StreamingChunk } from '../services/llm/types';
 import { useSettingsStore } from '../stores/settingsStore';
 import { getFormulaDetail } from '../data/titleFormulas';
 import gzhIcon from '../assets/公众号.png';
@@ -72,12 +73,27 @@ export default function ProModePanel({
   const [_generationSteps, setGenerationSteps] = useState<{ step: string; status: 'pending' | 'success' | 'error' }[]>([]);
   const [showPlatformTip, setShowPlatformTip] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  // 流式内容状态 - 按平台存储实时显示内容
+  const [streamingContents, setStreamingContents] = useState<{ [platform: string]: string }>({});
 
   // 生成的标题，按平台分组
   const [platformTitles, setPlatformTitles] = useState<{ [platformId: string]: Title[] }>({});
 
   // 所有生成的标题（扁平列表，用于选择）
   const allGeneratedTitles = Object.values(platformTitles).flat();
+
+  // 流式内容生成回调
+  const createStreamingCallback = (platform: string, onComplete?: (content: string) => void) => (chunk: StreamingChunk) => {
+    if (chunk.done) {
+      onComplete?.(streamingContents[platform] || '');
+      return;
+    }
+    // 追加内容到流式显示
+    setStreamingContents(prev => ({
+      ...prev,
+      [platform]: (prev[platform] || '') + chunk.content
+    }));
+  };
 
   // 标题数量校验
   const handleTitleCountChange = (value: string) => {
@@ -340,9 +356,17 @@ export default function ProModePanel({
           // 测试模式：生成模拟正文
           generatedContents[platformId] = `这是测试模式下生成的正文内容...\n\n${inputContent.slice(0, 200)}`;
         } else {
-          // 真实API调用（不合并，使用contentPrompt）
-          const result = await generatePlatformContent(platformId, context, {}, false);
-          generatedContents[platformId] = result.content;
+          // 初始化流式显示状态
+          setStreamingContents(prev => ({ ...prev, [platformId]: '' }));
+
+          // 使用流式生成内容
+          const content = await generateStreamingContentOnly(
+            platformId,
+            context,
+            createStreamingCallback(platformId),
+            {}
+          );
+          generatedContents[platformId] = content;
         }
       }
 
