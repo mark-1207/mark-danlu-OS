@@ -61,6 +61,7 @@ content-rewrite-workshop/
 | `type` | string | 否 | 类型标签，推荐值：`content-title`（标题生成）、`content-body`（正文生成）、`analysis`（内容分析）、`quality`（质检）、`optimization`（优化） |
 | `platform` | string | 否 | 适用平台（gzh, xhs, douyin） |
 | `variables` | string[] | 否 | 使用的变量列表，用于校验 |
+| `outputFormat` | string | 否 | 输出格式，`json` 或 `text`，默认 `text`。声明为 `json` 时若解析失败返回 error |
 | `system` | boolean | 否 | 是否为系统级提示词（默认 false） |
 
 ### 示例
@@ -171,7 +172,7 @@ async executeStream(
 interface RouterResult {
   success: boolean;
   raw: string;                    // LLM 原始输出
-  parsed: any | null;             // 如果是 JSON 则解析后的对象，否则 null
+  parsed: any | null;             // 如果模板声明 outputFormat: json 且解析成功则为其值，否则 null
   usedTemplateId: string;          // 实际使用的模板 id
   usedModel: string;               // 实际使用的模型
   error?: string;                 // 错误信息
@@ -198,6 +199,7 @@ interface StreamResult {
 | 模板 id 不存在 | 抛出 `Error: Template not found: xxx` |
 | LLM 调用失败 | `RouterResult.success = false`，`error` 包含原因 |
 | 流式调用失败 | 尝试降级到同步模式 |
+| 声明 `outputFormat: json` 但解析失败 | `RouterResult.success = false`，`error` 包含解析失败原因 |
 
 ---
 
