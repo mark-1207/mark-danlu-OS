@@ -1,6 +1,9 @@
 import { llmManager } from './manager';
 import { useSettingsStore } from '../../stores/settingsStore';
 import type { Message, StreamingChunk } from './types';
+import { promptRouter } from '../promptRouter';
+// 重新导出 promptRouter 的类型，方便调用方使用
+export type { RouterResult, StreamResult, StreamingChunk } from '../promptRouter';
 import type {
   QualityReport,
   Dimension,
@@ -1266,4 +1269,33 @@ function parseQualityFromText(content: string, platformId: string): QualityRepor
     checklist,
     optimizationSuggestions,
   };
+}
+
+/**
+ * 通过模板路由执行（同步）
+ */
+export async function routeExecute(
+  templateId: string,
+  context: Record<string, string>,
+  options?: {
+    systemPrompt?: string;
+    model?: string;
+  }
+): Promise<RouterResult> {
+  return promptRouter.execute(templateId, context, options);
+}
+
+/**
+ * 通过模板路由执行（流式）
+ */
+export async function routeExecuteStream(
+  templateId: string,
+  context: Record<string, string>,
+  onChunk: (chunk: StreamingChunk) => void,
+  options?: {
+    systemPrompt?: string;
+    model?: string;
+  }
+): Promise<StreamResult> {
+  return promptRouter.executeStream(templateId, context, onChunk, options);
 }
