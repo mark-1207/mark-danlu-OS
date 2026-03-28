@@ -181,12 +181,12 @@ export class PromptRouter {
       }
 
       return {
-        success: true,
+        success: !parseError,
         raw,
         parsed,
         usedTemplateId: templateId,
         usedModel: response.model || options?.model || providers.find(p => p.isPrimary)?.model || '',
-        error: parseError,
+        error: parseError || undefined,
       };
     } catch (error) {
       return {
