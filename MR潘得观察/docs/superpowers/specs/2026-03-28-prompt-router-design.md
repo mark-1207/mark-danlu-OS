@@ -30,8 +30,8 @@ content-rewrite-workshop/
 │   │   ├── gzh-content.md           # 公众号正文
 │   │   ├── xhs-title.md             # 小红书标题
 │   │   ├── xhs-content.md           # 小红书正文
-│     │   ├── douyin-title.md         # 抖音标题
-│   │   └── douyin-content.md         # 抖音正文
+│   │   ├── douyin-title.md          # 抖音标题
+│   │   └── douyin-content.md        # 抖音正文
 │   │
 │   ├── quality/                     # 质检
 │   │   ├── gzh-quality.md
@@ -58,7 +58,7 @@ content-rewrite-workshop/
 |------|------|------|------|
 | `id` | string | 是 | 唯一标识，调用时使用 |
 | `name` | string | 是 | 显示名称 |
-| `type` | string | 否 | 类型标签（content-title, content-body, analysis, quality, optimization） |
+| `type` | string | 否 | 类型标签，推荐值：`content-title`（标题生成）、`content-body`（正文生成）、`analysis`（内容分析）、`quality`（质检）、`optimization`（优化） |
 | `platform` | string | 否 | 适用平台（gzh, xhs, douyin） |
 | `variables` | string[] | 否 | 使用的变量列表，用于校验 |
 | `system` | boolean | 否 | 是否为系统级提示词（默认 false） |
@@ -93,6 +93,7 @@ variables:
 - 模板中使用 `{变量名}` 作为占位符
 - 调用时传入的 context 对象键名与变量名对应
 - 未传入的变量替换为空字符串
+- context 中存在但模板未声明的变量会被**静默忽略**（不会报错）
 
 ---
 
@@ -130,6 +131,11 @@ routes:
 ---
 
 ## Router 接口设计
+
+### 模型选择逻辑
+
+- 如果 `options.model` 指定了模型，直接使用
+- 如果未指定，使用 settingsStore 中该供应商的第一个可用模型
 
 ### 核心方法
 
@@ -219,13 +225,15 @@ interface StreamResult {
 3. 实现 `promptRouter.ts`
 4. 改造 `llmService.ts` 中的调用，改用 `promptRouter.execute()`
 5. 改造各组件（ProModePanel、QuickModePanel 等）的 LLM 调用逻辑
-6. 删除 `src/data/` 中的提示词文件（或保留作为内置 fallback）
+6. 删除 `src/data/` 中的提示词文件
 
 ### UI 模板配置模块处理
 
-方案一：删除 SettingsPage 中的模板配置模块
+**决定：删除 SettingsPage 中的模板配置模块**
+
 - 用户如需修改模板，直接编辑 `prompts/` 下的 .md 文件
-- 重启应用后自动加载新模板
+- 用户新增模板，添加到对应子文件夹后重启应用即可自动加载
+- 不再通过 UI 管理模板配置
 
 ---
 
