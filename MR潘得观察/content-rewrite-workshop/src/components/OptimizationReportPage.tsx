@@ -20,7 +20,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 import JSZip from 'jszip';
-import { optimizeContent, hasApiConfig } from '../services/llm/llmService';
+import { routeExecute, hasApiConfig } from '../services/llm/llmService';
 import { useSettingsStore } from '../stores/settingsStore';
 import type { QualityReport as QualityReportType } from '../types/quality';
 import {
@@ -328,7 +328,7 @@ function CompareModal({
 
 // 主页面组件
 export default function OptimizationReportPage({
-  generationResult: _generationResult,
+  generationResult,
   onBack,
   onStepClick,
   onRestart
@@ -347,25 +347,30 @@ export default function OptimizationReportPage({
   const [isExportingZip, setIsExportingZip] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
-  // 点击外部关闭导出菜单
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
-        setShowExportMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  // 判断数据来源：真实数据（platformsData）还是 mock 数据
+  const hasRealData = generationResult?.platformsData && generationResult.platformsData.length > 0;
 
-  // 各平台的内容数据
+  // 各平台的内容数据 - 优先使用真实数据，否则使用 mock
   const [platformsData, setPlatformsData] = useState<{
     [key: string]: PlatformContent;
-  }>({
-    gzh: {
-      platform: 'gzh',
-      title: '你不是懒，你只是太焦虑了',
-      content: `凌晨1点，我又一次刷完了短视频设定的闹钟，才发现自己答应自己的计划又双叒没完成。
+  }>(() => {
+    if (hasRealData) {
+      // 转换为对象格式
+      const dataMap: { [key: string]: PlatformContent } = {};
+      for (const item of generationResult.platformsData) {
+        dataMap[item.platform] = {
+          ...item,
+          isOptimized: false,
+        };
+      }
+      return dataMap;
+    }
+    // 返回 mock 数据作为 fallback
+    return {
+      gzh: {
+        platform: 'gzh',
+        title: '你不是懒，你只是太焦虑了',
+        content: `凌晨1点，我又一次刷完了短视频设定的闹钟，才发现自己答应自己的计划又双叒没完成。
 
 你是否也有过这样的经历？明明列好了待办清单，却总是拖延到最后一刻才赶工完成。
 
@@ -382,14 +387,14 @@ export default function OptimizationReportPage({
 第三，允许不完美。接受自己可能会做得不够好，减少对失败的恐惧，才能真正开始。
 
 记住，拖延不是你的错，但改变是你的选择。从现在开始，哪怕只是迈出一小步，也比原地踏步强。`,
-      coverPrompt: 'Professional office scene, modern minimalist style',
-      qualityReport: getMockQualityReport('gzh'),
-      isOptimized: false,
-    },
-    xhs: {
-      platform: 'xhs',
-      title: '职场人必看：摆脱焦虑的3个方法',
-      content: `你是不是也经常拖延？明明有很多事要做，却总是刷手机刷到深夜？
+        coverPrompt: 'Professional office scene, modern minimalist style',
+        qualityReport: getMockQualityReport('gzh'),
+        isOptimized: false,
+      },
+      xhs: {
+        platform: 'xhs',
+        title: '职场人必看：摆脱焦虑的3个方法',
+        content: `你是不是也经常拖延？明明有很多事要做，却总是刷手机刷到深夜？
 
 其实你不是懒，是焦虑！
 
@@ -407,14 +412,14 @@ export default function OptimizationReportPage({
 拖延不是你的错，但改变是你的选择！💪
 
 #职场心理 #自我提升 #拖延症 #拒绝焦虑`,
-      coverPrompt: 'Modern office illustration, cute style',
-      qualityReport: getMockQualityReport('xhs'),
-      isOptimized: false,
-    },
-    douyin: {
-      platform: 'douyin',
-      title: '年薪百万的人都在做的事情',
-      content: `你为什么总是拖延？
+        coverPrompt: 'Modern office illustration, cute style',
+        qualityReport: getMockQualityReport('xhs'),
+        isOptimized: false,
+      },
+      douyin: {
+        platform: 'douyin',
+        title: '年薪百万的人都在做的事情',
+        content: `你为什么总是拖延？
 
 不是因为你懒，是因为你焦虑。
 
@@ -431,11 +436,23 @@ export default function OptimizationReportPage({
 你认同吗？评论区说说你的故事～
 
 #职场 #成长 #拖延症 #干货`,
-      coverPrompt: 'Dynamic social media style, bold colors',
-      qualityReport: getMockQualityReport('douyin'),
-      isOptimized: false,
-    },
+        coverPrompt: 'Dynamic social media style, bold colors',
+        qualityReport: getMockQualityReport('douyin'),
+        isOptimized: false,
+      },
+    };
   });
+
+  // 点击外部关闭导出菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const currentData = platformsData[currentPlatform];
   const currentReport = currentData?.qualityReport;
@@ -472,17 +489,17 @@ export default function OptimizationReportPage({
       const currentData = platformsData[currentPlatform];
       const qualityReport = currentData.qualityReport;
 
-      // 调用 AI 一键优化，传入平台ID以选择对应的优化模板
-      const optimizedText = await optimizeContent(
-        currentData.content,
-        { checklist: qualityReport.checklist, optimizationSuggestions: qualityReport.optimizationSuggestions },
-        {
-          onProgress: () => {
-            // 可以在此处更新进度状态
-          }
-        },
-        currentPlatform // 传入平台ID
+      // 调用 AI 一键优化，使用 promptRouter
+      const result = await routeExecute(
+        `${currentPlatform}-optimization`,
+        { content: currentData.content }
       );
+
+      if (!result.success) {
+        throw new Error(result.error || '优化失败');
+      }
+
+      const optimizedText = result.raw;
 
       // 解析优化后的内容（假设 AI 返回的是完整内容，可能包含标题）
       // 简单处理：如果内容中包含换行，先尝试提取标题
