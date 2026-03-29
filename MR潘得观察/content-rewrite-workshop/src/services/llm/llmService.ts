@@ -2,6 +2,7 @@ import { llmManager } from './manager';
 import { useSettingsStore } from '../../stores/settingsStore';
 import type { Message, StreamingChunk } from './types';
 import { promptRouter } from '../promptRouter';
+import type { RouterResult, StreamResult } from '../promptRouter';
 // 重新导出 promptRouter 的类型，方便调用方使用
 export type { RouterResult, StreamResult, StreamingChunk } from '../promptRouter';
 import type {

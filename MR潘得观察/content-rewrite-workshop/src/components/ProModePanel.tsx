@@ -129,7 +129,7 @@ export default function ProModePanel({
 
     try {
       for (const platformId of selectedPlatforms) {
-        const context = {
+        const context: Record<string, string> = {
           content: inputContent,
           keywords: analysisResult?.核心议题 || '',
           emotion: analysisResult?.情绪基调?.join(', ') || '',
@@ -139,10 +139,10 @@ export default function ProModePanel({
           platform: preInfo?.platform || '',
           contentType: preInfo?.contentType || '',
           track: preInfo?.track || '',
-          likes: preInfo?.likes || 0,
-          collectCount: preInfo?.collectCount || 0,
-          viewCount: preInfo?.viewCount || 0,
-          shareCount: preInfo?.shareCount || 0,
+          likes: String(preInfo?.likes || 0),
+          collectCount: String(preInfo?.collectCount || 0),
+          viewCount: String(preInfo?.viewCount || 0),
+          shareCount: String(preInfo?.shareCount || 0),
         };
 
         let titles: string[] = [];
@@ -338,7 +338,7 @@ export default function ProModePanel({
       for (const platformId of selectedPlatforms) {
         const selectedTitle = selectedTitlesList[selectedPlatforms.indexOf(platformId)] || '';
 
-        const context = {
+        const context: Record<string, string> = {
           content: inputContent,
           title: selectedTitle,
           keywords: analysisResult?.核心议题 || '',
@@ -357,10 +357,10 @@ export default function ProModePanel({
           platform: preInfo?.platform || '',
           contentType: preInfo?.contentType || '',
           track: preInfo?.track || '',
-          likes: preInfo?.likes || 0,
-          collectCount: preInfo?.collectCount || 0,
-          viewCount: preInfo?.viewCount || 0,
-          shareCount: preInfo?.shareCount || 0,
+          likes: String(preInfo?.likes || 0),
+          collectCount: String(preInfo?.collectCount || 0),
+          viewCount: String(preInfo?.viewCount || 0),
+          shareCount: String(preInfo?.shareCount || 0),
         };
 
         if (testMode) {

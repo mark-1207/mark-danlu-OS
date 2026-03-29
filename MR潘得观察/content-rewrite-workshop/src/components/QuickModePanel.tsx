@@ -168,7 +168,7 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
     setResults(initialResults);
 
     // 为每个平台生成内容
-    const context = {
+    const context: Record<string, string> = {
       content: inputContent,
       keywords: analysisResult?.核心议题 || '',
       emotion: analysisResult?.情绪基调?.join(', ') || '',
@@ -178,10 +178,10 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
       platform: preInfo?.platform || '',
       contentType: preInfo?.contentType || '',
       track: preInfo?.track || '',
-      likes: preInfo?.likes,
-      collectCount: preInfo?.collectCount,
-      viewCount: preInfo?.viewCount,
-      shareCount: preInfo?.shareCount,
+      likes: String(preInfo?.likes || 0),
+      collectCount: String(preInfo?.collectCount || 0),
+      viewCount: String(preInfo?.viewCount || 0),
+      shareCount: String(preInfo?.shareCount || 0),
     };
 
     // 完成步骤1: 调用AI大模型
@@ -212,14 +212,7 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
           `${platform}-content`,
           context,
           createStreamingCallback(platform),
-          {
-            onProgress: (p) => {
-              setResults(prev => ({
-                ...prev,
-                [platform]: { ...prev[platform], progress: Math.min(p, 90) }
-              }));
-            }
-          }
+          {}
         );
 
         // 完成后更新标题等信息
@@ -303,7 +296,7 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
     setStreamingContents(prev => ({ ...prev, [platform]: '' }));
 
     try {
-      const context = {
+      const context: Record<string, string> = {
         content: inputContent,
         keywords: analysisResult?.核心议题 || '',
         emotion: analysisResult?.情绪基调?.join(', ') || '',
@@ -321,10 +314,10 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
         platform: preInfo?.platform || '',
         contentType: preInfo?.contentType || '',
         track: preInfo?.track || '',
-        likes: preInfo?.likes,
-        collectCount: preInfo?.collectCount,
-        viewCount: preInfo?.viewCount,
-        shareCount: preInfo?.shareCount,
+        likes: String(preInfo?.likes || 0),
+        collectCount: String(preInfo?.collectCount || 0),
+        viewCount: String(preInfo?.viewCount || 0),
+        shareCount: String(preInfo?.shareCount || 0),
       };
 
       // 使用流式生成
@@ -332,14 +325,7 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
         `${platform}-content`,
         context,
         createStreamingCallback(platform),
-        {
-          onProgress: (p) => {
-            setResults(prev => ({
-              ...prev,
-              [platform]: { ...prev[platform], progress: Math.min(p, 90) }
-            }));
-          }
-        }
+        {}
       );
 
       // 完成后更新标题
