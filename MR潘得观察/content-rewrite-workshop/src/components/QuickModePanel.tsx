@@ -13,7 +13,8 @@ import {
   Sparkles,
   Copy,
 } from 'lucide-react';
-import { hasApiConfig, getApiConfigError, generatePlatformContent, quickOptimizeContent, callAIWithStreaming, generateStreamingPlatformContent } from '../services/llm/llmService';
+import { hasApiConfig, getApiConfigError } from '../services/llm/llmService';
+import { promptRouter } from '../services/promptRouter';
 import type { StreamingChunk } from '../services/llm/types';
 import { useSettingsStore } from '../stores/settingsStore';
 import { ProgressBar } from './ui/ProgressBar';
@@ -207,8 +208,8 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
         }));
 
         // 使用流式生成
-        const result = await generateStreamingPlatformContent(
-          platform,
+        const result = await promptRouter.executeStream(
+          `${platform}-content`,
           context,
           createStreamingCallback(platform),
           {
@@ -222,14 +223,19 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
         );
 
         // 完成后更新标题等信息
-        setResults(prev => ({
-          ...prev,
-          [platform]: {
-            ...prev[platform],
-            title: result.titles[0] || '',
-            coverPrompt: '',
-          }
-        }));
+        // 注意：routeExecuteStream 不返回 titles，标题需从内容中提取
+        if (result.success) {
+          setResults(prev => ({
+            ...prev,
+            [platform]: {
+              ...prev[platform],
+              title: '',
+              coverPrompt: '',
+            }
+          }));
+        } else {
+          throw new Error(result.error || 'Content generation failed');
+        }
 
         // 每个平台生成完成后，逐步完成步骤3和4
         if (i === 0) {
@@ -322,8 +328,8 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
       };
 
       // 使用流式生成
-      const result = await generateStreamingPlatformContent(
-        platform,
+      const result = await promptRouter.executeStream(
+        `${platform}-content`,
         context,
         createStreamingCallback(platform),
         {
@@ -337,14 +343,19 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
       );
 
       // 完成后更新标题
-      setResults(prev => ({
-        ...prev,
-        [platform]: {
-          ...prev[platform],
-          title: result.titles[0] || '',
-          coverPrompt: '',
-        }
-      }));
+      // 注意：routeExecuteStream 不返回 titles，标题需从内容中提取
+      if (result.success) {
+        setResults(prev => ({
+          ...prev,
+          [platform]: {
+            ...prev[platform],
+            title: '',
+            coverPrompt: '',
+          }
+        }));
+      } else {
+        throw new Error(result.error || 'Content generation failed');
+      }
     } catch (error: any) {
       console.error('AI生成失败:', error);
       setResults(prev => ({
@@ -631,18 +642,22 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
 
               {/* 一键优化按钮 */}
               {!optimizedContent && (
-                <div className="mt-4 flex justify-center">
+                <div className="mt-5 flex justify-center">
                   <button
                     onClick={async () => {
                       setIsOptimizing(true);
                       try {
-                        const result = await quickOptimizeContent(
-                          results[previewPlatform]?.content || '',
-                          previewPlatform,
+                        const result = await promptRouter.execute(
+                          `${previewPlatform}-optimization`,
+                          { originalContent: results[previewPlatform]?.content || '' },
                           {}
                         );
-                        setOptimizedContent(result);
-                        setSelectedVersions({ original: true, optimized: true });
+                        if (result.success) {
+                          setOptimizedContent(result.raw);
+                          setSelectedVersions({ original: true, optimized: true });
+                        } else {
+                          throw new Error(result.error || 'Optimization failed');
+                        }
                       } catch (err: any) {
                         alert('优化失败: ' + (err.message || '未知错误'));
                       } finally {
@@ -650,7 +665,7 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
                       }
                     }}
                     disabled={isOptimizing}
-                    className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white rounded-xl font-medium shadow-lg shadow-purple-500/25 transition-all disabled:opacity-50"
+                    className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white rounded-xl font-semibold shadow-lg shadow-purple-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isOptimizing ? (
                       <>
@@ -674,12 +689,16 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
                     onClick={async () => {
                       setIsOptimizing(true);
                       try {
-                        const result = await quickOptimizeContent(
-                          results[previewPlatform]?.content || '',
-                          previewPlatform,
+                        const result = await promptRouter.execute(
+                          `${previewPlatform}-optimization`,
+                          { originalContent: results[previewPlatform]?.content || '' },
                           {}
                         );
-                        setOptimizedContent(result);
+                        if (result.success) {
+                          setOptimizedContent(result.raw);
+                        } else {
+                          throw new Error(result.error || 'Optimization failed');
+                        }
                       } catch (err: any) {
                         alert('优化失败: ' + (err.message || '未知错误'));
                       } finally {
@@ -707,7 +726,7 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
             <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-slate-50">
               <button
                 onClick={() => handleRegenerate(previewPlatform)}
-                className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-white rounded-lg border border-slate-200 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-white rounded-lg border border-slate-200 hover:border-slate-300 transition-all"
               >
                 <RefreshCw className="w-4 h-4" />
                 重新生成
@@ -717,7 +736,7 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
                   setShowPreview(false);
                   setOptimizedContent(null);
                   setSelectedVersions({ original: true, optimized: false });
-                }} className="px-4 py-2 text-slate-600 hover:bg-white rounded-lg border border-slate-200">
+                }} className="px-5 py-2.5 text-slate-600 hover:bg-white rounded-lg border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all">
                   关闭
                 </button>
                 <button
@@ -737,7 +756,7 @@ export default function QuickModePanel({ inputContent, analysisResult, preInfo }
                     }
                   }}
                   disabled={!selectedVersions.original && (!selectedVersions.optimized || !optimizedContent)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed shadow-sm hover:shadow transition-all"
                 >
                   <Download className="w-4 h-4" />
                   {selectedVersions.original && selectedVersions.optimized && optimizedContent
@@ -828,21 +847,22 @@ function PlatformCard({
       <div className="flex gap-2 mb-3">
         {isCompleted ? (
           <>
-            <button onClick={onPreview} className="flex-1 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-lg border border-slate-200 transition-colors">
+            <button onClick={onPreview} className="flex-1 px-3 py-2.5 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-lg border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all">
               预览
             </button>
-            <button onClick={onDownload} className={`flex-1 px-3 py-2 ${style.iconBg} hover:opacity-90 ${style.iconColor} text-sm font-medium rounded-lg flex items-center justify-center gap-1 transition-opacity`}>
+            <button onClick={onDownload} className={`flex-1 px-3 py-2.5 ${style.iconBg} hover:opacity-90 ${style.iconColor} text-sm font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-sm hover:shadow`}>
               <Download className="w-4 h-4" />
               下载
             </button>
           </>
         ) : !isAllStepsCompleted ? (
-          <button disabled className="flex-1 px-3 py-2 bg-slate-100 text-slate-400 text-sm font-medium rounded-lg cursor-not-allowed">
-            开始生成
+          <button disabled className="flex-1 px-3 py-2.5 bg-slate-100 text-slate-400 text-sm font-medium rounded-lg cursor-not-allowed">
+            等待生成
           </button>
         ) : (
-          <button onClick={onRegenerate} className={`flex-1 px-3 py-2 ${style.iconBg} hover:opacity-90 ${style.iconColor} text-sm font-medium rounded-lg transition-opacity`}>
-            开始生成
+          <button onClick={onRegenerate} className={`flex-1 px-3 py-2.5 ${style.iconBg} hover:opacity-90 ${style.iconColor} text-sm font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-sm hover:shadow`}>
+            <RefreshCw className="w-4 h-4" />
+            重新生成
           </button>
         )}
       </div>
