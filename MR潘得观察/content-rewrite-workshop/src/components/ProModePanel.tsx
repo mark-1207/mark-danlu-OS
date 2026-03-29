@@ -10,7 +10,8 @@ import {
   Wand2,
   HelpCircle,
 } from 'lucide-react';
-import { hasApiConfig, getApiConfigError, generatePlatformContent, generateStreamingContentOnly } from '../services/llm/llmService';
+import { hasApiConfig, getApiConfigError } from '../services/llm/llmService';
+import { promptRouter } from '../services/promptRouter';
 import type { StreamingChunk } from '../services/llm/types';
 import { useSettingsStore } from '../stores/settingsStore';
 import { getFormulaDetail } from '../data/titleFormulas';
@@ -26,6 +27,15 @@ interface Title {
   score: number;
 }
 
+interface PlatformData {
+  platform: string;
+  title: string;
+  content: string;
+  coverPrompt: string;
+  coverStyles: string[];
+  qualityReport: any;
+}
+
 interface ProModePanelProps {
   inputContent: string;
   analysisResult: any;
@@ -39,11 +49,7 @@ interface ProModePanelProps {
     shareCount?: number;
   };
   onGenerate: (data: {
-    platforms: string[];
-    titles: string[];
-    content: string;
-    coverPrompt: string;
-    coverStyles: string[];
+    platformsData: PlatformData[];
   }) => void;
   onBack: () => void;
   isGenerating: boolean;
@@ -154,9 +160,13 @@ export default function ProModePanel({
             return templates[i % templates.length].replace('{topic}', '内容');
           });
         } else {
-          // 真实API调用（不合并，使用titlePrompt）
-          const result = await generatePlatformContent(platformId, context, {}, false);
-          titles = result.titles.slice(0, titleCount);
+          // 真实API调用（使用promptRouter）
+          const result = await promptRouter.execute(`${platformId}-title`, context, {});
+          if (!result.success) {
+            throw new Error(result.error || '生成标题失败');
+          }
+          const titlesData = result.parsed?.titles || [];
+          titles = titlesData.slice(0, titleCount);
         }
 
         newPlatformTitles[platformId] = titles.map((content, index) => ({
@@ -360,14 +370,17 @@ export default function ProModePanel({
           // 初始化流式显示状态
           setStreamingContents(prev => ({ ...prev, [platformId]: '' }));
 
-          // 使用流式生成内容
-          const content = await generateStreamingContentOnly(
-            platformId,
+          // 使用流式生成内容（promptRouter）
+          const streamResult = await promptRouter.executeStream(
+            `${platformId}-content`,
             context,
             createStreamingCallback(platformId),
             {}
           );
-          generatedContents[platformId] = content;
+          if (!streamResult.success) {
+            throw new Error(streamResult.error || '生成正文失败');
+          }
+          generatedContents[platformId] = streamResult.content;
         }
       }
 
@@ -375,13 +388,39 @@ export default function ProModePanel({
 
       setIsGenerating(false);
 
-      onGenerate({
-        platforms: selectedPlatforms,
-        titles: selectedTitlesList,
-        content: generatedContents[0] || '',
+      // 生成六维质检报告
+      const qualityReports: { [platformId: string]: any } = {};
+      for (const platformId of selectedPlatforms) {
+        const content = generatedContents[platformId];
+        if (content) {
+          try {
+            // 使用promptRouter进行质检
+            const qualityResult = await promptRouter.execute(`${platformId}-quality`, { content }, {});
+            if (qualityResult.success && qualityResult.parsed) {
+              qualityReports[platformId] = qualityResult.parsed;
+            } else {
+              console.error(`质检失败 [${platformId}]:`, qualityResult.error);
+              qualityReports[platformId] = null;
+            }
+          } catch (error) {
+            console.error(`质检失败 [${platformId}]:`, error);
+            // 质检失败不影响主流程，使用空报告
+            qualityReports[platformId] = null;
+          }
+        }
+      }
+
+      // 构建每个平台的数据
+      const platformsData = selectedPlatforms.map((platformId, idx) => ({
+        platform: platformId,
+        title: selectedTitlesList[idx] || '',
+        content: generatedContents[platformId] || '',
         coverPrompt: '',
         coverStyles: selectedCoverStyles,
-      });
+        qualityReport: qualityReports[platformId],
+      }));
+
+      onGenerate({ platformsData });
 
     } catch (error: any) {
       console.error('生成失败:', error);
@@ -457,10 +496,10 @@ export default function ProModePanel({
         </div>
 
         {/* 生成控制区 */}
-        <div className="flex items-end gap-4 mb-6 p-4 bg-slate-50 rounded-xl">
+        <div className="flex items-end gap-4 mb-6 p-5 bg-slate-50 rounded-xl border border-slate-100">
           <div className="flex-1">
-            <label htmlFor="titleCount" className="block text-sm text-slate-600 mb-2">每个平台生成标题数量</label>
-            <div className="flex items-center gap-2">
+            <label htmlFor="titleCount" className="block text-sm text-slate-600 mb-2 font-medium">每个平台生成标题数量</label>
+            <div className="flex items-center gap-3">
               <input
                 id="titleCount"
                 name="titleCount"
@@ -469,7 +508,7 @@ export default function ProModePanel({
                 max={10}
                 value={titleCount}
                 onChange={(e) => handleTitleCountChange(e.target.value)}
-                className="w-20 px-3 py-2 border border-slate-200 rounded-lg text-center focus:outline-none focus:border-blue-500"
+                className="w-20 px-3 py-2 border border-slate-300 rounded-lg text-center text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
               />
               <span className="text-sm text-slate-500">个 (2-10)</span>
             </div>
@@ -477,7 +516,7 @@ export default function ProModePanel({
           <button
             onClick={handleGenerateTitles}
             disabled={selectedPlatforms.length === 0 || isGeneratingTitles}
-            className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-lg font-medium transition-all"
+            className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 disabled:from-slate-300 disabled:to-slate-300 disabled:text-slate-500 text-white rounded-lg font-semibold shadow-sm hover:shadow transition-all"
           >
             <Wand2 className="w-5 h-5" />
             {isGeneratingTitles ? '生成中...' : '生成标题'}
@@ -559,14 +598,14 @@ export default function ProModePanel({
                                   name={`title-edit-${title.id}`}
                                   value={editValue}
                                   onChange={(e) => setEditValue(e.target.value)}
-                                  className="flex-1 px-3 py-2 text-sm border-2 border-blue-300 rounded-lg focus:outline-none focus:border-blue-500"
+                                  className="flex-1 px-3 py-2 text-sm border-2 border-blue-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
                                   autoFocus
                                   aria-label="编辑标题"
                                 />
-                                <button onClick={(e) => { e.stopPropagation(); handleTitleEdit(title.id, editValue); }} className="p-2 text-green-600 hover:bg-green-100 rounded-lg">
+                                <button onClick={(e) => { e.stopPropagation(); handleTitleEdit(title.id, editValue); }} className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors">
                                   <Check className="w-4 h-4" />
                                 </button>
-                                <button onClick={(e) => { e.stopPropagation(); setEditingTitleId(null); }} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg">
+                                <button onClick={(e) => { e.stopPropagation(); setEditingTitleId(null); }} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors">
                                   <X className="w-4 h-4" />
                                 </button>
                               </div>
