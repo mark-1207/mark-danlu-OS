@@ -489,20 +489,20 @@ function ContentInputPage({
             </div>
 
             {/* 前置信息模块 */}
-            <div className="mt-4 bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <h3 className="font-medium text-slate-800 mb-4 flex items-center gap-2">
+            <div className="mt-4 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+              <h3 className="font-semibold text-slate-800 mb-5 flex items-center gap-2">
                 <span className="text-blue-600">前置信息</span>
                 <span className="text-xs text-slate-400 font-normal">（选填，但填写后生成内容更精准）</span>
               </h3>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 gap-5">
                 {/* 内容平台 */}
                 <div>
-                  <label className="block text-sm text-slate-600 mb-1.5">内容平台</label>
+                  <label className="block text-sm text-slate-600 mb-2 font-medium">内容平台</label>
                   <select
                     value={preInfo.platform}
                     onChange={(e) => setPreInfo({ ...preInfo, platform: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
                   >
                     <option value="">请选择平台</option>
                     <option value="公众号">公众号</option>
@@ -516,71 +516,71 @@ function ContentInputPage({
 
                 {/* 内容类型 */}
                 <div>
-                  <label className="block text-sm text-slate-600 mb-1.5">内容类型</label>
+                  <label className="block text-sm text-slate-600 mb-2 font-medium">内容类型</label>
                   <input
                     type="text"
                     value={preInfo.contentType}
                     onChange={(e) => setPreInfo({ ...preInfo, contentType: e.target.value })}
                     placeholder="例：1分钟口播短视频"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
                   />
                 </div>
 
                 {/* 所属赛道 */}
                 <div>
-                  <label className="block text-sm text-slate-600 mb-1.5">所属赛道</label>
+                  <label className="block text-sm text-slate-600 mb-2 font-medium">所属赛道</label>
                   <input
                     type="text"
                     value={preInfo.track}
                     onChange={(e) => setPreInfo({ ...preInfo, track: e.target.value })}
                     placeholder="例：情感-亲密关系"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
                   />
                 </div>
               </div>
 
               {/* 核心数据 */}
-              <div className="mt-4">
-                <label className="block text-sm text-slate-600 mb-1.5">核心数据（选填）</label>
+              <div className="mt-5">
+                <label className="block text-sm text-slate-600 mb-2 font-medium">核心数据（选填）</label>
                 <div className="grid grid-cols-4 gap-4">
                   <div>
-                    <label className="block text-xs text-slate-500 mb-1">获赞数</label>
+                    <label className="block text-xs text-slate-500 mb-1.5">获赞数</label>
                     <input
                       type="number"
                       value={preInfo.likes || ''}
                       onChange={(e) => setPreInfo({ ...preInfo, likes: parseInt(e.target.value) || 0 })}
                       placeholder="0"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-slate-500 mb-1">收藏数</label>
+                    <label className="block text-xs text-slate-500 mb-1.5">收藏数</label>
                     <input
                       type="number"
                       value={preInfo.collectCount || ''}
                       onChange={(e) => setPreInfo({ ...preInfo, collectCount: parseInt(e.target.value) || 0 })}
                       placeholder="0"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-slate-500 mb-1">播放数</label>
+                    <label className="block text-xs text-slate-500 mb-1.5">播放数</label>
                     <input
                       type="number"
                       value={preInfo.viewCount || ''}
                       onChange={(e) => setPreInfo({ ...preInfo, viewCount: parseInt(e.target.value) || 0 })}
                       placeholder="0"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-slate-500 mb-1">转发数</label>
+                    <label className="block text-xs text-slate-500 mb-1.5">转发数</label>
                     <input
                       type="number"
                       value={preInfo.shareCount || ''}
                       onChange={(e) => setPreInfo({ ...preInfo, shareCount: parseInt(e.target.value) || 0 })}
                       placeholder="0"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
                     />
                   </div>
                 </div>
@@ -589,24 +589,27 @@ function ContentInputPage({
 
             {/* 输入原文区域 */}
             <div className="mt-4 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+              <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
                 <span className="font-medium text-slate-700">输入原文</span>
+                <span className={`text-sm font-medium ${getCharCountColor()}`}>
+                  {getCharCountText()}
+                </span>
               </div>
               <textarea
                 ref={textareaRef}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="请输入改写内容或上传文件"
-                className="w-full h-80 p-4 text-slate-700 placeholder:text-slate-400 resize-none focus:outline-none"
+                className="w-full h-80 p-5 text-slate-700 placeholder:text-slate-400 resize-none focus:outline-none bg-white"
               />
 
               {/* 底部工具栏 */}
-              <div className="h-12 border-t border-slate-100 px-4 flex items-center justify-between bg-slate-50">
+              <div className="h-14 border-t border-slate-100 px-5 flex items-center justify-between bg-slate-50">
                 {/* 左侧：上传和音频按钮 */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4">
                   <button
                     onClick={handleFileUpload}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-600 hover:text-slate-800 hover:bg-white rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-600 hover:text-slate-800 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all"
                   >
                     <Upload className="w-4 h-4" />
                     上传文件
@@ -621,19 +624,14 @@ function ContentInputPage({
                     <span className="text-xs">(敬请期待)</span>
                   </button>
                   {fileName && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg">
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg border border-blue-100">
                       <File className="w-4 h-4" />
-                      <span className="text-sm">{fileName}</span>
-                      <button onClick={clearContent} className="hover:text-blue-900">
-                        <X className="w-3 h-3" />
+                      <span className="text-sm font-medium">{fileName}</span>
+                      <button onClick={clearContent} className="hover:text-blue-900 ml-1">
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
                   )}
-                </div>
-
-                {/* 右侧：字数统计 */}
-                <div className={`text-sm font-medium ${getCharCountColor()}`}>
-                  {getCharCountText()}
                 </div>
               </div>
             </div>
@@ -643,22 +641,22 @@ function ContentInputPage({
               {/* 保存草稿按钮 */}
               <button
                 onClick={handleSaveDraft}
-                className="px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-white rounded-lg border border-slate-200 transition-colors"
+                className="px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-white rounded-lg border border-slate-200 hover:border-slate-300 transition-all"
               >
                 保存草稿
               </button>
 
               {/* 开始分析按钮 + 字数限制提示 */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 {content.trim() && !isValidLength && (
-                  <span className={`text-sm ${isTooShort ? 'text-amber-500' : 'text-red-500'}`}>
+                  <span className={`text-sm font-medium ${isTooShort ? 'text-amber-600' : 'text-red-500'}`}>
                     {isTooShort ? `内容至少需要 ${MIN_CHARS} 字，当前 ${charCount} 字` : `内容不能超过 ${MAX_CHARS} 字，当前 ${charCount} 字`}
                   </span>
                 )}
                 <button
                   onClick={() => onStartAnalyze(content, preInfo)}
                   disabled={!content.trim() || !isValidLength}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                  className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed disabled:text-slate-500 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
                 >
                   开始分析
                   <ChevronRight className="w-4 h-4" />

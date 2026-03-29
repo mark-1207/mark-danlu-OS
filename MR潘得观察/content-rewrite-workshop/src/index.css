@@ -24,30 +24,64 @@ body {
    Design Tokens - 统一设计规范
    ======================================== */
 
-/* 按钮系统 */
+/* 间距系统 - 基于 4px 网格 */
+:root {
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;       /* 16px */
+  --space-5: 1.25rem;    /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;       /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+}
+
+/* 字体系统 */
+:root {
+  --font-xs: 0.75rem;    /* 12px */
+  --font-sm: 0.875rem;   /* 14px */
+  --font-base: 1rem;     /* 16px */
+  --font-lg: 1.125rem;   /* 18px */
+  --font-xl: 1.25rem;    /* 20px */
+  --font-2xl: 1.5rem;    /* 24px */
+  --font-3xl: 1.875rem;  /* 30px */
+  --font-4xl: 2.25rem;   /* 36px */
+}
+
+/* 按钮系统 - 统一样式 */
 .btn {
   @apply inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-all duration-200;
+  @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
 }
 
 .btn-primary {
-  @apply px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md active:scale-[0.98];
+  @apply px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white shadow-sm;
+  @apply focus:ring-blue-500 active:scale-[0.98];
 }
 
 .btn-secondary {
-  @apply px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300;
+  @apply px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200;
+  @apply hover:border-slate-300 focus:ring-slate-500;
 }
 
 .btn-ghost {
   @apply px-4 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-800;
+  @apply focus:ring-slate-500;
+}
+
+.btn-danger {
+  @apply px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200;
+  @apply hover:border-red-300 focus:ring-red-500;
 }
 
 /* 进度条统一样式 */
 .progress-bar {
-  @apply h-2 bg-slate-200 rounded-full overflow-hidden;
+  @apply h-2 bg-slate-100 rounded-full overflow-hidden;
 }
 
 .progress-bar-fill {
-  @apply h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500 ease-out;
+  @apply h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full;
+  @apply transition-all duration-500 ease-out;
 }
 
 /* 卡片统一样式 */
@@ -56,17 +90,34 @@ body {
 }
 
 .card-hover {
-  @apply hover:shadow-md hover:border-slate-300 hover:scale-[1.01] transition-all duration-200;
+  @apply hover:shadow-md hover:border-slate-300 transition-all duration-200;
+}
+
+/* 区块间距 */
+.section {
+  @apply py-6 px-6;
+}
+
+.section-lg {
+  @apply py-8 px-8;
 }
 
 /* 表单输入框统一样式 */
 .input-field {
-  @apply w-full px-3 py-2 border border-slate-300 rounded-lg transition-all duration-200;
+  @apply w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm;
+  @apply transition-all duration-200;
   @apply focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500;
 }
 
 .input-field::placeholder {
   @apply text-slate-400;
+}
+
+/* 小号输入框 */
+.input-sm {
+  @apply w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm;
+  @apply transition-all duration-200;
+  @apply focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500;
 }
 
 /* 全局输入框聚焦样式 - 针对 border-slate-300 的输入框 */
@@ -157,8 +208,14 @@ input[class*="border-slate-300"]:focus {
 }
 
 /* ========================================
-   动画效果
+   动画效果 - 统一时长
    ======================================== */
+:root {
+  --transition-fast: 150ms;
+  --transition-base: 200ms;
+  --transition-slow: 300ms;
+}
+
 @keyframes shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
@@ -174,6 +231,11 @@ input[class*="border-slate-300"]:focus {
   to { opacity: 1; transform: scale(1); }
 }
 
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .animate-shimmer {
   animation: shimmer 1.5s infinite;
   background: linear-gradient(to right, hsl(214.3 31.8% 90%) 0%, hsl(214.3 31.8% 95%) 50%, hsl(214.3 31.8% 90%) 100%);
@@ -181,11 +243,24 @@ input[class*="border-slate-300"]:focus {
 }
 
 .animate-fade-in {
-  animation: fade-in 0.3s ease-out;
+  animation: fade-in var(--transition-slow) ease-out;
 }
 
 .animate-scale-in {
-  animation: scale-in 0.2s ease-out;
+  animation: scale-in var(--transition-base) ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up var(--transition-slow) ease-out;
+}
+
+/* 通用过渡效果 */
+.transition-base {
+  @apply transition-all duration-200;
+}
+
+.transition-smooth {
+  @apply transition-all duration-300 ease-out;
 }
 
 /* ========================================
@@ -219,12 +294,13 @@ input[class*="border-slate-300"]:focus {
    Toast 通知样式
    ======================================== */
 .toast-container {
-  @apply fixed bottom-4 right-4 z-50 flex flex-col gap-2;
+  @apply fixed bottom-4 right-4 z-50 flex flex-col gap-3;
 }
 
 .toast {
-  @apply flex items-center gap-3 px-4 py-3 bg-white rounded-xl shadow-xl border border-slate-200;
-  animation: slide-in 0.3s ease-out;
+  @apply flex items-center gap-3 px-4 py-3 bg-white rounded-xl shadow-lg border border-slate-200;
+  @apply transition-all duration-200;
+  animation: slide-in 0.25s ease-out;
 }
 
 .toast-success {
@@ -256,7 +332,7 @@ input[class*="border-slate-300"]:focus {
 }
 
 .animate-slide-in {
-  animation: slide-in 0.3s ease-out;
+  animation: slide-in 0.25s ease-out;
 }
 
 /* ========================================
