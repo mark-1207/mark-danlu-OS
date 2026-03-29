@@ -239,6 +239,9 @@ export class PromptRouter {
     }
     messages.push({ role: 'user', content: promptContent });
 
+    // 累积完整内容
+    let fullContent = '';
+
     // 尝试流式调用
     try {
       await llmManager.chatStream(
@@ -246,6 +249,7 @@ export class PromptRouter {
         providers,
         failover,
         (chunk) => {
+          fullContent += chunk.content;
           onChunk({
             content: chunk.content,
             done: chunk.done,
@@ -258,7 +262,7 @@ export class PromptRouter {
 
       return {
         success: true,
-        content: '', // 流式模式下内容通过 onChunk 传递
+        content: fullContent,
         usedTemplateId: templateId,
         usedModel: options?.model || providers.find(p => p.isPrimary)?.model || '',
       };
