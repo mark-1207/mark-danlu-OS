@@ -14,24 +14,6 @@ import {
   type OptimizationSettings,
   type OptimizationTemplate,
 } from '../services/llm/types';
-import {
-  analysisPrompt,
-  gzhTitlePrompt,
-  gzhContentPrompt,
-  gzhQualityPrompt,
-  gzhSystemPrompt,
-  gzhOptimizationPrompt,
-  xhsTitlePrompt,
-  xhsContentPrompt,
-  xhsQualityPrompt,
-  xhsSystemPrompt,
-  xhsOptimizationPrompt,
-  douyinTitlePrompt,
-  douyinContentPrompt,
-  douyinQualityPrompt,
-  douyinSystemPrompt,
-  douyinOptimizationPrompt,
-} from '../data/index';
 
 // 默认故障转移配置
 const DEFAULT_FAILOVER_CONFIG: FailoverConfig = {
@@ -51,18 +33,18 @@ const createBuiltInPlatforms = (): Platform[] => [
       {
         id: 'gzh-deep',
         name: '深度文章模板',
-        titlePrompt: gzhTitlePrompt,
-        contentPrompt: gzhContentPrompt,
+        titlePrompt: '',
+        contentPrompt: '',
       },
       {
         id: 'gzh-quick',
         name: '快讯模板',
-        titlePrompt: gzhTitlePrompt,
-        contentPrompt: gzhContentPrompt,
+        titlePrompt: '',
+        contentPrompt: '',
       },
     ],
     defaultTemplateId: 'gzh-deep',
-    qualityPrompt: gzhQualityPrompt,
+    qualityPrompt: '',
     qualityCriteria: [
       '标题吸引力（13-25字，关键词前置）',
       '开头留存力（前300字留存）',
@@ -81,12 +63,12 @@ const createBuiltInPlatforms = (): Platform[] => [
       {
         id: 'xhs-grass',
         name: '种草模板',
-        titlePrompt: xhsTitlePrompt,
-        contentPrompt: xhsContentPrompt,
+        titlePrompt: '',
+        contentPrompt: '',
       },
     ],
     defaultTemplateId: 'xhs-grass',
-    qualityPrompt: xhsQualityPrompt,
+    qualityPrompt: '',
     qualityCriteria: [
       '标题吸引力（20字内，情绪词+关键词）',
       '开头留存力（前50字留存）',
@@ -105,12 +87,12 @@ const createBuiltInPlatforms = (): Platform[] => [
       {
         id: 'douyin-short',
         name: '短视频脚本',
-        titlePrompt: douyinTitlePrompt,
-        contentPrompt: douyinContentPrompt,
+        titlePrompt: '',
+        contentPrompt: '',
       },
     ],
     defaultTemplateId: 'douyin-short',
-    qualityPrompt: douyinQualityPrompt,
+    qualityPrompt: '',
     qualityCriteria: [
       '标题吸引力（15字内，悬念/冲突）',
       '开头留存力（前3秒完播）',
@@ -142,7 +124,7 @@ const createDefaultAnalysisSettings = (): AnalysisSettings => ({
       name: '爆款内容拆解',
       isBuiltIn: true,
       isDefault: true,
-      analysisPrompt: analysisPrompt,
+      analysisPrompt: '',
       outputFormat: {
         fields: [
           { key: '主题分类', label: '主题分类', type: 'string', required: true },
@@ -169,8 +151,8 @@ const createDefaultOptimizationSettings = (): OptimizationSettings => ({
       isBuiltIn: true,
       isDefault: true,
       platformId: 'gzh',
-      systemPrompt: gzhSystemPrompt,
-      optimizePrompt: gzhOptimizationPrompt,
+      systemPrompt: '',
+      optimizePrompt: '',
     },
     // 小红书优化模板
     {
@@ -179,8 +161,8 @@ const createDefaultOptimizationSettings = (): OptimizationSettings => ({
       isBuiltIn: true,
       isDefault: true,
       platformId: 'xhs',
-      systemPrompt: xhsSystemPrompt,
-      optimizePrompt: xhsOptimizationPrompt,
+      systemPrompt: '',
+      optimizePrompt: '',
     },
     // 抖音优化模板
     {
@@ -189,8 +171,8 @@ const createDefaultOptimizationSettings = (): OptimizationSettings => ({
       isBuiltIn: true,
       isDefault: true,
       platformId: 'douyin',
-      systemPrompt: douyinSystemPrompt,
-      optimizePrompt: douyinOptimizationPrompt,
+      systemPrompt: '',
+      optimizePrompt: '',
     }
   ],
   defaultTemplate: 'gzh-default',

@@ -20,7 +20,6 @@ import {
   standardizeVariables,
   hasJsonFormat,
 } from '../data/templateSpecs';
-import { gzhTitlePrompt, gzhContentPrompt, xhsTitlePrompt, xhsContentPrompt, douyinTitlePrompt, douyinContentPrompt } from '../data/index';
 
 // ============================================
 // 类型定义
@@ -351,33 +350,17 @@ function extractKeyInfo(content: string, promptType: PromptType): string | null 
 /**
  * 获取内置标题提示词模板
  */
-function getBuiltInTitlePrompt(platformId: PlatformId): string {
-  switch (platformId) {
-    case 'gzh':
-      return gzhTitlePrompt;
-    case 'xhs':
-      return xhsTitlePrompt;
-    case 'douyin':
-      return douyinTitlePrompt;
-    default:
-      return gzhTitlePrompt;
-  }
+function getBuiltInTitlePrompt(_platformId: PlatformId): string {
+  // 内置模板已删除，返回空字符串
+  return '';
 }
 
 /**
  * 获取内置正文提示词模板
  */
-function getBuiltInContentPrompt(platformId: PlatformId): string {
-  switch (platformId) {
-    case 'gzh':
-      return gzhContentPrompt;
-    case 'xhs':
-      return xhsContentPrompt;
-    case 'douyin':
-      return douyinContentPrompt;
-    default:
-      return gzhContentPrompt;
-  }
+function getBuiltInContentPrompt(_platformId: PlatformId): string {
+  // 内置模板已删除，返回空字符串
+  return '';
 }
 
 // ============================================
