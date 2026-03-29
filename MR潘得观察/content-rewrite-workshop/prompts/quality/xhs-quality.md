@@ -3,7 +3,8 @@ id: xhs-quality
 name: 小红书内容质检
 type: quality
 platform: xhs
-variables: []
+variables:
+
 outputFormat: json
 ---
 

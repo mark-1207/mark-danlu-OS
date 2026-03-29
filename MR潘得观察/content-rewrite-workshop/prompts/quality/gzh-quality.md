@@ -3,7 +3,8 @@ id: gzh-quality
 name: 公众号内容质检
 type: quality
 platform: gzh
-variables: []
+variables:
+
 outputFormat: json
 ---
 

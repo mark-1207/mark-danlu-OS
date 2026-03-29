@@ -3,7 +3,8 @@ id: douyin-quality
 name: 抖音内容质检
 type: quality
 platform: douyin
-variables: []
+variables:
+
 outputFormat: json
 ---
 

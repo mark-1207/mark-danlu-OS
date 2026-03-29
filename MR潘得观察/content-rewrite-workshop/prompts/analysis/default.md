@@ -3,7 +3,8 @@ id: analysis-default
 name: 内容深度分析
 type: analysis
 platform: common
-variables: []
+variables:
+
 outputFormat: json
 ---
 
