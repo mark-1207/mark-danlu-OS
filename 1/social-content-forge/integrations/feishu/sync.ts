@@ -23,6 +23,11 @@ interface ContentRecord {
   utilityScore: number;
   narrativeScore: number;
   status: '草稿' | '已确认' | '已发布';
+  // v2: Full content strings (Feishu API truncates to 100 chars, file path used as fallback)
+  wechatContent?: string;
+  xiaohongshuContent?: string;
+  twitterContent?: string;
+  // Backwards compatibility: file paths
   wechatPath?: string;
   xiaohongshuPath?: string;
   twitterPath?: string;
@@ -109,16 +114,24 @@ export async function syncToFeishu(
       fields['原始链接'] = record.sourceUrl;
     }
 
-    if (record.wechatPath) {
+    // v2: Full content strings (Feishu truncates to 100 chars, full content stored locally)
+    // Prefer content strings over file paths for backwards compatibility
+    if (record.wechatContent) {
+      fields['微信版本'] = record.wechatContent.substring(0, 100);
+    } else if (record.wechatPath) {
       fields['微信版本'] = record.wechatPath;
     }
 
-    if (record.xiaohongshuPath) {
+    if (record.xiaohongshuContent) {
+      fields['小红书版本'] = record.xiaohongshuContent.substring(0, 100);
+    } else if (record.xiaohongshuPath) {
       fields['小红书版本'] = record.xiaohongshuPath;
     }
 
-    if (record.twitterPath) {
-      fields['Twiter版本'] = record.twitterPath;  // 注意：飞书表格中是 Twiter（有typo）
+    if (record.twitterContent) {
+      fields['Twiter版本'] = record.twitterContent.substring(0, 100);
+    } else if (record.twitterPath) {
+      fields['Twiter版本'] = record.twitterPath;
     }
 
     // 飞书 datetime 字段需要时间戳格式（毫秒）
@@ -162,6 +175,7 @@ export async function syncToFeishu(
 
 /**
  * 创建内容记录
+ * v2: 支持完整内容字符串，而不仅是文件路径
  */
 export function createContentRecord(
   title: string,
@@ -173,7 +187,7 @@ export function createContentRecord(
     utilityScore: number;
     narrativeScore: number;
   },
-  platformPaths: {
+  platformContent: {
     wechat?: string;
     xiaohongshu?: string;
     twitter?: string;
@@ -189,9 +203,10 @@ export function createContentRecord(
     utilityScore: evaluation.utilityScore,
     narrativeScore: evaluation.narrativeScore,
     status: '草稿',
-    wechatPath: platformPaths.wechat,
-    xiaohongshuPath: platformPaths.xiaohongshu,
-    twitterPath: platformPaths.twitter,
+    // v2: Full content strings
+    wechatContent: platformContent.wechat,
+    xiaohongshuContent: platformContent.xiaohongshu,
+    twitterContent: platformContent.twitter,
     createdAt: new Date().toISOString()
   };
 }

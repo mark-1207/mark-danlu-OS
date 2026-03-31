@@ -1,13 +1,12 @@
 /**
- * Social Content Forge - 主入口
- * 串联 extractor → analyzer → evaluator → adapters → output
+ * Social Content Forge - 主入口 (v2)
+ * v2: 热点发现 + 素材增强 + 自我进化生成 + 质量门控
  */
 
 import { config } from 'dotenv';
 import { extract } from './extractor/index.js';
 import { analyze } from './analyzer/index.js';
-import { evaluate, formatEvaluationReport } from './evaluator/index.js';
-import { adaptWechat, adaptXiaohongshu, adaptTwitter } from './adapters/index.js';
+import { evaluate, evaluateV2, formatEvaluationReport } from './evaluator/index.js';
 import { callLLM, getModelForTask } from './llm/router.js';
 import { syncToFeishu, createContentRecord } from '../integrations/feishu/sync.js';
 import { saveContent, saveAtoms, saveOutputs, saveEvaluation, getDatabase } from './db/index.js';
@@ -15,7 +14,15 @@ import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
-import type { GenerationResult, PlatformOutput, Platform } from './types.js';
+import type { GenerationResult, PlatformOutput, Platform, AudienceProfile, MaterialPackage, DynamicPromptContext } from './types.js';
+
+// v2 modules
+import { HotDiscoveryService } from './hot-discovery/index.js';
+import { MaterialEnhancementService } from './material-enhancement/index.js';
+import { SelfEvolutionGenerator } from './generation/index.js';
+import { StyleLearningService } from './style-learning/index.js';
+import { MemoryLoader } from './memory/loader.js';
+import { DynamicPromptBuilder } from './prompts/index.js';
 
 // 加载环境变量
 config();
@@ -24,7 +31,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = process.env.OUTPUT_DIR || join(__dirname, '../data/output');
 
 /**
- * 主流水线
+ * v2 主流水线
  */
 export async function generateContent(
   input: string,
@@ -32,23 +39,63 @@ export async function generateContent(
     targetPlatforms?: Platform[];
     userProvidedTitle?: string;
     syncFeishu?: boolean;
+    enableHotDiscovery?: boolean;   // NEW
+    hotTopicId?: string;           // NEW
+    materialEnhancement?: boolean;  // NEW: auto-enhance search queries
   } = {}
 ): Promise<GenerationResult> {
   const {
     targetPlatforms = ['wechat', 'xiaohongshu', 'twitter'],
     userProvidedTitle,
     syncFeishu = false,
+    enableHotDiscovery = false,
+    hotTopicId,
+    materialEnhancement = true,
   } = options;
 
   const contentId = uuidv4();
   const startTime = Date.now();
 
   console.log('='.repeat(50));
-  console.log('🚀 Social Content Forge 启动');
+  console.log('🚀 Social Content Forge v2 启动');
   console.log('='.repeat(50));
   console.log(`📥 输入: ${input.slice(0, 80)}${input.length > 80 ? '...' : ''}`);
   console.log(`🎯 目标平台: ${targetPlatforms.join(', ')}`);
   console.log('');
+
+  // Initialize v2 modules
+  const projectRoot = join(__dirname, '..');
+  const llmCall = createLLMCaller();
+  const hotDiscovery = new HotDiscoveryService();
+  const materialEnhancer = new MaterialEnhancementService(projectRoot);
+  const selfEvolutionGenerator = new SelfEvolutionGenerator(llmCall);
+  const promptBuilder = new DynamicPromptBuilder();
+
+  // Default audience profile (can be customized)
+  const defaultAudience: AudienceProfile = {
+    core: ['大厂边缘人', '小企业主', '职场内卷挣扎者'],
+    edge: ['希望提升认知的年轻人'],
+    painPoints: ['35岁焦虑', '晋升无望', '技能错配'],
+    aspirations: ['找到新方向', '突破瓶颈', '实现自我价值'],
+  };
+
+  // ============ Step 0: 素材增强 (for search queries) ============
+  let materialPackage: MaterialPackage | undefined;
+  if (materialEnhancement) {
+    console.log('📌 Step 0: 素材增强中...');
+    try {
+      const enhancement = materialEnhancer.enhanceSearchQuery(input, defaultAudience);
+      if (enhancement.confidence > 0.3) {
+        materialPackage = enhancement.materialPackage;
+        console.log(`   ✅ 找到 ${materialPackage!.viralQuotes.length} 个金句, ${materialPackage!.caseStudies.length} 个案例`);
+      } else {
+        console.log(`   ⚠️ 素材增强置信度较低 (${enhancement.confidence}), 将直接生成`);
+      }
+    } catch (e: any) {
+      console.log(`   ⚠️ 素材增强失败: ${e.message}, 继续直接生成`);
+    }
+    console.log('');
+  }
 
   // ============ Step 1: 提取内容 ============
   console.log('📌 Step 1: 内容提取中...');
@@ -59,42 +106,36 @@ export async function generateContent(
 
   // ============ Step 2: 分析内容 ============
   console.log('📌 Step 2: 内容分析中...');
-  const llmCall = createLLMCaller();
-  const { report: decodedReport, atoms } = await analyze(extracted, llmCall);
+  const simpleLlmCall = createSimpleLLMCaller();
+  const { report: decodedReport, atoms } = await analyze(extracted, simpleLlmCall);
   console.log(`   ✅ 解码完成`);
   console.log(`   🎯 核心主张: ${decodedReport.intent.coreClaim}`);
   console.log(`   💫 主要情绪: ${decodedReport.emotionMap.primaryEmotion}`);
   console.log(`   🧱 原子块: ${atoms.length} 个`);
   console.log('');
 
-  // ============ Step 3: 质量评估 ============
-  console.log('📌 Step 3: 质量评估中...');
-  const evaluation = await evaluate(atoms, decodedReport, llmCall);
+  // ============ Step 3: v2 质量评估 (Nine Dimensions) ============
+  console.log('📌 Step 3: 九维度质量评估中...');
+  const evaluation = await evaluateV2(atoms, decodedReport, llmCall);
   console.log(`   📊 综合评分: ${evaluation.overallScore}/100`);
   console.log(`   🛤️ 决策路径: ${evaluation.decisionPath}`);
+  if (evaluation.hasVeto) {
+    console.log(`   ⚠️ 否决维度: ${evaluation.vetoDimensions?.join('、')}`);
+  }
   console.log(`   情绪: ${evaluation.dimensionScores.emotion} | 实用: ${evaluation.dimensionScores.utility} | 叙事: ${evaluation.dimensionScores.narrative}`);
   console.log('');
 
-  // 评分<60时询问是否继续
-  if (evaluation.overallScore < 60) {
-    console.log('   ⚠️  内容评分较低（<60分），建议重构');
-    console.log('   💡 诊断:');
-    for (const d of evaluation.diagnostics) {
-      console.log(`      - ${d.dimension}: ${d.issue}`);
-    }
-    console.log('');
-  }
-
-  // ============ Step 4: 平台适配 ============
-  console.log('📌 Step 4: 平台适配中...');
-  const outputs: PlatformOutput[] = [];
-  const context = {
-    title: extracted.metadata.title || '未命名',
-    decodedReport,
-    sourceContent: extracted.content,
+  // Build dynamic prompt context for generation
+  const dynamicContext: DynamicPromptContext = {
+    taskBackground: `用户输入: "${input}" | 标题: ${extracted.metadata.title || '未命名'}`,
+    materialPackage,
+    improvementSuggestions: [],
+    targetAudience: defaultAudience,
   };
 
-  // 定义输出目录路径（供后续步骤使用）
+  // ============ Step 4: v2 平台适配 (Self-Evolution Generation) ============
+  console.log('📌 Step 4: 自我进化生成中...');
+  const outputs: PlatformOutput[] = [];
   const date = new Date().toISOString().split('T')[0];
   const safeTitle = (extracted.metadata.title || 'untitled').slice(0, 20).replace(/[\/\\:*?"<>|]/g, '');
   const outputBaseDir = join(OUTPUT_DIR, `${date}_${safeTitle}`);
@@ -102,39 +143,32 @@ export async function generateContent(
   for (const platform of targetPlatforms) {
     console.log(`   📝 生成 ${platform} 版本...`);
     try {
-      let adapted;
-      switch (platform) {
-        case 'wechat':
-          adapted = await adaptWechat(atoms, context, llmCall);
-          break;
-        case 'xiaohongshu':
-          adapted = await adaptXiaohongshu(atoms, context, llmCall);
-          break;
-        case 'twitter':
-          adapted = await adaptTwitter(atoms, context, llmCall);
-          break;
+      // Use self-evolution generator with quality gate
+      const genResult = await selfEvolutionGenerator.generateWithQualityGate(platform, dynamicContext);
+
+      if (genResult.passed) {
+        // Write file
+        if (!existsSync(outputBaseDir)) {
+          mkdirSync(outputBaseDir, { recursive: true });
+        }
+
+        const filePath = join(outputBaseDir, `${platform}.md`);
+        const fileContent = `# ${genResult.content.title}\n\n${genResult.content.body}`;
+        writeFileSync(filePath, fileContent, 'utf-8');
+
+        outputs.push({
+          platform,
+          title: genResult.content.title,
+          content: genResult.content.body,
+          wordCount: genResult.content.wordCount,
+          filePath,
+        });
+
+        console.log(`      ✅ 已保存: ${filePath} (${genResult.content.wordCount}字)`);
+        console.log(`      📊 质量: ${genResult.score}/100 | LLM: ${genResult.llmUsed} | 迭代: ${genResult.iterations}`);
+      } else {
+        console.log(`      ❌ 质量未达标: ${genResult.improvementSuggestions.join(', ')}`);
       }
-
-      // 写入文件
-      if (!existsSync(outputBaseDir)) {
-        mkdirSync(outputBaseDir, { recursive: true });
-      }
-
-      const filePath = join(outputBaseDir, `${platform}.md`);
-      const fileContent = platform === 'twitter'
-        ? `# ${adapted.title || 'Twitter Thread'}\n\n${adapted.content}`
-        : `# ${adapted.title}\n\n${adapted.content}`;
-      writeFileSync(filePath, fileContent, 'utf-8');
-
-      outputs.push({
-        platform,
-        title: adapted.title || '',
-        content: adapted.content,
-        wordCount: adapted.wordCount,
-        filePath,
-      });
-
-      console.log(`      ✅ 已保存: ${filePath} (${adapted.wordCount}字)`);
     } catch (error: any) {
       console.error(`      ❌ ${platform} 生成失败: ${error.message}`);
     }
@@ -148,9 +182,9 @@ export async function generateContent(
   console.log(`📌 Step 5: 评估报告已保存`);
   console.log('');
 
-  // ============ Step 6: 飞书同步 ============
+  // ============ Step 6: 飞书同步 (v2 - 完整内容) ============
   let feishuRecordId: string | undefined;
-  if (syncFeishu) {
+  if (syncFeishu && outputs.length > 0) {
     console.log('📌 Step 6: 飞书同步中...');
     const feishuConfig = {
       appId: process.env.FEISHU_APP_ID || '',
@@ -160,6 +194,12 @@ export async function generateContent(
     };
 
     if (feishuConfig.appId && feishuConfig.appSecret && feishuConfig.appToken && feishuConfig.tableId) {
+      // v2: 同步完整三平台内容
+      const wechatOutput = outputs.find(o => o.platform === 'wechat');
+      const xhsOutput = outputs.find(o => o.platform === 'xiaohongshu');
+      const twitterOutput = outputs.find(o => o.platform === 'twitter');
+
+      // Create a combined content for Feishu sync
       const record = createContentRecord(
         extracted.metadata.title || '未命名',
         extracted.type,
@@ -171,9 +211,9 @@ export async function generateContent(
           narrativeScore: evaluation.dimensionScores.narrative,
         },
         {
-          wechat: outputs.find(o => o.platform === 'wechat')?.filePath,
-          xiaohongshu: outputs.find(o => o.platform === 'xiaohongshu')?.filePath,
-          twitter: outputs.find(o => o.platform === 'twitter')?.filePath,
+          wechat: wechatOutput?.content || '',
+          xiaohongshu: xhsOutput?.content || '',
+          twitter: twitterOutput?.content || '',
         }
       );
 
@@ -193,7 +233,7 @@ export async function generateContent(
   // ============ Step 7: 保存到数据库 ============
   console.log('📌 Step 7: 保存到本地数据库...');
   try {
-    await getDatabase(); // 初始化数据库连接
+    await getDatabase();
     saveContent({
       id: contentId,
       sourceType: extracted.type,
@@ -232,9 +272,50 @@ export async function generateContent(
 }
 
 /**
- * 创建 LLM 调用函数
+ * 创建 LLM 调用函数 (v2 - 支持模型选择)
  */
 function createLLMCaller() {
+  return async (model: string, prompt: string): Promise<string> => {
+    let apiKey = '';
+    let actualModel: import('./types.js').LLMModel = 'glm';
+
+    // Try to find API key based on model
+    if (model === 'claude') {
+      apiKey = process.env.ANTHROPIC_API_KEY || '';
+      if (!apiKey) {
+        // Fallback to default
+        actualModel = getModelForTask('analyze');
+        apiKey = process.env.ZHIPU_API_KEY || process.env.OPENAI_API_KEY || '';
+      }
+    } else if (model === 'gpt') {
+      apiKey = process.env.OPENAI_API_KEY || process.env.ZHIPU_API_KEY || '';
+      actualModel = 'gpt';
+    } else if (model === 'deepseek') {
+      apiKey = process.env.DEEPSEEK_API_KEY || process.env.ZHIPU_API_KEY || '';
+      actualModel = 'deepseek';
+    } else {
+      apiKey = process.env.ZHIPU_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || '';
+      actualModel = 'glm';
+    }
+
+    if (!apiKey) {
+      throw new Error('未设置 LLM API Key');
+    }
+
+    const response = await callLLM(
+      actualModel,
+      apiKey,
+      [{ role: 'user', content: prompt }]
+    );
+
+    return response.content;
+  };
+}
+
+/**
+ * 创建简单的 LLM 调用函数 (用于 analyze，它只接受 prompt)
+ */
+function createSimpleLLMCaller() {
   return async (prompt: string): Promise<string> => {
     const apiKey = process.env.ZHIPU_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || '';
     if (!apiKey) {
@@ -258,25 +339,90 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   if (args.length === 0) {
     console.log(`
-Social Content Forge CLI
+Social Content Forge v2 CLI
 
 用法:
-  npx tsx src/index.ts <输入内容或URL>
-  npx tsx src/index.ts --sync-feishu <输入内容或URL>
+  npx tsx src/cli.ts <输入内容或URL>
+  npx tsx src/cli.ts --no-sync-feishu <输入内容或URL>
+  npx tsx src/cli.ts --hot <平台>     # 获取热点话题
+  npx tsx src/cli.ts --style-check     # 检查风格学习库
 
 示例:
-  npx tsx src/index.ts "https://mp.weixin.qq.com/s/xxxxx"
-  npx tsx src/index.ts --sync-feishu "AI如何改变内容创作行业"
+  npx tsx src/cli.ts "https://mp.weixin.qq.com/s/xxxxx"
+  npx tsx src/cli.ts --sync-feishu "AI如何改变内容创作行业"
+  npx tsx src/cli.ts --hot weibo
+  npx tsx src/cli.ts --style-check
 `);
     process.exit(0);
   }
 
-  const syncFeishu = args.includes('--sync-feishu');
+  // Hot discovery command
+  if (args.includes('--hot')) {
+    const platformIndex = args.indexOf('--hot') + 1;
+    const platform = args[platformIndex] as any || 'all';
+    runHotDiscovery(platform).catch(console.error);
+  }
+
+  // Style check command
+  if (args.includes('--style-check')) {
+    runStyleCheck().catch(console.error);
+  }
+
+  // Normal content generation
+  const syncFeishu = !args.includes('--no-sync-feishu');
   const input = args.filter(a => !a.startsWith('--')).join(' ');
 
-  generateContent(input, { syncFeishu })
+  generateContent(input, { syncFeishu, materialEnhancement: true })
+    .then(result => {
+      console.log('\n=== Generation Complete ===');
+      console.log(`Content ID: ${result.contentId}`);
+      console.log(`Overall Score: ${result.evaluation.overallScore}/100`);
+      console.log(`Outputs: ${result.outputs.length} files`);
+      if (result.feishuRecordId) {
+        console.log(`Feishu Record ID: ${result.feishuRecordId}`);
+      }
+    })
     .catch(error => {
-      console.error('生成失败:', error);
+      console.error('\n=== Generation Failed ===');
+      console.error(error);
       process.exit(1);
     });
+}
+
+async function runHotDiscovery(platform: string) {
+  const service = new HotDiscoveryService();
+
+  if (platform === 'all') {
+    console.log('📡 获取所有平台热点...');
+    const topics = await service.fetchAllTopics();
+    console.log(`\n共获取 ${topics.length} 个热点话题:\n`);
+    topics.slice(0, 20).forEach((t, i) => {
+      console.log(`${i + 1}. [${t.platform}] ${t.title} (${t.heatScore || 'N/A'})`);
+    });
+  } else {
+    console.log(`📡 获取 ${platform} 热点...`);
+    const topics = await service.fetchFromSource(platform as any);
+    console.log(`\n共获取 ${topics.length} 个话题:\n`);
+    topics.slice(0, 20).forEach((t, i) => {
+      console.log(`${i + 1}. ${t.title} (${t.heatScore || 'N/A'})`);
+    });
+  }
+}
+
+async function runStyleCheck() {
+  console.log('📚 检查风格学习库...');
+  const projectRoot = join(__dirname, '..');
+  const llmCall = createLLMCaller();
+  const service = new StyleLearningService(projectRoot, llmCall);
+  const checker = service.createChecker();
+
+  const result = await checker.checkForNewCases();
+
+  if (!result.hasNewCases) {
+    console.log('✅ 没有新案例');
+    return;
+  }
+
+  console.log(`✅ Found ${result.newCases.length} new cases`);
+  console.log(`\n${checker.formatInsightsForConfirmation(result.newInsights)}`);
 }
