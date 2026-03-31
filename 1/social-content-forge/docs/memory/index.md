@@ -4,7 +4,22 @@
 
 ## 项目状态
 
-**v2 设计文档已完成**，待评审和实施。
+**v2 核心模块已全部实现完成**，待GitHub调研和A/B测试验证。
+
+## 已完成模块
+
+| 模块 | 状态 | 说明 |
+|------|------|------|
+| 类型系统升级 | ✅ | NineDimensionScores, HotTopic, MaterialPackage等 |
+| 上下文记忆模块 | ✅ | 全局+项目记忆分离 |
+| 热点发现层 | ✅ | Weibo/Twitter/Google/Xiaohongshu/Reddit |
+| 素材增强模块 | ✅ | 搜索query自动补全素材 |
+| 两层Prompt体系 | ✅ | Dan Koe风格基础Prompt + 动态Prompt |
+| 自我进化生成 | ✅ | 内嵌评审 + LLM轮询 + 质量门控 |
+| 九维度评估 | ✅ | ≥85通过，<5一票否决 |
+| 风格学习服务 | ✅ | 检测新案例 → 生成洞察 → 更新标准 |
+| 主流水线集成 | ✅ | 所有v2模块集成 |
+| 飞书完整内容同步 | ✅ | 三平台完整markdown |
 
 ## 核心结论
 
@@ -37,13 +52,26 @@
 - 受众：大厂边缘人、小企业主、职场内卷挣扎希望找到新方向的人
 - 特点：个人故事切入、真实洞察、反常识观点、理论+实操、长文深度
 
+## Git提交记录（v2相关）
+
+```
+215b418 feat(v2): integrate all v2 modules into main pipeline
+036c0e0 feat(v2): add style learning service for case analysis
+44eef7b feat(v2): upgrade evaluator to nine dimensions with veto logic
+33dd3b9 feat(v2): add self-evolution generator with quality gate and LLM retry
+f04c654 feat(v2): add two-layer prompt system with Dan Koe style
+482fe42 feat(v2): add material enhancement module for search query quality
+b874bed feat(v2): add hot discovery layer with Weibo/Twitter/Google/Xiaohongshu/Reddit
+92004d9 feat(v2): add context memory module
+acb3e0d feat(v2): add nine-dimension types, HotTopic, MaterialPackage
+```
+
 ## 待办
 
-- [ ] v2设计文档评审
-- [ ] GitHub调研更优Prompt
-- [ ] 设计文档完成后A/B测试验证
-- [ ] 实施v2各模块
+- [ ] GitHub调研更优Prompt（网络受限，需用户提供链接）
+- [ ] A/B测试验证v2效果
+- [ ] 热点发现数据源正式接入（API配置）
 
 ## 下一步
 
-设计文档评审通过后，进入writing-plans阶段
+GitHub调研Prompt后，进行A/B测试验证效果
