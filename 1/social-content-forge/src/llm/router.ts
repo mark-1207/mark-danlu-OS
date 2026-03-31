@@ -245,3 +245,53 @@ export function generateEvaluationPrompt(content: string): string {
 内容如下：
 ${content.slice(0, 3000)}`;
 }
+
+// 九维度评估prompt V2
+export function generateEvaluationPromptV2(content: string, decodedReport?: {
+  intent?: {
+    coreClaim?: string;
+    targetReader?: string;
+    expectedReaction?: string;
+  };
+}): string {
+  return `请对以下内容进行九维度质量评估：
+
+内容：
+${content}
+
+解码报告摘要：
+- 核心观点：${decodedReport?.intent?.coreClaim || '未知'}
+- 目标读者：${decodedReport?.intent?.targetReader || '未知'}
+- 预期反应：${decodedReport?.intent?.expectedReaction || '未知'}
+
+评分维度（每项0-10分）：
+1. 情绪激发度：能否引发强烈情绪反应
+2. 实用价值：读者能得到什么具体好处
+3. 叙事结构：故事是否引人入胜，开头是否有钩子
+4. 社交货币：转发能彰显转发者什么身份
+5. 争议引导：能否引发讨论而非沉默
+6. 时效贴切：是否契合当前热点/趋势
+7. 差异化程度：和同类内容有什么不同
+8. 可转发场景：读者在什么场景会转发
+9. 转化潜力：能否推动关注/互动/行动
+
+【否决条件】任一维度<5分则一票否决
+【加权总分】≥85分通过
+
+请返回JSON格式：
+{
+  "scores": {
+    "emotion": X,
+    "utility": X,
+    "narrative": X,
+    "socialCurrency": X,
+    "controversy": X,
+    "timeliness": X,
+    "differentiation": X,
+    "shareability": X,
+    "conversionPotential": X
+  },
+  "weightedScore": XX,
+  "diagnostics": ["..."]
+}`;
+}

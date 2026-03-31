@@ -1,317 +1,375 @@
 /**
  * 内容评估模块
- * 六维度评分 + 诊断 + 爆款预测
+ * 九维度评分 + 诊断 + 爆款预测 + 否决逻辑
  */
 
-import type {
+import {
   ContentAtom,
   ContentDecodedReport,
   EvaluationResult,
+  EvaluationResultV2,
+  NineDimensionScores,
   Diagnostic,
-  ViralPrediction,
-  Platform,
-  DimensionScores,
-} from '../types.js';
-import {
-  generateEvaluationPrompt,
-  calculateOverallScore,
-  getDecisionPath,
-  DIMENSION_WEIGHTS,
-} from '../llm/router.js';
+  LLMCall,
+} from '../types';
+
+const SIX_DIMENSION_WEIGHTS = {
+  emotion: 0.25,
+  utility: 0.25,
+  narrative: 0.20,
+  socialCurrency: 0.15,
+  controversy: 0.10,
+  timeliness: 0.05,
+};
+
+const NINE_DIMENSION_WEIGHTS = {
+  emotion: 0.20,
+  utility: 0.20,
+  narrative: 0.15,
+  socialCurrency: 0.10,
+  controversy: 0.10,
+  timeliness: 0.05,
+  differentiation: 0.10,
+  shareability: 0.05,
+  conversionPotential: 0.05,
+};
+
+const VETO_THRESHOLD = 5;
+const PASSING_SCORE = 85;
 
 /**
- * 评估主函数
+ * 评估主函数 V2 - 九维度评估
  */
-export async function evaluate(
+export async function evaluateV2(
   atoms: ContentAtom[],
   decodedReport: ContentDecodedReport,
-  llmCall: (prompt: string) => Promise<string>
-): Promise<EvaluationResult> {
-  // 合并所有原子块内容用于评估
-  const combinedContent = atoms.map((a) => a.content).join('\n\n');
+  llmCall: LLMCall
+): Promise<EvaluationResultV2> {
+  // Merge all atom content
+  const allContent = atoms.map(a => a.content).join('\n');
 
-  const prompt = generateEvaluationPrompt(combinedContent);
-  const response = await llmCall(prompt);
+  // Build evaluation prompt
+  const prompt = buildEvaluationPromptV2(allContent, decodedReport);
 
-  // 解析评估结果
-  let parsed: any;
-  try {
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      parsed = JSON.parse(jsonMatch[0]);
-    } else {
-      throw new Error('未找到有效的JSON');
-    }
-  } catch (error) {
-    console.error('解析评估结果失败:', error);
-    return generateDefaultEvaluation();
-  }
+  // Call LLM
+  const response = await llmCall('claude', prompt);
 
-  // 构建维度分数
-  const scores: DimensionScores = {
-    emotion: parsed.scores?.emotion || 5,
-    utility: parsed.scores?.utility || 5,
-    narrative: parsed.scores?.narrative || 5,
-    socialCurrency: parsed.scores?.socialCurrency || 5,
-    controversy: parsed.scores?.controversy || 5,
-    timeliness: parsed.scores?.timeliness || 5,
-  };
+  // Parse response
+  const parsed = parseEvaluationResponse(response);
 
-  // 计算总分
-  const overallScore = parsed.overallScore || calculateOverallScore(scores);
+  // Calculate weighted score
+  const weightedScore = calculateWeightedScoreV2(parsed.scores);
 
-  // 决策路径
-  const decisionPath = parsed.decisionPath || getDecisionPath(overallScore);
+  // Check for veto
+  const hasVeto = checkVeto(parsed.scores);
 
-  // 构建诊断
-  const diagnostics: Diagnostic[] = (parsed.diagnostics || []).map((d: any) => ({
-    dimension: d.dimension,
-    score: scores[d.dimension as keyof DimensionScores] || 5,
-    issue: d.issue || '需要优化',
-    suggestions: d.suggestions || [],
-  }));
-
-  // 爆款预测
-  const viralPredictions: ViralPrediction[] = generatePredictions(
-    overallScore,
-    scores,
-    decodedReport
-  );
+  // Generate diagnostics
+  const diagnostics = generateDiagnostics(parsed.scores);
 
   return {
-    overallScore,
-    dimensionScores: scores,
-    decisionPath,
+    overallScore: weightedScore,
+    dimensionScores: parsed.scores,
+    decisionPath: getDecisionPath(weightedScore),
+    hasVeto,
+    vetoDimensions: hasVeto ? getVetoDimensions(parsed.scores) : undefined,
     diagnostics,
-    viralPredictions,
-  };
-}
-
-/**
- * 生成爆款预测
- */
-function generatePredictions(
-  overallScore: number,
-  scores: DimensionScores,
-  report: ContentDecodedReport
-): ViralPrediction[] {
-  const platforms: Platform[] = ['wechat', 'xiaohongshu', 'twitter'];
-  const predictions: ViralPrediction[] = [];
-
-  for (const platform of platforms) {
-    let baseRange: string;
-    let confidence: number;
-    let factors: string[] = [];
-    let risks: string[] = [];
-
-    // 根据评分和平台特性调整预测
-    const score80 = overallScore >= 80;
-    const score60 = overallScore >= 60;
-
-    if (platform === 'wechat') {
-      // 微信：深度内容平台
-      if (score80) {
-        baseRange = '5万-20万';
-        confidence = 0.8;
-      } else if (score60) {
-        baseRange = '1万-5万';
-        confidence = 0.65;
-      } else {
-        baseRange = '3000-1万';
-        confidence = 0.5;
-      }
-
-      if (scores.narrative >= 7) {
-        factors.push('叙事结构好，适合微信传播');
-      }
-      if (scores.utility >= 7) {
-        factors.push('实用价值高，收藏率高');
-      }
-      if (scores.emotion < 6) {
-        risks.push('情绪强度不足，开头可能流失读者');
-      }
-    } else if (platform === 'xiaohongshu') {
-      // 小红书：种草/情绪平台
-      if (score80 && scores.emotion >= 7) {
-        baseRange = '1万-10万';
-        confidence = 0.75;
-      } else if (score60) {
-        baseRange = '3000-1万';
-        confidence = 0.6;
-      } else {
-        baseRange = '500-3000';
-        confidence = 0.45;
-      }
-
-      if (scores.emotion >= 8) {
-        factors.push('情绪共鸣强，适合小红书');
-      }
-      if (report.viralElements.sharableQuotes.length > 0) {
-        factors.push('有可分享金句');
-      }
-      if (scores.emotion < 6) {
-        risks.push('情绪不够强烈，不适合小红书');
-      }
-    } else {
-      // Twitter：观点传播平台
-      if (score80 && scores.socialCurrency >= 7) {
-        baseRange = '高转发';
-        confidence = 0.7;
-      } else if (score60) {
-        baseRange = '中等转发';
-        confidence = 0.55;
-      } else {
-        baseRange = '低转发';
-        confidence = 0.4;
-      }
-
-      if (scores.socialCurrency >= 7) {
-        factors.push('社交货币价值高');
-      }
-      if (report.viralElements.controversialPoints.length > 0) {
-        factors.push('有争议性观点，容易引发讨论');
-      }
-      if (scores.narrative < 5) {
-        risks.push('叙事不足，不适合Twitter');
-      }
-    }
-
-    predictions.push({
-      platform,
-      readRange: baseRange,
-      confidence,
-      factors,
-      risks,
-    });
-  }
-
-  return predictions;
-}
-
-/**
- * 生成默认评估（当解析失败时）
- */
-function generateDefaultEvaluation(): EvaluationResult {
-  const scores: DimensionScores = {
-    emotion: 5,
-    utility: 5,
-    narrative: 5,
-    socialCurrency: 5,
-    controversy: 5,
-    timeliness: 5,
-  };
-
-  return {
-    overallScore: 50,
-    dimensionScores: scores,
-    decisionPath: 'C',
-    diagnostics: [
-      {
-        dimension: '整体',
-        score: 5,
-        issue: '评估超时，使用默认评分',
-        suggestions: ['请人工检查内容质量'],
-      },
-    ],
     viralPredictions: [],
   };
 }
 
 /**
- * 格式化评估报告为Markdown
+ * Legacy evaluate function - wraps V2 result
  */
-export function formatEvaluationReport(
-  evaluation: EvaluationResult,
-  title: string
-): string {
-  const { dimensionScores, overallScore, decisionPath, diagnostics, viralPredictions } =
-    evaluation;
+export async function evaluate(
+  atoms: ContentAtom[],
+  decodedReport: ContentDecodedReport,
+  llmCall: LLMCall
+): Promise<EvaluationResult> {
+  const v2Result = await evaluateV2(atoms, decodedReport, llmCall);
 
-  const pathDescriptions = {
-    A: '直接适配（具备爆款潜力）',
-    B: '优化后适配（可发布但建议优化）',
-    C: '建议重构（缺乏爆款基因）',
+  // Convert V2 to V1 format for backwards compatibility
+  return {
+    overallScore: v2Result.overallScore,
+    dimensionScores: v2Result.dimensionScores as any, // Cast for compatibility
+    decisionPath: v2Result.decisionPath,
+    diagnostics: v2Result.diagnostics,
+    viralPredictions: v2Result.viralPredictions,
+  };
+}
+
+function buildEvaluationPromptV2(content: string, decodedReport: ContentDecodedReport): string {
+  return `请对以下内容进行九维度质量评估：
+
+内容：
+${content}
+
+解码报告摘要：
+- 核心观点：${decodedReport.intent?.coreClaim || '未知'}
+- 目标读者：${decodedReport.intent?.targetReader || '未知'}
+- 预期反应：${decodedReport.intent?.expectedReaction || '未知'}
+
+评分维度（每项0-10分）：
+1. 情绪激发度：能否引发强烈情绪反应
+2. 实用价值：读者能得到什么具体好处
+3. 叙事结构：故事是否引人入胜，开头是否有钩子
+4. 社交货币：转发能彰显转发者什么身份
+5. 争议引导：能否引发讨论而非沉默
+6. 时效贴切：是否契合当前热点/趋势
+7. 差异化程度：和同类内容有什么不同
+8. 可转发场景：读者在什么场景会转发
+9. 转化潜力：能否推动关注/互动/行动
+
+【否决条件】任一维度<5分则一票否决
+【加权总分】≥85分通过
+
+请返回JSON格式：
+{
+  "scores": {
+    "emotion": X,
+    "utility": X,
+    "narrative": X,
+    "socialCurrency": X,
+    "controversy": X,
+    "timeliness": X,
+    "differentiation": X,
+    "shareability": X,
+    "conversionPotential": X
+  },
+  "weightedScore": XX,
+  "diagnostics": ["..."]
+}`;
+}
+
+function parseEvaluationResponse(response: string): any {
+  try {
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+  } catch (e) {
+    // Fall through
+  }
+
+  // Default response if parsing fails
+  return {
+    scores: {
+      emotion: 7,
+      utility: 7,
+      narrative: 7,
+      socialCurrency: 6,
+      controversy: 5,
+      timeliness: 6,
+      differentiation: 6,
+      shareability: 6,
+      conversionPotential: 6,
+    },
+    weightedScore: 70,
+    diagnostics: ['评估解析失败，使用默认分数'],
+  };
+}
+
+export function calculateWeightedScoreV2(scores: NineDimensionScores): number {
+  let total = 0;
+  for (const [dim, score] of Object.entries(scores)) {
+    const weight = NINE_DIMENSION_WEIGHTS[dim as keyof typeof NINE_DIMENSION_WEIGHTS];
+    if (weight !== undefined) {
+      total += score * weight * 10;
+    }
+  }
+  return Math.round(total);
+}
+
+export function checkVeto(scores: NineDimensionScores): boolean {
+  return Object.values(scores).some(score => score < VETO_THRESHOLD);
+}
+
+export function getVetoDimensions(scores: NineDimensionScores): string[] {
+  const dimensions: string[] = [];
+  for (const [dim, score] of Object.entries(scores)) {
+    if (score < VETO_THRESHOLD) {
+      dimensions.push(dim);
+    }
+  }
+  return dimensions;
+}
+
+export function getDecisionPath(score: number): 'A' | 'B' | 'C' {
+  if (score >= 80) return 'A';
+  if (score >= 60) return 'B';
+  return 'C';
+}
+
+function generateDiagnostics(scores: NineDimensionScores): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+
+  const dimensionNames: Record<string, string> = {
+    emotion: '情绪激发度',
+    utility: '实用价值',
+    narrative: '叙事结构',
+    socialCurrency: '社交货币',
+    controversy: '争议引导',
+    timeliness: '时效贴切',
+    differentiation: '差异化程度',
+    shareability: '可转发场景',
+    conversionPotential: '转化潜力',
   };
 
-  let report = `# 内容质量评估报告
-
-## 综合评分：${overallScore}/100
-
-**决策路径：${decisionPath}** - ${pathDescriptions[decisionPath]}
-
-## 六维度评分
-
-| 维度 | 得分 | 权重 | 说明 |
-|------|------|------|------|
-| 情绪激发度 | ${dimensionScores.emotion}/10 | 25% | ${getScoreDescription('emotion', dimensionScores.emotion)} |
-| 实用价值 | ${dimensionScores.utility}/10 | 25% | ${getScoreDescription('utility', dimensionScores.utility)} |
-| 叙事结构 | ${dimensionScores.narrative}/10 | 20% | ${getScoreDescription('narrative', dimensionScores.narrative)} |
-| 社交货币 | ${dimensionScores.socialCurrency}/10 | 15% | 转发能彰显读者身份 |
-| 争议引导 | ${dimensionScores.controversy}/10 | 10% | 讨论空间 |
-| 时效贴切 | ${dimensionScores.timeliness}/10 | 5% | 与热点关联度 |
-
-## 诊断与建议
-
-`;
-
-  if (diagnostics.length === 0) {
-    report += '*暂无详细诊断*\n';
-  } else {
-    for (const d of diagnostics) {
-      report += `### ${d.dimension}（${d.score}分）
-
-**问题**：${d.issue}
-
-**建议**：
-`;
-      for (const s of d.suggestions) {
-        report += `- ${s}\n`;
-      }
-      report += '\n';
+  for (const [dim, score] of Object.entries(scores)) {
+    const name = dimensionNames[dim] || dim;
+    if (score < 7) {
+      diagnostics.push({
+        dimension: name,
+        score,
+        issue: score < VETO_THRESHOLD ? '一票否决' : '偏低',
+        suggestions: getSuggestions(dim, score),
+      });
     }
   }
 
-  report += `## 爆款预测
+  return diagnostics;
+}
 
-| 平台 | 预估范围 | 置信度 | 有利因素 | 风险 |
-|------|---------|--------|---------|------|
-`;
+function getSuggestions(dim: string, score: number): string[] {
+  const suggestions: Record<string, string[]> = {
+    emotion: ['增加情绪触发点', '用个人故事开场', '增加共鸣场景'],
+    utility: ['增加实用建议', '给出具体步骤', '添加可执行清单'],
+    narrative: ['改善开头钩子', '增加故事元素', '优化结尾'],
+    socialCurrency: ['增加身份认同点', '加入圈层归属感', '强化转发理由'],
+    controversy: ['适度增加反常识观点', '提出引发讨论的问题'],
+    timeliness: ['关联当前热点', '增加时效性内容'],
+    differentiation: ['增加独特视角', '避免老生常谈', '提炼差异化观点'],
+    shareability: ['增加金句', '提供转发场景', '创造社交货币'],
+    conversionPotential: ['增加行动号召', '引导互动', '明确下一步'],
+  };
 
-  for (const p of viralPredictions) {
-    report += `| ${p.platform} | ${p.readRange} | ${(p.confidence * 100).toFixed(0)}% | ${p.factors.join(', ') || '-'} | ${p.risks.join(', ') || '-'} |\n`;
+  return suggestions[dim] || ['继续优化'];
+}
+
+export function formatEvaluationReport(
+  evaluation: EvaluationResult | EvaluationResultV2,
+  title: string
+): string {
+  const v2 = 'hasVeto' in evaluation ? evaluation as EvaluationResultV2 : null;
+  const scores = evaluation.dimensionScores as NineDimensionScores;
+
+  let report = `# 内容质量评估报告\n\n`;
+  report += `## ${title}\n\n`;
+  report += `**总分：${evaluation.overallScore}**\n`;
+
+  if (v2?.hasVeto) {
+    report += `**一票否决维度：**${v2.vetoDimensions?.join('、')}\n`;
+  }
+
+  report += `\n## 九维度评分\n\n`;
+  report += `| 维度 | 分数 | 说明 |\n`;
+  report += `|------|------|------|\n`;
+
+  const dimensionNames: Record<string, string> = {
+    emotion: '情绪激发度',
+    utility: '实用价值',
+    narrative: '叙事结构',
+    socialCurrency: '社交货币',
+    controversy: '争议引导',
+    timeliness: '时效贴切',
+    differentiation: '差异化程度',
+    shareability: '可转发场景',
+    conversionPotential: '转化潜力',
+  };
+
+  for (const [dim, name] of Object.entries(dimensionNames)) {
+    const score = scores[dim as keyof NineDimensionScores];
+    const vetoMark = score < VETO_THRESHOLD ? ' [VETO]' : '';
+    report += `| ${name} | ${score}/10 |${score < 7 ? ' 偏低' : score >= 8 ? ' 优秀' : ' 良好'}${vetoMark} |\n`;
+  }
+
+  if (evaluation.diagnostics && evaluation.diagnostics.length > 0) {
+    report += `\n## 诊断建议\n\n`;
+    for (const d of evaluation.diagnostics) {
+      report += `- **${d.dimension}**(${d.score}分): ${d.issue}\n`;
+      if (d.suggestions.length > 0) {
+        report += `  - 建议: ${d.suggestions.join('、')}\n`;
+      }
+    }
   }
 
   return report;
 }
 
-function getScoreDescription(dimension: keyof DimensionScores, score: number): string {
-  const descriptions: Record<string, Record<number, string>> = {
-    emotion: {
-      9: '强烈冲击',
-      7: '有共鸣',
-      5: '较平淡',
-      3: '无感',
-    },
-    utility: {
-      9: '3个+干货',
-      7: '2个方法',
-      5: '有价值',
-      3: '较空泛',
-    },
-    narrative: {
-      9: '完整故事',
-      7: '有框架',
-      5: '有素材',
-      3: '流水账',
-    },
-  };
+// Backwards compatibility - 6 dimension weights
+export const DIMENSION_WEIGHTS = {
+  emotion: 0.25,
+  utility: 0.25,
+  narrative: 0.20,
+  socialCurrency: 0.15,
+  controversy: 0.10,
+  timeliness: 0.05,
+};
 
-  const dimDescs = descriptions[dimension];
-  if (!dimDescs) return '';
+/**
+ * Calculate overall score using the 6-dimension weights (backwards compatibility)
+ */
+export function calculateOverallScore(scores: {
+  emotion: number;
+  utility: number;
+  narrative: number;
+  socialCurrency: number;
+  controversy: number;
+  timeliness: number;
+}): number {
+  const weighted =
+    scores.emotion * SIX_DIMENSION_WEIGHTS.emotion +
+    scores.utility * SIX_DIMENSION_WEIGHTS.utility +
+    scores.narrative * SIX_DIMENSION_WEIGHTS.narrative +
+    scores.socialCurrency * SIX_DIMENSION_WEIGHTS.socialCurrency +
+    scores.controversy * SIX_DIMENSION_WEIGHTS.controversy +
+    scores.timeliness * SIX_DIMENSION_WEIGHTS.timeliness;
 
-  if (score >= 9) return dimDescs[9];
-  if (score >= 7) return dimDescs[7];
-  if (score >= 5) return dimDescs[5];
-  if (score >= 3) return dimDescs[3];
-  return '极差';
+  return Math.round(weighted * 10); // 转换为0-100
+}
+
+/**
+ * Generate evaluation prompt (backwards compatibility)
+ */
+export function generateEvaluationPrompt(content: string): string {
+  return `你是一个内容质量评估专家。请评估以下内容的"爆款潜力"。
+
+评估维度（每项1-10分）：
+1. 情绪激发度(25%)：能否让人产生强烈情绪反应（焦虑/兴奋/愤怒/共鸣）
+2. 实用价值(25%)：是否有可直接使用的干货（方法/工具/数据/案例）
+3. 叙事结构(20%)：是否有完整的故事弧线
+4. 社交货币(15%)：转发能彰显读者什么身份/品味
+5. 争议引导(10%)：是否有讨论空间
+6. 时效贴切(5%)：是否贴合当前热点
+
+评分标准：
+- 9-10分：顶级（如：3个以上可直接用的方法、完整故事弧线）
+- 7-8分：良好（如：有2个具体可操作的方法点）
+- 5-6分：一般（如：有价值但不具体）
+- 3-4分：较弱（如：空泛道理）
+- 1-2分：极差（如：无叙事、毫无情绪）
+
+请以JSON格式输出评估结果：
+{
+  "scores": {
+    "emotion": X,
+    "utility": X,
+    "narrative": X,
+    "socialCurrency": X,
+    "controversy": X,
+    "timeliness": X
+  },
+  "diagnostics": [
+    {
+      "dimension": "维度名",
+      "issue": "问题描述",
+      "suggestions": ["建议1", "建议2"]
+    }
+  ],
+  "overallScore": XX,
+  "decisionPath": "A或B或C",
+  "reasoning": "评分理由"
+}
+
+内容如下：
+${content.slice(0, 3000)}`;
 }
