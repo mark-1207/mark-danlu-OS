@@ -164,3 +164,114 @@ export interface ContentRecord {
   status: ContentStatus;
   overallScore: number;
 }
+
+// ============================================
+// V2 Types
+// ============================================
+
+// Nine-dimension scores (upgrade from 6-dimension)
+export interface NineDimensionScores {
+  emotion: number;              // 0-10
+  utility: number;              // 0-10
+  narrative: number;            // 0-10
+  socialCurrency: number;       // 0-10
+  controversy: number;          // 0-10
+  timeliness: number;          // 0-10
+  differentiation: number;     // 0-10 NEW
+  shareability: number;        // 0-10 NEW
+  conversionPotential: number;  // 0-10 NEW
+}
+
+// Evaluation result V2 (extends V1)
+export interface EvaluationResultV2 extends EvaluationResult {
+  dimensionScores: NineDimensionScores;  // Override parent type
+  hasVeto: boolean;             // true if any dimension < 5
+  vetoDimensions?: string[];    // list of dimensions that vetoed
+}
+
+// Hot topic from discovery
+export interface HotTopic {
+  id: string;
+  platform: 'weibo' | 'twitter' | 'google' | 'xiaohongshu' | 'reddit';
+  title: string;
+  heatScore?: number;
+  category?: string;
+  link?: string;
+  fetchedAt: Date;
+}
+
+// Material package for prompt injection
+export interface MaterialPackage {
+  viralQuotes: string[];        // extractable sharable quotes
+  caseStudies: string[];       // concrete examples/data
+  counterArguments: string[];  // anti-consensus viewpoints
+  sourceArticle?: string;      // reference article URL
+}
+
+// Audience profile
+export interface AudienceProfile {
+  core: string[];               // core audience description
+  edge: string[];              // edge audience description
+  painPoints: string[];         // what they struggle with
+  aspirations: string[];         // what they want
+}
+
+// Dynamic prompt context for generation
+export interface DynamicPromptContext {
+  taskBackground: string;
+  materialPackage?: MaterialPackage;
+  improvementSuggestions: string[];
+  targetAudience: AudienceProfile;
+  styleExamples?: StyleExample[];
+}
+
+// Style example from library
+export interface StyleExample {
+  type: 'good' | 'bad';
+  content: string;
+  whatWorks?: string;    // for good examples
+  whatFails?: string;    // for bad examples
+}
+
+// Self-evolution generation result
+export interface GenerationWithQuality {
+  content: PlatformContent;
+  passed: boolean;
+  score: number;
+  vetoDimensions?: string[];
+  improvementSuggestions: string[];
+  llmUsed: string;
+  iterations: number;
+}
+
+// Platform content (per platform)
+export interface PlatformContent {
+  platform: Platform;
+  title: string;
+  body: string;           // full Markdown content
+  wordCount: number;
+  tags?: string[];       // for Xiaohongshu
+  coverText?: string;    // for Xiaohongshu
+  threadCount?: number;  // for Twitter thread
+}
+
+// Style library index
+export interface StyleLibraryIndex {
+  lastUpdated: string;
+  goodCount: number;
+  badCount: number;
+  lastCheckedCase?: string;  // last processed case ID
+}
+
+// Style insight
+export interface StyleInsight {
+  id: string;
+  addedAt: string;
+  sourceCase: string;         // case file name
+  insight: string;            // what was learned
+  applicableDimensions: string[];  // which quality dimensions
+  confirmed: boolean;
+}
+
+// LLM call type (for dependency injection)
+export type LLMCall = (model: string, prompt: string) => Promise<string>;
