@@ -33,7 +33,6 @@ interface PlatformData {
   content: string;
   coverPrompt: string;
   coverStyles: string[];
-  qualityReport: any;
 }
 
 interface ProModePanelProps {
@@ -90,16 +89,20 @@ export default function ProModePanel({
   const allGeneratedTitles = Object.values(platformTitles).flat();
 
   // 流式内容生成回调
-  const createStreamingCallback = (platform: string, onComplete?: (content: string) => void) => (chunk: StreamingChunk) => {
-    if (chunk.done) {
-      onComplete?.(streamingContents[platform] || '');
-      return;
-    }
-    // 追加内容到流式显示
-    setStreamingContents(prev => ({
-      ...prev,
-      [platform]: (prev[platform] || '') + chunk.content
-    }));
+  const createStreamingCallback = (platform: string, onComplete?: (content: string) => void) => {
+    // 在回调里直接累积，不依赖 React state 同步读取
+    let accumulated = '';
+    return (chunk: StreamingChunk) => {
+      if (chunk.done) {
+        // 同时更新 React state 用于实时显示
+        setStreamingContents(prev => ({ ...prev, [platform]: accumulated }));
+        onComplete?.(accumulated);
+        return;
+      }
+      accumulated += chunk.content;
+      // 实时更新显示
+      setStreamingContents(prev => ({ ...prev, [platform]: accumulated }));
+    };
   };
 
   // 标题数量校验
@@ -162,11 +165,41 @@ export default function ProModePanel({
         } else {
           // 真实API调用（使用promptRouter）
           const result = await promptRouter.execute(`${platformId}-title`, context, {});
-          if (!result.success) {
+          if (!result.success && !result.raw) {
             throw new Error(result.error || '生成标题失败');
           }
-          const titlesData = result.parsed?.titles || [];
-          titles = titlesData.slice(0, titleCount);
+
+          let titlesData: any[] = [];
+          // 优先从 parsed 提取 titles
+          if (result.parsed?.titles) {
+            titlesData = result.parsed.titles;
+          } else if (result.raw) {
+            // JSON 解析失败时，尝试从 raw 文本解析
+            // 支持：1) JSON 数组 2) 按行分割的列表 3) 数字前缀的标题
+            try {
+              const jsonMatch = result.raw.match(/\[[\s\S]*?\]/);
+              if (jsonMatch) {
+                titlesData = JSON.parse(jsonMatch[0]);
+              } else {
+                // 按行分割，尝试提取标题
+                const lines = result.raw.split('\n')
+                  .map(l => l.trim())
+                  .filter(l => l.length > 0 && l.length < 100);
+                titlesData = lines.map(l => {
+                  // 去掉数字前缀如 "1. " 或 "1、"
+                  const cleaned = l.replace(/^\d+[.、:：]\s*/, '');
+                  return { text: cleaned, type: 'AI生成', reason: '' };
+                });
+              }
+            } catch {
+              // 解析失败，使用空数组
+            }
+          }
+
+          // titlesData 可能是字符串数组，也可能是 {text, type, reason} 对象数组
+          titles = titlesData.slice(0, titleCount).map((item: any) =>
+            typeof item === 'string' ? item : (item.text || item.title || '')
+          ).filter(t => t);
         }
 
         newPlatformTitles[platformId] = titles.map((content, index) => ({
@@ -388,28 +421,6 @@ export default function ProModePanel({
 
       setIsGenerating(false);
 
-      // 生成六维质检报告
-      const qualityReports: { [platformId: string]: any } = {};
-      for (const platformId of selectedPlatforms) {
-        const content = generatedContents[platformId];
-        if (content) {
-          try {
-            // 使用promptRouter进行质检
-            const qualityResult = await promptRouter.execute(`${platformId}-quality`, { content }, {});
-            if (qualityResult.success && qualityResult.parsed) {
-              qualityReports[platformId] = qualityResult.parsed;
-            } else {
-              console.error(`质检失败 [${platformId}]:`, qualityResult.error);
-              qualityReports[platformId] = null;
-            }
-          } catch (error) {
-            console.error(`质检失败 [${platformId}]:`, error);
-            // 质检失败不影响主流程，使用空报告
-            qualityReports[platformId] = null;
-          }
-        }
-      }
-
       // 构建每个平台的数据
       const platformsData = selectedPlatforms.map((platformId, idx) => ({
         platform: platformId,
@@ -417,7 +428,6 @@ export default function ProModePanel({
         content: generatedContents[platformId] || '',
         coverPrompt: '',
         coverStyles: selectedCoverStyles,
-        qualityReport: qualityReports[platformId],
       }));
 
       onGenerate({ platformsData });
@@ -425,7 +435,10 @@ export default function ProModePanel({
     } catch (error: any) {
       console.error('生成失败:', error);
       setApiError(error.message || '生成失败，请检查API配置');
+    } finally {
+      // 确保 loading 状态总是被重置
       setIsGenerating(false);
+      setGenerationSteps([]);
     }
   };
 
@@ -787,17 +800,24 @@ export default function ProModePanel({
         <button
           onClick={handleGenerate}
           disabled={!canGenerate || isGenerating}
-          className="flex items-center gap-2 px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-medium text-base transition-colors ml-auto"
+          className={`
+            flex items-center gap-2 px-8 py-3 font-medium text-base ml-auto rounded-lg transition-all duration-200
+            ${canGenerate && !isGenerating
+              ? 'bg-blue-600 hover:bg-blue-700 active:scale-95 hover:scale-105 shadow-lg hover:shadow-xl'
+              : 'bg-slate-300 cursor-not-allowed text-slate-500'
+            }
+            ${isGenerating ? 'bg-blue-600 cursor-wait' : ''}
+          `}
         >
           {isGenerating ? (
             <>
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
               生成中...
             </>
           ) : (
             <>
-              爆款制作启动
-              <ArrowRight className="w-5 h-5" />
+              {canGenerate ? '爆款制作启动' : '请先选择平台和标题'}
+              {canGenerate && <ArrowRight className="w-5 h-5" />}
             </>
           )}
         </button>

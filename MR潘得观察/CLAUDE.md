@@ -68,23 +68,75 @@
 
 ---
 
-## 项目状态摘要 [v2.1]
+## 项目状态摘要 [v2.4]
 
 **内容改写工坊** - 音视频转录爆款文案生成器
 
 ### ✅ 已完成核心功能
-- 首页、内容编辑、洞察分析、内容创作（快速/专业模式）、优化报告、设置页面
+- 首页、内容编辑、洞察分析、内容创作（快速/专业模式）、设置页面
 - 多LLM供应商支持（OpenAI/Claude/MiniMax/Kimi/DeepSeek/自定义）
 - 分平台模板配置（公众号/小红书/抖音）
 - 前置信息模块（平台/类型/赛道/核心数据）
-- **六维质检系统**：按平台定义质检维度（公众号/小红书/抖音各5个专属维度）
 - **数据管理**：支持导出/导入/清除 localStorage 配置
 - **快速模式优化**：预览弹窗支持一键优化（无需质检），原版/优化版对比选择下载
 - **模板导入功能**：从文件夹导入提示词模板，标题/正文分离
 
 ### 📋 当前待办（按优先级）
-- C) UI交互体验优化（待讨论）
-- D) 生成稳定性优化（已解决：流式输出）
+- C) UI交互体验优化（进行中）
+
+### ✅ v2.4 完成 (2026-03-31)
+- **简化质检模块**：
+  - 删除独立质检报告页 `OptimizationReportPage.tsx`
+  - 删除质检展示组件目录 `QualityReport/`
+  - 删除质检类型定义 `src/types/quality.ts`
+  - 删除 `llmService.ts` 中未使用的质检函数（`optimizeContent`、`quickOptimizeContent`、`analyzeContentQuality` 等）
+  - 删除 `ProModePanel.tsx` 中的质检调用循环
+  - 调整导航：侧边栏从4步减少到3步（内容编辑 → 洞察分析 → 内容创作）
+- **流程简化**：专业模式生成内容后直接展示，用户可通过预览弹窗进行优化
+
+### ✅ v2.3 完成 (2026-03-30)
+- **Bug修复 - promptRouter 中文变量名问题**：
+  - 修复 `src/services/promptRouter.ts` 中正则 `/\w+/` → `/[^}]+/`
+  - 支持中文变量名替换（`{赛道}`, `{账号人设定位}` 等）
+- **Bug修复 - 质检模板中文占位符**：
+  - 修复 `prompts/quality/*.md` 模板末尾的输入提示
+  - 将占位符改为变量占位符 `{content}`, `{赛道}` 等
+- **Bug修复 - JSON 截断容错**：
+  - 新增 `repairTruncatedJSON()` 函数（`src/services/llm/llmService.ts`）
+  - 自动补全被截断的 JSON 缺失的 `}` 和 `]`
+- **Bug修复 - OptimizationReportPage 空值保护**：
+  - 给 `currentReport` 添加安全的默认对象
+  - 修复 `dimensions?.length`, `optimizationSuggestions?.length` 可选链遗漏
+- **Bug修复 - 标题生成 fallback**：
+  - JSON 解析失败时 fallback 到 raw 文本解析
+  - 支持多种 raw 格式：JSON 数组、按行分割、数字前缀
+- **Bug修复 - ProModePanel 状态重置**：
+  - 使用 `finally` 块确保 `isGenerating` 和 `generationSteps` 总是被重置
+  - 质检失败时显示用户警告
+- **经验文档**：
+  - 新增 `docs/lessons-learned.md` 记录常见错误和设计规范
+
+### ✅ v2.2 完成 (2026-03-29)
+- **Bug修复 - promptRouter 路径问题**：
+  - 修复 `src/services/promptRouter.ts` 中的路径配置（`../prompts` → `../../prompts`）
+  - 修复后模板文件能正确加载
+- **Bug修复 - gray-matter 浏览器兼容性问题**：
+  - 用自定义 `parseFrontMatter()` 替换 `gray-matter` 依赖
+  - 解决 `Buffer is not defined` 错误
+  - 减少包体积（785KB → 684KB）
+- **Bug修复 - 前置信息持久化**：
+  - 在 `settingsStore.ts` persist 配置中添加 `preInfo`
+  - 修复页面跳转后前置信息丢失问题
+- **优化报告页 - 再次优化功能**：
+  - 添加"再次优化"按钮（基于当前内容重新优化）
+  - 添加"还原原始版本"按钮（恢复最初的原始内容）
+  - 保存 `originalVersion` 便于还原
+- **Bug修复 - CompareModal toast 不消失**：
+  - 修复 `handleSelectAfter` 中 `setShowToast(true)` 错误地写成 `setShowToast(true)`
+- **UI优化 - 专业模式爆款制作按钮**：
+  - 不可用时显示"请先选择平台和标题"
+  - 添加 hover/active 动画反馈（scale）
+  - Loading 状态更醒目
 
 ### ✅ v2.1 完成 (2026-03-27)
 - **流式输出功能**：
@@ -148,5 +200,5 @@
 - 前置信息持久化（localStorage）
 
 ### 更新方式
-- 每次功能完成时说"更新文档，存档v.x.x" → 自动更新PROGRESS.md和CLAUDE.md状态摘要
-- 详细开发记录见 `PROGRESS.md`
+- 每次功能完成时说"更新文档，存档v.x.x" → 自动更新 CLAUDE.md 状态摘要
+- **开发进度记录只更新到 `docs/superpowers/WORK_IN_PROGRESS.md`**，不创建新文件

@@ -26,7 +26,6 @@ import {
   RefreshCw,
   HelpCircle,
 } from 'lucide-react';
-import OptimizationReportPage from './components/OptimizationReportPage';
 import SettingsPage from './components/SettingsPage';
 import InsightPage from './components/InsightPage';
 import QuickModePanel from './components/QuickModePanel';
@@ -287,12 +286,11 @@ function SideNav({
     { id: 1, label: '内容编辑', icon: FileText },
     { id: 2, label: '洞察分析', icon: TrendingUp },
     { id: 3, label: '内容创作', icon: PenTool },
-    { id: 4, label: '优化报告', icon: CheckCircle },
   ];
 
   // 判断步骤是否可点击
   const canClickStep = (stepId: number) => {
-    // 快速模式下，只能点击内容编辑(1)、洞察分析(2)、内容创作(3)，不能点击优化报告(4)
+    // 快速模式下，只能点击内容编辑(1)、洞察分析(2)、内容创作(3)
     if (mode === 'quick') {
       return stepId <= 3;
     }
@@ -396,16 +394,9 @@ function ContentInputPage({
   const [showToast, setShowToast] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // 前置信息状态
-  const [preInfo, setPreInfo] = useState<PreContentInfo>({
-    platform: '',
-    contentType: '',
-    track: '',
-    likes: 0,
-    collectCount: 0,
-    viewCount: 0,
-    shareCount: 0,
-  });
+  // 从 store 读取已持久化的前置信息，作为本地 state 初始值
+  const storePreInfo = useSettingsStore((state) => state.preInfo);
+  const [preInfo, setPreInfo] = useState<PreContentInfo>(storePreInfo);
 
   const testMode = useSettingsStore((state) => state.testMode);
   const charCount = content.length;
@@ -1019,13 +1010,12 @@ function ContentCreationPage({
 }
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<'home' | 'input' | 'insight' | 'creation' | 'optimization' | 'settings'>('home');
+  const [currentPage, setCurrentPage] = useState<'home' | 'input' | 'insight' | 'creation' | 'settings'>('home');
   const [inputContent, setInputContent] = useState('');
   const preInfo = useSettingsStore((state) => state.preInfo);
   const setPreInfo = useSettingsStore((state) => state.setPreInfo);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [completedSteps, setCompletedSteps] = useState<number[]>([1]);
-  const [generationResult, setGenerationResult] = useState<any>(null);
 
   const handleStartCreate = () => {
     setCurrentPage('input');
@@ -1051,9 +1041,6 @@ function App() {
       case 3:
         setCurrentPage('creation');
         break;
-      case 4:
-        setCurrentPage('optimization');
-        break;
     }
   };
 
@@ -1062,8 +1049,6 @@ function App() {
       setCurrentPage('input');
     } else if (currentPage === 'creation') {
       setCurrentPage('insight');
-    } else if (currentPage === 'optimization') {
-      setCurrentPage('creation');
     } else {
       setCurrentPage('home');
     }
@@ -1076,9 +1061,8 @@ function App() {
   };
 
   const handleCreationNext = (data: any) => {
-    setGenerationResult(data);
+    // 专业模式生成完成后，标记步骤完成并显示内容（留在创作页）
     setCompletedSteps(prev => [...prev, 3]);
-    setCurrentPage('optimization');
   };
 
   return (
@@ -1114,20 +1098,6 @@ function App() {
           completedSteps={completedSteps}
           setCompletedSteps={setCompletedSteps}
           onStepClick={handleStepClick}
-        />
-      )}
-      {currentPage === 'optimization' && (
-        <OptimizationReportPage
-          generationResult={generationResult}
-          onBack={handleBack}
-          onStepClick={handleStepClick}
-          onRestart={() => {
-            setCurrentPage('home');
-            setInputContent('');
-            setAnalysisResult(null);
-            setGenerationResult(null);
-            setCompletedSteps([1]);
-          }}
         />
       )}
       {currentPage === 'settings' && (
