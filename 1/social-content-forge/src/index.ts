@@ -27,8 +27,8 @@ import { SimilarityVerifier } from './similarity-verifier/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// 加载环境变量
-config({ path: join(__dirname, '../../.env') });
+// 加载环境变量 - 使用项目根目录的 .env
+config({ path: join(process.cwd(), '.env') });
 
 const OUTPUT_DIR = process.env.OUTPUT_DIR || join(__dirname, '../data/output');
 
