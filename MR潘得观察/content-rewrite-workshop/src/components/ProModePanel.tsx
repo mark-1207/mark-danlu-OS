@@ -85,6 +85,19 @@ export default function ProModePanel({
   // 生成的标题，按平台分组
   const [platformTitles, setPlatformTitles] = useState<{ [platformId: string]: Title[] }>({});
 
+  // 生成结果预览状态
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewResults, setPreviewResults] = useState<PlatformData[]>([]);
+  const [optimizedContent, setOptimizedContent] = useState<string | null>(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+
+  // 内容展示模式: form(表单) | generating(生成中) | result(结果) | comparing(对比)
+  const [viewMode, setViewMode] = useState<'form' | 'generating' | 'result' | 'comparing'>('form');
+  // 当前选中的内容版本: 'original' | 'optimized'
+  const [selectedVersion, setSelectedVersion] = useState<'original' | 'optimized'>('original');
+  // 是否已生成过内容（用于控制按钮状态）
+  const [hasGenerated, setHasGenerated] = useState(false);
+
   // 所有生成的标题（扁平列表，用于选择）
   const allGeneratedTitles = Object.values(platformTitles).flat();
 
@@ -336,8 +349,12 @@ export default function ProModePanel({
 
   // 生成处理（第二次调用：使用contentPrompt）
   const handleGenerate = async () => {
+    console.log('[handleGenerate] called, canGenerate:', canGenerate, 'isGenerating:', isGenerating);
+    console.log('[handleGenerate] selectedPlatforms:', selectedPlatforms, 'selectedTitles:', selectedTitles, 'platformTitles:', Object.keys(platformTitles));
+
     if (!testMode && !hasApiConfig()) {
       const error = getApiConfigError();
+      console.log('[handleGenerate] No API config, error:', error);
       setApiError(error || '请检查您的API配置');
       alert(error || '请检查您的API配置');
       return;
@@ -355,6 +372,10 @@ export default function ProModePanel({
 
     setIsGenerating(true);
     setGenerationSteps(steps);
+    setViewMode('generating');
+    setOptimizedContent(null);
+    setSelectedVersion('original');
+    setHasGenerated(true);
 
     try {
       setGenerationSteps(prev => prev.map((s, idx) => idx === 0 ? { ...s, status: 'success' } : s));
@@ -430,6 +451,9 @@ export default function ProModePanel({
         coverStyles: selectedCoverStyles,
       }));
 
+      // 显示结果（不再弹浮窗）
+      setPreviewResults(platformsData);
+      setViewMode('result');
       onGenerate({ platformsData });
 
     } catch (error: any) {
@@ -437,6 +461,7 @@ export default function ProModePanel({
       setApiError(error.message || '生成失败，请检查API配置');
     } finally {
       // 确保 loading 状态总是被重置
+      console.log('[handleGenerate] finally block, resetting isGenerating to false');
       setIsGenerating(false);
       setGenerationSteps([]);
     }
@@ -767,6 +792,214 @@ export default function ProModePanel({
         </div>
       </div> */}
 
+      {/* 内容展示区（生成中/结果/对比） */}
+      {(viewMode === 'generating' || viewMode === 'result' || viewMode === 'comparing') && previewResults.length > 0 && (
+        <div className="border-t border-slate-200 pt-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles className="w-5 h-5 text-blue-500" />
+            <span className="font-medium text-slate-800">
+              {viewMode === 'generating' ? '内容生成中...' : '生成结果'}
+            </span>
+            {viewMode === 'comparing' && (
+              <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">已优化</span>
+            )}
+          </div>
+
+          {/* 平台 Tab 切换 */}
+          <div className="flex gap-2 mb-4">
+            {previewResults.map((result) => {
+              const platformName = result.platform === 'gzh' ? '公众号' : result.platform === 'xhs' ? '小红书' : '抖音';
+              return (
+                <span
+                  key={result.platform}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                    result.platform === 'gzh' ? 'bg-blue-100 text-blue-700' :
+                    result.platform === 'xhs' ? 'bg-pink-100 text-pink-700' :
+                    'bg-cyan-100 text-cyan-700'
+                  }`}
+                >
+                  {platformName}
+                </span>
+              );
+            })}
+            {viewMode === 'generating' && selectedPlatforms.map((platformId) => {
+              const platformName = platformId === 'gzh' ? '公众号' : platformId === 'xhs' ? '小红书' : '抖音';
+              return (
+                <span
+                  key={platformId}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                    platformId === 'gzh' ? 'bg-blue-100 text-blue-700' :
+                    platformId === 'xhs' ? 'bg-pink-100 text-pink-700' :
+                    'bg-cyan-100 text-cyan-700'
+                  }`}
+                >
+                  {platformName}
+                </span>
+              );
+            })}
+          </div>
+
+          {/* 当前平台内容 - 流式显示或结果 */}
+          {(viewMode === 'generating' || previewResults[0]) && (
+            <div className="space-y-4">
+              {/* 标题 - 生成完成后显示 */}
+              {viewMode !== 'generating' && previewResults[0] && (
+                <div>
+                  <div className="text-sm text-slate-500 mb-1">标题</div>
+                  <div className="text-lg font-semibold text-slate-800">{previewResults[0].title}</div>
+                </div>
+              )}
+
+              {/* 对比模式：两列布局 */}
+              {viewMode === 'comparing' ? (
+                <div className="grid grid-cols-2 gap-4">
+                  {/* 原文 */}
+                  <div
+                    onClick={() => setSelectedVersion('original')}
+                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                      selectedVersion === 'original'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-slate-200 bg-slate-50 hover:border-blue-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-slate-700">原文</span>
+                      {selectedVersion === 'original' && (
+                        <Check className="w-4 h-4 text-blue-500" />
+                      )}
+                    </div>
+                    <div className="whitespace-pre-wrap text-sm text-slate-700 max-h-80 overflow-y-auto">
+                      {previewResults[0].content}
+                    </div>
+                  </div>
+
+                  {/* 优化版 */}
+                  <div
+                    onClick={() => setSelectedVersion('optimized')}
+                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                      selectedVersion === 'optimized'
+                        ? 'border-green-500 bg-green-50'
+                        : 'border-slate-200 bg-slate-50 hover:border-green-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-slate-700">优化版</span>
+                      {selectedVersion === 'optimized' && (
+                        <Check className="w-4 h-4 text-green-500" />
+                      )}
+                    </div>
+                    <div className="whitespace-pre-wrap text-sm text-slate-700 max-h-80 overflow-y-auto">
+                      {optimizedContent || '(优化中...)'}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* 非对比模式：单列显示 */
+                <div>
+                  <div className="text-sm text-slate-500 mb-1">
+                    {viewMode === 'generating' ? '正文内容（实时生成中）' : '正文内容'}
+                  </div>
+                  <div className={`rounded-lg p-4 whitespace-pre-wrap text-sm ${
+                    viewMode === 'generating'
+                      ? 'bg-slate-100 animate-pulse'
+                      : 'bg-slate-50'
+                  }`}>
+                    {streamingContents[selectedPlatforms[0]] || previewResults[0]?.content || '(生成中...)'}
+                  </div>
+                </div>
+              )}
+
+              {/* 操作按钮 */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                <div className="text-sm text-slate-500">
+                  {viewMode === 'comparing'
+                    ? `已选择：${selectedVersion === 'original' ? '原文' : '优化版'}`
+                    : '点击下方按钮进行优化'}
+                </div>
+                <div className="flex gap-3">
+                  {viewMode === 'comparing' && (
+                    <button
+                      onClick={() => {
+                        const content = selectedVersion === 'original'
+                          ? previewResults[0].content
+                          : optimizedContent || '';
+                        // 导出功能
+                        const blob = new Blob([content], { type: 'text/plain' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${previewResults[0].title}.txt`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                    >
+                      导出选中内容
+                    </button>
+                  )}
+                  {viewMode !== 'comparing' && (
+                    <button
+                      onClick={async () => {
+                        if (previewResults.length === 0) return;
+                        const result = previewResults[0];
+                        setIsOptimizing(true);
+                        try {
+                          // 传递更丰富的上下文给优化模板
+                          const optimizeContext = {
+                            content: result.content,
+                            title: result.title,
+                            // 传递分析结果中的关键信息
+                            核心议题: analysisResult?.核心议题 || '',
+                            情绪基调: analysisResult?.情绪基调?.join(', ') || '',
+                            目标受众: analysisResult?.目标受众 || '',
+                            内容类型: preInfo?.contentType || '',
+                            赛道: preInfo?.track || '',
+                            账号人设: `${preInfo?.contentType || ''}，赛道${preInfo?.track || ''}`,
+                          };
+                          const optimizeResult = await promptRouter.execute(
+                            `${result.platform}-optimization`,
+                            optimizeContext,
+                            {}
+                          );
+                          if (optimizeResult.success && optimizeResult.raw) {
+                            setOptimizedContent(optimizeResult.raw);
+                            setViewMode('comparing');
+                            console.log('[一键优化] 优化成功');
+                          } else {
+                            console.error('[一键优化] 优化失败:', optimizeResult.error);
+                            alert('优化失败：' + (optimizeResult.error || '未知错误'));
+                          }
+                        } catch (error: any) {
+                          console.error('[一键优化] 异常:', error);
+                          alert('优化异常：' + error.message);
+                        } finally {
+                          setIsOptimizing(false);
+                        }
+                      }}
+                      disabled={isOptimizing}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:bg-blue-400"
+                    >
+                      {isOptimizing ? '优化中...' : '一键优化'}
+                    </button>
+                  )}
+                  {viewMode === 'comparing' && (
+                    <button
+                      onClick={() => {
+                        setViewMode('result');
+                        setSelectedVersion('original');
+                      }}
+                      className="px-5 py-2.5 text-slate-600 hover:bg-slate-200 rounded-lg font-medium transition-colors"
+                    >
+                      关闭对比
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 底部操作区 */}
       <div className="flex items-center justify-center pt-4 border-t border-slate-200">
         <button
@@ -799,10 +1032,10 @@ export default function ProModePanel({
 
         <button
           onClick={handleGenerate}
-          disabled={!canGenerate || isGenerating}
+          disabled={!canGenerate || isGenerating || viewMode === 'result' || viewMode === 'comparing'}
           className={`
             flex items-center gap-2 px-8 py-3 font-medium text-base ml-auto rounded-lg transition-all duration-200
-            ${canGenerate && !isGenerating
+            ${canGenerate && !isGenerating && viewMode !== 'result' && viewMode !== 'comparing'
               ? 'bg-blue-600 hover:bg-blue-700 active:scale-95 hover:scale-105 shadow-lg hover:shadow-xl'
               : 'bg-slate-300 cursor-not-allowed text-slate-500'
             }
@@ -816,8 +1049,13 @@ export default function ProModePanel({
             </>
           ) : (
             <>
-              {canGenerate ? '爆款制作启动' : '请先选择平台和标题'}
-              {canGenerate && <ArrowRight className="w-5 h-5" />}
+              {viewMode === 'result' || viewMode === 'comparing'
+                ? '内容已生成'
+                : canGenerate
+                  ? '爆款制作启动'
+                  : '请先选择平台和标题'
+              }
+              {canGenerate && viewMode !== 'result' && viewMode !== 'comparing' && <ArrowRight className="w-5 h-5" />}
             </>
           )}
         </button>
