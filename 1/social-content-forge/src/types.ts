@@ -60,7 +60,7 @@ export interface ContentDecodedReport {
     sharableQuotes: string[];
     controversialPoints: string[];
     dataAnchors: string[];
-    identity认同: string[];
+    identityTags: string[];
   };
 }
 
@@ -275,3 +275,56 @@ export interface StyleInsight {
 
 // LLM call type (for dependency injection)
 export type LLMCall = (model: string, prompt: string) => Promise<string>;
+
+// ============================================
+// Similarity Verifier Types
+// ============================================
+
+// Similarity dimension thresholds (适中级别)
+export interface SimilarityThresholds {
+  caseSimilarity: number;      // ≤20%
+  quoteSimilarity: number;     // ≤15%
+  semanticSimilarity: number;  // ≤70%
+  titleDiff: number;          // ≥60%
+  openingEndingDiff: number;  // ≥50%
+}
+
+export const DEFAULT_SIMILARITY_THRESHOLDS: SimilarityThresholds = {
+  caseSimilarity: 20,
+  quoteSimilarity: 15,
+  semanticSimilarity: 70,
+  titleDiff: 60,
+  openingEndingDiff: 50,
+};
+
+// Similarity dimension weights (for overall score)
+export const SIMILARITY_DIMENSION_WEIGHTS = {
+  caseSimilarity: 0.30,
+  quoteSimilarity: 0.20,
+  semanticSimilarity: 0.30,
+  titleDiff: 0.10,
+  openingEndingDiff: 0.10,
+} as const;
+
+// Single dimension result
+export interface DimensionResult {
+  score: number;
+  passed: boolean;
+  detail?: string;
+}
+
+// Full similarity verification result
+export interface SimilarityResult {
+  passed: boolean;
+  overallScore: number;    // 0-100, higher = more different (pass = overallScore <= 70)
+  dimensions: {
+    caseSimilarity: DimensionResult;
+    quoteSimilarity: DimensionResult;
+    semanticSimilarity: DimensionResult;
+    titleDiff: DimensionResult;
+    openingEndingDiff: DimensionResult;
+  };
+  summary: string;         // Human-readable summary for user
+  iterationCount: number;
+  rawReport?: string;      // Optional detailed report for 追问
+}
