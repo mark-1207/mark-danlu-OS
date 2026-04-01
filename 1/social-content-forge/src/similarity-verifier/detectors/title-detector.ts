@@ -37,7 +37,7 @@ export function detectTitleDifference(
   }
 
   const distance = dp[len1][len2];
-  const score = Math.round((1 - distance / maxLen) * 100);
+  const score = Math.round((distance / maxLen) * 100);
   const passed = score >= 60;
 
   return {
