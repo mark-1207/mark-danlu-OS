@@ -320,15 +320,15 @@ function createLLMCaller() {
     if (model === 'claude') {
       apiKey = process.env.ANTHROPIC_API_KEY || '';
       if (!apiKey) {
-        // Fallback to default
-        actualModel = getModelForTask('analyze');
-        apiKey = process.env.ZHIPU_API_KEY || process.env.OPENAI_API_KEY || '';
+        // Fallback to Kimi
+        actualModel = 'kimi';
+        apiKey = process.env.KIMI_API_KEY || process.env.ZHIPU_API_KEY || process.env.OPENAI_API_KEY || '';
       }
     } else if (model === 'gpt') {
-      apiKey = process.env.OPENAI_API_KEY || process.env.ZHIPU_API_KEY || '';
+      apiKey = process.env.OPENAI_API_KEY || process.env.KIMI_API_KEY || process.env.ZHIPU_API_KEY || '';
       actualModel = 'gpt';
     } else if (model === 'deepseek') {
-      apiKey = process.env.DEEPSEEK_API_KEY || process.env.ZHIPU_API_KEY || '';
+      apiKey = process.env.DEEPSEEK_API_KEY || process.env.KIMI_API_KEY || process.env.ZHIPU_API_KEY || '';
       actualModel = 'deepseek';
     } else {
       apiKey = process.env.KIMI_API_KEY || process.env.ZHIPU_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || '';
