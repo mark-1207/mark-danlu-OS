@@ -330,8 +330,8 @@ function createLLMCaller() {
       apiKey = process.env.DEEPSEEK_API_KEY || process.env.ZHIPU_API_KEY || '';
       actualModel = 'deepseek';
     } else {
-      apiKey = process.env.ZHIPU_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || '';
-      actualModel = 'glm';
+      apiKey = process.env.KIMI_API_KEY || process.env.ZHIPU_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || '';
+      actualModel = 'kimi';
     }
 
     if (!apiKey) {
@@ -353,7 +353,7 @@ function createLLMCaller() {
  */
 function createSimpleLLMCaller() {
   return async (prompt: string): Promise<string> => {
-    const apiKey = process.env.ZHIPU_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || '';
+    const apiKey = process.env.KIMI_API_KEY || process.env.ZHIPU_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || '';
     if (!apiKey) {
       throw new Error('未设置 LLM API Key');
     }

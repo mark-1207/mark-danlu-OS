@@ -43,12 +43,12 @@ export const SCORING_CRITERIA = {
 
 // LLM路由配置
 const MODEL_ROUTING: Record<LLMTaskType, LLMModel> = {
-  evaluation: 'glm',         // 质量评估
-  wechat: 'glm',              // 微信公众号深度长文
-  xiaohongshu: 'glm',         // 小红书情绪共鸣
-  twitter: 'glm',             // Twitter短平快
-  search: 'glm',              // 搜索资料
-  analyze: 'glm',             // 内容分析
+  evaluation: 'kimi',         // 质量评估
+  wechat: 'kimi',              // 微信公众号深度长文
+  xiaohongshu: 'kimi',         // 小红书情绪共鸣
+  twitter: 'kimi',             // Twitter短平快
+  search: 'kimi',              // 搜索资料
+  analyze: 'kimi',             // 内容分析
 };
 
 // API端点配置

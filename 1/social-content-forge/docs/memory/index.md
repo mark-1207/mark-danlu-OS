@@ -21,9 +21,26 @@
 | 主流水线集成 | ✅ | 所有v2模块集成 |
 | 飞书完整内容同步 | ✅ | 三平台完整markdown |
 
+## 今日更新（2026-03-31）
+
+### Prompt优化（基于prompt-engineering-patterns skill）
+- **System Prompt Structure**：重构为 `[Role] + [Expertise] + [Guidelines] + [Output Format] + [Constraints]`
+- **Chain-of-Thought**：自检和评估都改为分步推理
+- **Progressive Disclosure**：动态prompt支持1-4级复杂度自动计算
+- **Self-Consistency验证**：评估结果增加自洽检查
+
+### 热点发现数据源
+- **结论**：官方API需要认证或付费
+- **替代方案**：使用 `social-trend-monitor` skill（已安装）
+  - 监控 Reddit/Instagram/TikTok 趋势
+  - 通过 WebSearch + WebFetch 获取公开数据，无需API Key
+  - 风险：Low Risk，可直接使用
+
 ## 核心结论
 
 1. **热点发现**：一期接入微博热榜、Twitter Trending、Google Trends、小红书热榜、Reddit
+   - **注意**：官方API被限制/需要认证
+   - **替代**：使用social-trend-monitor skill（已安装），用户说"查看社交趋势"即可调用
 2. **主题搜索质量提升**：输入轻量化，内部触发「素材增强」模块
 3. **两层Prompt体系**：基础Prompt（稳定）+ 动态Prompt（任务自适应）
 4. **自我进化生成**：内嵌评审循环，不单独打分，节省token
@@ -32,6 +49,7 @@
 7. **飞书同步**：完整三平台markdown内容，而非零散字段
 8. **不关联**：PUA技能、内容改写项目与本项目无关
 9. **风格学习库**：已建立 `docs/style-library/`，用于持续学习爆款/差案例
+10. **Skill优先规则**：遇到外部能力需求，优先搜索skill，而非自己开发
 
 ## 风格学习库
 
@@ -70,7 +88,6 @@ acb3e0d feat(v2): add nine-dimension types, HotTopic, MaterialPackage
 
 - [ ] GitHub调研更优Prompt（网络受限，需用户提供链接）
 - [ ] A/B测试验证v2效果
-- [ ] 热点发现数据源正式接入（API配置）
 
 ## 下一步
 

@@ -1,4 +1,4 @@
-export { DynamicPromptBuilder } from './dynamic-prompt-builder';
+export { DynamicPromptBuilder, type PromptComplexityLevel } from './dynamic-prompt-builder';
 export {
   WECHAT_BASE_PROMPT,
   XIAOHONGSHU_BASE_PROMPT,
