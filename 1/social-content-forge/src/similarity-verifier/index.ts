@@ -80,13 +80,16 @@ export class SimilarityVerifier {
     };
 
     // Calculate overall weighted score
+    // Note: case/quote/semantic similarity = lower is better (less similarity = more different = good)
+    //       title/openingEnding diff = higher is better (more different = good)
+    // Invert diff dimensions so ALL contribute "similarity" where lower = more different = better
     const weights = SIMILARITY_DIMENSION_WEIGHTS;
     const overallScore = Math.round(
       aggregatedDimensions.caseSimilarity.score * weights.caseSimilarity +
       aggregatedDimensions.quoteSimilarity.score * weights.quoteSimilarity +
       aggregatedDimensions.semanticSimilarity.score * weights.semanticSimilarity +
-      aggregatedDimensions.titleDiff.score * weights.titleDiff +
-      aggregatedDimensions.openingEndingDiff.score * weights.openingEndingDiff
+      (100 - aggregatedDimensions.titleDiff.score) * weights.titleDiff +
+      (100 - aggregatedDimensions.openingEndingDiff.score) * weights.openingEndingDiff
     );
 
     // Dual-track pass: (1) overall score ≤70, (2) ALL dimensions pass
