@@ -4,6 +4,9 @@
  */
 
 import axios from 'axios';
+import { execSync } from 'child_process';
+import { join } from 'path';
+import { fileURLToPath } from 'url';
 import type { ExtractedContent, InputType } from '../types.js';
 
 /**
@@ -42,65 +45,161 @@ export function extractUrlFromInput(input: string): string | null {
 
 /**
  * 提取微信公众号内容
- * 通过抓取页面获取文章内容
+ * 优先使用 wechat-article-extractor skill，失败时降级
  */
 export async function extractFromUrl(url: string): Promise<ExtractedContent> {
+  // 如果是微信文章，优先使用 wechat-article-extractor
+  if (url.includes('mp.weixin.qq.com')) {
+    const wxResult = await tryWechatExtractor(url);
+    if (wxResult.content.length > 100) {
+      return wxResult;
+    }
+  }
+
+  // 尝试直接抓取
+  const directResult = await tryDirectExtract(url);
+  if (directResult.content.length > 100) {
+    return directResult;
+  }
+
+  // 通过 Sogou 搜索获取（适用于微信文章）
+  const sogouResult = await trySogouExtract(url);
+  if (sogouResult.content.length > 100) {
+    return sogouResult;
+  }
+
+  // 如果都失败，返回提示
+  return {
+    type: 'url',
+    source: url,
+    content: `无法提取正文内容。请访问原始链接获取完整内容。\n\n链接: ${url}\n\n建议：复制文章全文作为素材输入。`,
+    metadata: {
+      title: '未识别标题',
+      author: '未知作者',
+      publishTime: new Date().toISOString(),
+      source: '微信公众号',
+    },
+  };
+}
+
+/**
+ * 使用 wechat-article-extractor skill 提取微信文章
+ */
+async function tryWechatExtractor(url: string): Promise<ExtractedContent> {
   try {
-    // 使用 axios 获取页面
-    const response = await axios.get(url, {
-      timeout: 15000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
-      },
+    const skillPath = 'C:\\Users\\admin\\.claude\\skills\\wechat-article-extractor';
+    const scriptPath = join(skillPath, 'scripts', 'extract.js');
+
+    // 使用 node 执行提取脚本
+    const result = execSync(`node -e "const {extract}=require('${scriptPath.replace(/\\/g, '\\\\')}');extract('${url}').then(r=>console.log(JSON.stringify(r))).catch(e=>console.error(e)));"`, {
+      encoding: 'utf-8',
+      timeout: 30000,
+      maxBuffer: 10 * 1024 * 1024, // 10MB buffer
     });
 
-    const html = response.data as string;
+    const data = JSON.parse(result);
+    if (data.done && data.code === 0 && data.data) {
+      const article = data.data;
+      // 从 HTML 内容中提取纯文本
+      const textContent = extractTextFromHtml(article.msg_content || '');
 
-    // 提取标题
-    const titleMatch = html.match(/<title>(.*?)<\/title>/i) ||
-                       html.match(/"title":\s*"(.*?)"/) ||
-                       html.match(/<h1[^>]*>(.*?)<\/h1>/i);
-    const title = titleMatch ? decodeHtmlEntities(titleMatch[1]) : '未识别标题';
-
-    // 提取作者
-    const authorMatch = html.match(/"author":\s*"(.*?)"/) ||
-                        html.match(/<span[^>]*id="js_name"[^>]*>(.*?)<\/span>/i);
-    const author = authorMatch ? authorMatch[1] : '未知作者';
-
-    // 提取发布时间
-    const publishTimeMatch = html.match(/"publish_time":\s*"(.*?)"/) ||
-                             html.match(/<em[^>]*>(.*?)<\/em>/i);
-    const publishTime = publishTimeMatch ? publishTimeMatch[1] : new Date().toISOString();
-
-    // 提取正文内容 (简化版，实际项目应使用专门的解析库)
-    const contentMatch = html.match(/id="js_content"[^>]*>([\s\S]*?)<\/div>/i) ||
-                         html.match(/class="rich_media_content"[^>]*>([\s\S]*?)<\/div>/i) ||
-                         html.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
-    let content = '';
-    if (contentMatch) {
-      content = extractTextFromHtml(contentMatch[1]);
+      return {
+        type: 'url',
+        source: url,
+        content: textContent,
+        metadata: {
+          title: article.msg_title || '未识别标题',
+          author: article.msg_author || '未知作者',
+          publishTime: article.msg_publish_time || new Date().toISOString(),
+          source: article.account_name || '微信公众号',
+        },
+      };
     }
-
-    // 如果提取失败，使用原始数据提示
-    if (content.length < 100) {
-      content = `无法直接提取正文内容。请访问原始链接获取完整内容。\n\n链接: ${url}\n\n建议：复制文章全文作为素材输入，或使用 wechat-article-extractor skill 进行提取。`;
-    }
-
-    return {
-      type: 'url',
-      source: url,
-      content,
-      metadata: {
-        title,
-        author,
-        publishTime,
-        source: '微信公众号',
-      },
-    };
   } catch (error: any) {
-    throw new Error(`提取失败: ${error.message}`);
+    console.error('[WechatExtractor]', error.message);
   }
+
+  return { type: 'url', source: url, content: '', metadata: { title: '', author: '', publishTime: '', source: '微信公众号' } };
+}
+
+/**
+ * 直接抓取页面（适用于已渲染的文章）
+ */
+async function tryDirectExtract(url: string): Promise<ExtractedContent> {
+  const response = await axios.get(url, {
+    timeout: 15000,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    },
+  });
+
+  const html = response.data as string;
+
+  // 尝试从 JSON 数据中提取
+  const jsonMatch = html.match(/var\s+biz\s*=\s*"?([^";\s]+)/);
+  const nicknameMatch = html.match(/"nickname"\s*:\s*"([^"]+)"/);
+  const titleMatch = html.match(/"title"\s*:\s*"([^"]+)"/) ||
+                     html.match(/<title>(.*?)<\/title>/i);
+  const authorMatch = html.match(/"author"\s*:\s*"([^"]+)"/);
+  const contentMatch = html.match(/id="js_content"[^>]*>([\s\S]*?)<\/div>/i) ||
+                       html.match(/class="rich_media_content"[^>]*>([\s\S]*?)<\/div>/i);
+
+  let content = '';
+  if (contentMatch) {
+    content = extractTextFromHtml(contentMatch[1]);
+  }
+
+  return {
+    type: 'url',
+    source: url,
+    content,
+    metadata: {
+      title: titleMatch ? decodeHtmlEntities(titleMatch[1]) : '未识别标题',
+      author: authorMatch ? authorMatch[1] : (nicknameMatch ? nicknameMatch[1] : '未知作者'),
+      publishTime: new Date().toISOString(),
+      source: '微信公众号',
+    },
+  };
+}
+
+/**
+ * 通过 Sogou 搜索API提取微信文章内容
+ */
+async function trySogouExtract(url: string): Promise<ExtractedContent> {
+  // 从 URL 中提取 biz 和 mid
+  const urlMatch = url.match(/__biz=([^&]+).*?mid=(\d+)/);
+  if (!urlMatch) {
+    return { type: 'url', source: url, content: '', metadata: { title: '', author: '', publishTime: '', source: '微信公众号' } };
+  }
+
+  const biz = urlMatch[1];
+  const mid = urlMatch[2];
+
+  // 调用 Sogou 搜索 API
+  const searchUrl = `https://weixin.sogou.com/weixin?type=1&s_from=input&query=${biz}&ie=utf8&_sug_=n&_sug_type_=`;
+  const response = await axios.get(searchUrl, {
+    timeout: 15000,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml',
+      'Accept-Language': 'zh-CN,zh;q=0.9',
+    },
+  });
+
+  const html = response.data as string;
+
+  // 提取标题和链接
+  const articleMatch = html.match(new RegExp(`href="(https://mp\\.weixin\\.qq\\.com/s\\?[^"]*${mid}[^"]*)"[^>]*>([^<]+)<`));
+  if (articleMatch) {
+    const articleUrl = articleMatch[1].replace(/\\&amp;/g, '&');
+    const articleTitle = decodeHtmlEntities(articleMatch[2]);
+
+    // 抓取文章详情
+    return tryDirectExtract(articleUrl);
+  }
+
+  return { type: 'url', source: url, content: '', metadata: { title: '', author: '', publishTime: '', source: '微信公众号' } };
 }
 
 /**
