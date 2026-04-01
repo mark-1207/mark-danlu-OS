@@ -4,9 +4,10 @@
  */
 
 import axios from 'axios';
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import { join } from 'path';
-import { fileURLToPath } from 'url';
+import { writeFileSync, unlinkSync } from 'fs';
+import { tmpdir } from 'os';
 import type { ExtractedContent, InputType } from '../types.js';
 
 /**
@@ -90,17 +91,43 @@ async function tryWechatExtractor(url: string): Promise<ExtractedContent> {
     const skillPath = 'C:\\Users\\admin\\.claude\\skills\\wechat-article-extractor';
     const scriptPath = join(skillPath, 'scripts', 'extract.js');
 
-    // 使用 node 执行提取脚本
-    const result = execSync(`node -e "const {extract}=require('${scriptPath.replace(/\\/g, '\\\\')}');extract('${url}').then(r=>console.log(JSON.stringify(r))).catch(e=>console.error(e)));"`, {
+    // 创建临时脚本文件
+    const tmpDir = tmpdir();
+    const tmpScript = join(tmpDir, `wechat_extract_${Date.now()}.js`);
+    const scriptContent = `
+const {extract}=require('${scriptPath.replace(/\\/g, '\\\\')}');
+extract('${url}').then(r=>{
+  console.log(JSON.stringify(r));
+  process.exit(0);
+}).catch(e=>{
+  console.error(e.message);
+  process.exit(1);
+});
+`;
+    writeFileSync(tmpScript, scriptContent, 'utf-8');
+
+    const result = spawnSync('node', [tmpScript], {
       encoding: 'utf-8',
       timeout: 30000,
-      maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+      maxBuffer: 10 * 1024 * 1024,
     });
 
-    const data = JSON.parse(result);
+    unlinkSync(tmpScript);
+
+    if (result.error) {
+      console.error('[WechatExtractor]', result.error.message);
+      return { type: 'url', source: url, content: '', metadata: { title: '', author: '', publishTime: '', source: '微信公众号' } };
+    }
+
+    const output = result.stdout as string;
+    if (!output || output.trim() === '') {
+      console.error('[WechatExtractor] Empty output');
+      return { type: 'url', source: url, content: '', metadata: { title: '', author: '', publishTime: '', source: '微信公众号' } };
+    }
+
+    const data = JSON.parse(output);
     if (data.done && data.code === 0 && data.data) {
       const article = data.data;
-      // 从 HTML 内容中提取纯文本
       const textContent = extractTextFromHtml(article.msg_content || '');
 
       return {
