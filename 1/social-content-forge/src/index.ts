@@ -23,6 +23,7 @@ import { SelfEvolutionGenerator } from './generation/index.js';
 import { StyleLearningService } from './style-learning/index.js';
 import { MemoryLoader } from './memory/loader.js';
 import { DynamicPromptBuilder } from './prompts/index.js';
+import { SimilarityVerifier } from './similarity-verifier/index.js';
 
 // 加载环境变量
 config();
@@ -174,6 +175,32 @@ export async function generateContent(
     }
   }
   console.log('');
+
+  // ============ Step 4.5: 相似度验证 ============
+  if (outputs.length > 0) {
+    console.log('📌 Step 4.5: 相似度验证中...');
+    try {
+      const verifier = new SimilarityVerifier();
+      const platformContents = outputs.map(o => ({
+        platform: o.platform,
+        title: o.title,
+        body: o.content,
+        wordCount: o.wordCount,
+      }));
+      const originalContent = extracted.content;
+      const originalTitle = extracted.metadata.title || '未命名';
+      const simResult = await verifier.verify(originalContent, originalTitle, platformContents, llmCall);
+
+      if (simResult.passed) {
+        console.log(`   ✅ 相似度验证通过 (${simResult.overallScore}%)`);
+      } else {
+        console.log(`   ⚠️ 相似度超标: ${simResult.summary}`);
+      }
+    } catch (error: any) {
+      console.log(`   ⚠️ 相似度验证失败: ${error.message}, 继续流程`);
+    }
+    console.log('');
+  }
 
   // ============ Step 5: 保存评估报告 ============
   const evalReport = formatEvaluationReport(evaluation, extracted.metadata.title || '未命名');
