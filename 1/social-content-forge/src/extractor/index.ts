@@ -10,16 +10,34 @@ import type { ExtractedContent, InputType } from '../types.js';
  * 识别输入类型
  */
 export function identifyInputType(input: string): InputType {
-  if (input.trim().startsWith('http://') || input.trim().startsWith('https://')) {
+  const trimmed = input.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     return 'url';
   }
-  if (input.includes('mp.weixin.qq.com')) {
+  if (trimmed.includes('mp.weixin.qq.com')) {
     return 'url';
   }
-  if (input.length < 200 && !input.includes('\n')) {
+  if (trimmed.length < 200 && !trimmed.includes('\n')) {
     return 'search';
   }
   return 'material';
+}
+
+/**
+ * 从输入中提取URL（处理触发词前缀）
+ */
+export function extractUrlFromInput(input: string): string | null {
+  const trimmed = input.trim();
+  // 匹配 https?:// 开头或包含 mp.weixin.qq.com 的 URL
+  const urlMatch = trimmed.match(/https?:\/\/[^\s\u3000-\u9fff]+/);
+  if (urlMatch) {
+    return urlMatch[0];
+  }
+  const wxMatch = trimmed.match(/(https?:\/\/[^\s]*mp\.weixin\.qq\.com[^\s]*)/);
+  if (wxMatch) {
+    return wxMatch[1];
+  }
+  return null;
 }
 
 /**
@@ -166,8 +184,13 @@ export async function extract(input: string, userProvidedTitle?: string): Promis
   const inputType = identifyInputType(input);
 
   switch (inputType) {
-    case 'url':
-      return extractFromUrl(input);
+    case 'url': {
+      const url = extractUrlFromInput(input);
+      if (!url) {
+        throw new Error('无法从输入中提取有效URL');
+      }
+      return extractFromUrl(url);
+    }
     case 'search':
       return searchTopic(input);
     case 'material':
