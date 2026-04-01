@@ -26,7 +26,7 @@ import { DynamicPromptBuilder } from './prompts/index.js';
 import { SimilarityVerifier } from './similarity-verifier/index.js';
 
 // 加载环境变量
-config();
+config({ path: join(__dirname, '../../.env') });
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = process.env.OUTPUT_DIR || join(__dirname, '../data/output');

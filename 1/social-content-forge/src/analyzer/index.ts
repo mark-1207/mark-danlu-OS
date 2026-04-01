@@ -141,7 +141,11 @@ export async function analyze(
     }
 
     if (jsonStr) {
-      parsed = JSON.parse(jsonStr);
+      // 替换中文引号为标准引号
+      const normalizedJson = jsonStr
+        .replace(/[""]/g, '"')
+        .replace(/['']/g, "'");
+      parsed = JSON.parse(normalizedJson);
     } else {
       throw new Error('未找到有效的JSON');
     }
