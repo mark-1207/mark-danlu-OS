@@ -128,7 +128,8 @@ extract('${url}').then(r=>{
     const data = JSON.parse(output);
     if (data.done && data.code === 0 && data.data) {
       const article = data.data;
-      const textContent = extractTextFromHtml(article.msg_content || '');
+      // 使用更好的文本提取方法，而不是 cheerio.text()
+      const textContent = extractWechatText(article.msg_content || '');
 
       return {
         type: 'url',
@@ -243,6 +244,57 @@ function extractTextFromHtml(html: string): string {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * 从微信HTML中提取纯文本（递归方式，避免 cheerio.text() 丢失内容）
+ */
+function extractWechatText(html: string): string {
+  if (!html) return '';
+
+  // 移除 script 和 style 标签及其内容
+  let text = html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+
+  // 递归提取所有文本节点
+  const extractText = (str: string): string => {
+    // 移除所有 HTML 标签
+    str = str.replace(/<[^>]+>/g, '');
+    // 解码 HTML 实体
+    str = decodeHtmlEntities(str);
+    // 规范化空白字符
+    str = str.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+    return str;
+  };
+
+  // 方法1: 直接提取标签之间的文本
+  text = extractText(text);
+
+  // 方法2: 特别处理 <p> <br> <div> 等块级元素，保留换行
+  const blockText = html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .trim();
+
+  // 合并两种方法的结果
+  const blockBased = blockText.split('\n').map(s => s.trim()).filter(s => s.length > 0).join('\n');
+  const finalText = text.length > blockBased.length ? text : blockBased;
+
+  return decodeHtmlEntities(finalText)
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[\r\n]+/g, '\n')
+    .replace(/[ \t]+/g, ' ')
     .trim();
 }
 
