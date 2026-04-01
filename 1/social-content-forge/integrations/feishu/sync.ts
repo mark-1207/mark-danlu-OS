@@ -111,7 +111,11 @@ export async function syncToFeishu(
     };
 
     if (record.sourceUrl) {
-      fields['原始链接'] = record.sourceUrl;
+      // 飞书链接字段格式：{text: "显示文本", link: "URL"}
+      fields['原始链接'] = {
+        text: record.sourceUrl.substring(0, 50),
+        link: record.sourceUrl
+      };
     }
 
     // v2: Full content strings (Feishu truncates to 100 chars, full content stored locally)
@@ -129,9 +133,9 @@ export async function syncToFeishu(
     }
 
     if (record.twitterContent) {
-      fields['Twiter版本'] = record.twitterContent.substring(0, 100);
+      fields['Twitter版本'] = record.twitterContent.substring(0, 100);
     } else if (record.twitterPath) {
-      fields['Twiter版本'] = record.twitterPath;
+      fields['Twitter版本'] = record.twitterPath;
     }
 
     // 飞书 datetime 字段需要时间戳格式（毫秒）
