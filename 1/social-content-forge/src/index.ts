@@ -141,37 +141,46 @@ export async function generateContent(
   const safeTitle = (extracted.metadata.title || 'untitled').slice(0, 20).replace(/[\/\\:*?"<>|]/g, '');
   const outputBaseDir = join(OUTPUT_DIR, `${date}_${safeTitle}`);
 
-  for (const platform of targetPlatforms) {
-    console.log(`   📝 生成 ${platform} 版本...`);
-    try {
-      // Use self-evolution generator with quality gate
-      const genResult = await selfEvolutionGenerator.generateWithQualityGate(platform, dynamicContext);
-
-      if (genResult.passed) {
-        // Write file
-        if (!existsSync(outputBaseDir)) {
-          mkdirSync(outputBaseDir, { recursive: true });
-        }
-
-        const filePath = join(outputBaseDir, `${platform}.md`);
-        const fileContent = `# ${genResult.content.title}\n\n${genResult.content.body}`;
-        writeFileSync(filePath, fileContent, 'utf-8');
-
-        outputs.push({
-          platform,
-          title: genResult.content.title,
-          content: genResult.content.body,
-          wordCount: genResult.content.wordCount,
-          filePath,
-        });
-
-        console.log(`      ✅ 已保存: ${filePath} (${genResult.content.wordCount}字)`);
-        console.log(`      📊 质量: ${genResult.score}/100 | LLM: ${genResult.llmUsed} | 迭代: ${genResult.iterations}`);
-      } else {
-        console.log(`      ❌ 质量未达标: ${genResult.improvementSuggestions.join(', ')}`);
+  // 并行生成所有平台内容
+  const genResults = await Promise.all(
+    targetPlatforms.map(async (platform) => {
+      console.log(`   📝 生成 ${platform} 版本...`);
+      try {
+        const genResult = await selfEvolutionGenerator.generateWithQualityGate(platform, dynamicContext);
+        return { platform, genResult, error: null };
+      } catch (error: any) {
+        return { platform, genResult: null, error: error.message };
       }
-    } catch (error: any) {
-      console.error(`      ❌ ${platform} 生成失败: ${error.message}`);
+    })
+  );
+
+  // 处理生成结果
+  if (!existsSync(outputBaseDir)) {
+    mkdirSync(outputBaseDir, { recursive: true });
+  }
+
+  for (const { platform, genResult, error } of genResults) {
+    if (error) {
+      console.error(`      ❌ ${platform} 生成失败: ${error}`);
+      continue;
+    }
+    if (genResult && genResult.passed) {
+      const filePath = join(outputBaseDir, `${platform}.md`);
+      const fileContent = `# ${genResult.content.title}\n\n${genResult.content.body}`;
+      writeFileSync(filePath, fileContent, 'utf-8');
+
+      outputs.push({
+        platform,
+        title: genResult.content.title,
+        content: genResult.content.body,
+        wordCount: genResult.content.wordCount,
+        filePath,
+      });
+
+      console.log(`      ✅ ${platform} 已保存: ${filePath} (${genResult.content.wordCount}字)`);
+      console.log(`      📊 质量: ${genResult.score}/100 | LLM: ${genResult.llmUsed} | 迭代: ${genResult.iterations}`);
+    } else if (genResult) {
+      console.log(`      ❌ ${platform} 质量未达标: ${genResult.improvementSuggestions.join(', ')}`);
     }
   }
   console.log('');
