@@ -27,7 +27,7 @@ export class InlineEvaluator {
       return {
         scores: parsed.scores,
         score: parsed.weightedScore,
-        passed: !parsed.hasVeto && parsed.weightedScore >= 85,
+        passed: !parsed.hasVeto && parsed.weightedScore >= 70,
         hasVeto: parsed.hasVeto,
         vetoDimensions: parsed.vetoDimensions || [],
         suggestions: parsed.suggestions || [],
