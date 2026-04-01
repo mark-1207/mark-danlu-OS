@@ -54,7 +54,7 @@ function generateAnalyzePrompt(content: string): string {
    - 方法论块：可操作的步骤/框架
    - 故事块：叙事性段落
 
-请以JSON格式输出：
+请直接输出JSON，不要任何解释或其他文字：
 {
   "intent": {
     "coreClaim": "一句话核心主张",
@@ -114,14 +114,40 @@ export async function analyze(
   // 解析JSON响应
   let parsed: any;
   try {
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      parsed = JSON.parse(jsonMatch[0]);
+    // 尝试多种方式提取JSON
+    let jsonStr = '';
+    const trimmed = response.trim();
+
+    // 方法1: 如果直接以 { 开头，直接解析
+    if (trimmed.startsWith('{')) {
+      // 找到匹配的结束括号
+      let depth = 0;
+      for (let i = 0; i < trimmed.length; i++) {
+        if (trimmed[i] === '{') depth++;
+        else if (trimmed[i] === '}') depth--;
+        if (depth === 0) {
+          jsonStr = trimmed.substring(0, i + 1);
+          break;
+        }
+      }
+    }
+
+    // 方法2: 从 response 中提取 JSON 块
+    if (!jsonStr) {
+      const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0];
+      }
+    }
+
+    if (jsonStr) {
+      parsed = JSON.parse(jsonStr);
     } else {
       throw new Error('未找到有效的JSON');
     }
   } catch (error) {
     console.error('解析分析结果失败:', error);
+    console.error('LLM原始响应:', response.substring(0, 500));
     // 返回默认结构
     parsed = generateDefaultReport(extracted);
   }
@@ -163,7 +189,7 @@ export async function analyze(
       sharableQuotes: [],
       controversialPoints: [],
       dataAnchors: [],
-      identity认同: [],
+      identityTags: [],
     },
   };
 
