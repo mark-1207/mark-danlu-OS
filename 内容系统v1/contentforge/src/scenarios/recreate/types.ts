@@ -133,9 +133,34 @@ export const DualReviewResultSchema = z.object({
   viralPotentialReport: ViralPotentialReportSchema,
   finalArticle: z.string(),
   needsRewrite: z.boolean(),
+  // P1/P2 triggers — present when originality passes but element scores are below threshold
+  needsLocalRewrite: z.boolean().optional(),
+  optimizationTriggers: z.array(z.object({
+    element: z.enum(['title', 'hook', 'section', 'cta', 'power-sentences', 'example']),
+    score: z.number(),
+    position: z.string().optional(), // e.g. "paragraph 3" or "opening" or "emotionCurve position 2"
+    suggestion: z.string(),
+    action: z.enum(['rewrite-title', 'rewrite-hook', 'rewrite-section', 'rewrite-cta', 'supplement-power-sentences', 'replace-example']),
+  })).optional(),
 });
 
 export type DualReviewResult = z.infer<typeof DualReviewResultSchema>;
+
+// ─── Local Rewrite ──────────────────────────────────────────────────
+
+export const LocalRewriteResultSchema = z.object({
+  originalArticle: z.string(),
+  rewrittenArticle: z.string(),
+  appliedTriggers: z.array(z.object({
+    element: z.string(),
+    action: z.string(),
+    originalText: z.string().optional(),
+    newText: z.string().optional(),
+  })),
+  remainingTriggers: z.array(z.string()), // actions that could not be applied
+});
+
+export type LocalRewriteResult = z.infer<typeof LocalRewriteResultSchema>;
 
 // ─── Final Output ────────────────────────────────────────────────────
 

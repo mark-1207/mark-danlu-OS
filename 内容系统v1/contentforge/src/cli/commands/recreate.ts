@@ -80,7 +80,8 @@ export async function runRecreate(
     const result = await pipeline.run(input, context);
     finalContext = result.context;
   } catch (error) {
-    if (pendingError === '__PAUSE_FOR_SELECTION__' || String(error) === '__PAUSE_FOR_SELECTION__') {
+    const errStr = String(error);
+    if (pendingError === '__PAUSE_FOR_SELECTION__' || errStr === '__PAUSE_FOR_SELECTION__') {
       // User selection needed
       if (!pendingInteractiveSelection) throw new Error('Differentiation result not found for interactive selection');
 
@@ -122,6 +123,25 @@ export async function runRecreate(
       }
     } else {
       throw error;
+    }
+  }
+
+  // Check if P1/P2 element-level optimization is needed
+  const needsLocalRewrite = finalContext.get<boolean>('needsLocalRewrite');
+  if (needsLocalRewrite) {
+    const triggers = finalContext.get<Array<{ element: string; action: string }>>('optimization-triggers') ?? [];
+    console.log(chalk.yellow(`\n⚙️  正在进行元素级优化 (${triggers.length} 项)...\n`));
+
+    progress.startStep('local-rewrite');
+    const resumeResult = await pipeline.resumeFrom('local-rewrite', context);
+    finalContext = resumeResult.context;
+
+    const localRewriteResult = finalContext.getStepResult('local-rewrite');
+    if (localRewriteResult?.success) {
+      progress.completeStep('local-rewrite', localRewriteResult.durationMs, `tokens: +${localRewriteResult.tokenUsage.output}`);
+      console.log(chalk.yellow(`  已优化元素: ${triggers.map(t => t.element).join(', ')}`));
+    } else {
+      progress.failStep('local-rewrite', localRewriteResult?.error ?? 'unknown error');
     }
   }
 

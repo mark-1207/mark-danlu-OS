@@ -7,6 +7,7 @@ import {
   NewOutlineStep,
   RecreationContentStep,
   DualReviewStep,
+  LocalRewriteStep,
 } from './steps/index.js';
 
 /**
@@ -32,16 +33,39 @@ export function buildRecreatePipeline(config: Config, direction: 'auto' | 'inter
   const newOutline = new NewOutlineStep(provider, defaultModel);
   const recreationContent = new RecreationContentStep(provider, defaultModel);
   const dualReview = new DualReviewStep(provider, defaultModel);
+  const localRewrite = new LocalRewriteStep(provider, defaultModel);
+
+  const baseSteps = [
+    viralDeconstruction,
+    differentiation,
+    newOutline,
+    recreationContent,
+    dualReview,
+  ];
+
+  // localRewrite is inserted AFTER dualReview via resumeFrom when needsLocalRewrite=true.
+  // The CLI/resume handler checks dualReview's output and triggers resume if needed.
+  const allSteps = [
+    viralDeconstruction,
+    differentiation,
+    newOutline,
+    recreationContent,
+    dualReview,
+    // localRewrite is conditionally inserted — see runWithLocalRewrite
+    localRewrite,
+  ];
 
   return new Pipeline({
     name: 'recreate',
-    description: 'Recreate a viral article with differentiation',
-    steps: [
-      viralDeconstruction,
-      differentiation,
-      newOutline,
-      recreationContent,
-      dualReview,
-    ],
+    description: 'Recreate a viral article with differentiation + optional element-level optimization',
+    steps: allSteps,
   });
+}
+
+/**
+ * Returns the index of localRewrite step in the pipeline (last step).
+ * Used by CLI to determine resume position.
+ */
+export function getLocalRewriteResumePoint(): string {
+  return 'local-rewrite';
 }
