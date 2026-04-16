@@ -71,6 +71,7 @@ export function buildCreatePipeline(config: Config): Pipeline {
     ],
     parallelGroups: [
       { stepNames: ['outline-wechat', 'outline-xiaohongshu', 'outline-douyin'], concurrency: 3 },
+      { stepNames: ['material-search'], concurrency: 1 },
       { stepNames: ['content-wechat', 'content-xiaohongshu', 'content-douyin'], concurrency: 3 },
       { stepNames: ['review-wechat', 'review-xiaohongshu', 'review-douyin'], concurrency: 3 },
     ],

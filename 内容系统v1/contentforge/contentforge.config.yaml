@@ -59,4 +59,5 @@ output:
   saveIntermediateArtifacts: true
 
 search:
-  enabled: false
+  enabled: true
+  provider: tavily
