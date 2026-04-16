@@ -127,32 +127,38 @@ function getSearchProvider(providerName: string): SearchProvider | null {
  */
 export function extractQueriesFromOutlines(
   assignments: PlatformAssignments,
-  outlines: { wechat: WechatOutline; xiaohongshu: XiaohongshuOutline; douyin: DouyinOutline },
+  outlines: { wechat?: WechatOutline; xiaohongshu?: XiaohongshuOutline; douyin?: DouyinOutline },
   keyword: string,
 ): Record<string, string[]> {
   const queries: Record<string, string[]> = { wechat: [], xiaohongshu: [], douyin: [] };
 
   // WeChat: extract from section case slots and key points
-  for (const section of outlines.wechat.sections ?? []) {
-    if (section.caseSlot && !section.caseSlot.includes('无需') && !section.caseSlot.includes('无需案例')) {
-      queries.wechat.push(`${keyword} ${section.title} ${section.caseSlot}`);
-    }
-    for (const point of section.keyPoints ?? []) {
-      if (point.length > 5) queries.wechat.push(`${keyword} ${point}`);
+  if (outlines.wechat) {
+    for (const section of outlines.wechat.sections ?? []) {
+      if (section.caseSlot && !section.caseSlot.includes('无需') && !section.caseSlot.includes('无需案例')) {
+        queries.wechat.push(`${keyword} ${section.title} ${section.caseSlot}`);
+      }
+      for (const point of section.keyPoints ?? []) {
+        if (point.length > 5) queries.wechat.push(`${keyword} ${point}`);
+      }
     }
   }
 
   // Xiaohongshu: tips often need real examples
-  for (const tip of outlines.xiaohongshu.tips ?? []) {
-    queries.xiaohongshu.push(`${keyword} ${tip.title}`);
+  if (outlines.xiaohongshu) {
+    for (const tip of outlines.xiaohongshu.tips ?? []) {
+      queries.xiaohongshu.push(`${keyword} ${tip.title}`);
+    }
   }
 
   // Douyin: core point and mini case
-  if (outlines.douyin.corePoint?.statement) {
-    queries.douyin.push(`${keyword} ${outlines.douyin.corePoint.statement}`);
-  }
-  if (outlines.douyin.miniCase) {
-    queries.douyin.push(`${keyword} ${outlines.douyin.miniCase}`);
+  if (outlines.douyin) {
+    if (outlines.douyin.corePoint?.statement) {
+      queries.douyin.push(`${keyword} ${outlines.douyin.corePoint.statement}`);
+    }
+    if (outlines.douyin.miniCase) {
+      queries.douyin.push(`${keyword} ${outlines.douyin.miniCase}`);
+    }
   }
 
   // Deduplicate and limit
@@ -278,17 +284,23 @@ export class MaterialSearchStep extends PipelineStep<z.infer<typeof InputSchema>
     // Read from context (set by previous steps)
     const topicAnalysis = context.get<TopicAnalysis>('topic-analysis');
     const assignments = context.get<PlatformAssignments>('topic-assignment');
+
+    // Only require the outlines that were actually generated (partial platform selection OK)
     const outlineWechat = context.get<WechatOutline>('outline-wechat');
     const outlineXiaohongshu = context.get<XiaohongshuOutline>('outline-xiaohongshu');
     const outlineDouyin = context.get<DouyinOutline>('outline-douyin');
 
-    if (!assignments || !outlineWechat || !outlineXiaohongshu || !outlineDouyin) {
+    if (!assignments || (!outlineWechat && !outlineXiaohongshu && !outlineDouyin)) {
       logger.warn('[Step:material-search] missing context data (assignments or outlines), skipping');
       return { wechat: [], xiaohongshu: [], douyin: [] };
     }
 
     const keyword = topicAnalysis?.keyword ?? 'this topic';
-    const outlines = { wechat: outlineWechat, xiaohongshu: outlineXiaohongshu, douyin: outlineDouyin };
+    const outlines = {
+      wechat: outlineWechat,
+      xiaohongshu: outlineXiaohongshu,
+      douyin: outlineDouyin,
+    };
     const queries = extractQueriesFromOutlines(assignments, outlines, keyword);
 
     const results: MaterialSearchOutput = { wechat: [], xiaohongshu: [], douyin: [] };

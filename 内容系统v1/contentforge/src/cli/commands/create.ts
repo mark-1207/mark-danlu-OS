@@ -4,14 +4,33 @@ import path from 'path';
 import fs from 'fs/promises';
 import { loadConfig, setCachedConfig } from '../../config/loader.js';
 import { llmFactory } from '../../llm/factory.js';
-import { buildCreatePipeline } from '../../scenarios/create/index.js';
+import { buildCreatePipeline, type PlatformSelection } from '../../scenarios/create/index.js';
 import { PipelineContext } from '../../core/context.js';
 import { setupRunLogger } from '../../utils/logger.js';
 import { logger } from '../../utils/logger.js';
 import { ProgressDisplay } from '../ui/progress.js';
 import { estimateCost } from '../../utils/token-counter.js';
 
+const VALID_PLATFORMS = ['wechat', 'xiaohongshu', 'douyin'] as const;
+const PLATFORM_LABELS: Record<string, string> = {
+  wechat: '公众号',
+  xiaohongshu: '小红书',
+  douyin: '抖音',
+};
+
 export async function runCreate(keyword: string, options: { platforms?: string; context?: string }): Promise<void> {
+  // Parse and validate platforms
+  let selectedPlatforms: PlatformSelection | undefined;
+  if (options.platforms) {
+    const raw = options.platforms.split(',').map((p) => p.trim().toLowerCase());
+    const invalid = raw.filter((p) => !VALID_PLATFORMS.includes(p as typeof VALID_PLATFORMS[number]));
+    if (invalid.length) {
+      console.error(chalk.red(`错误: 无效平台 ${invalid.join(', ')}，有效值: ${VALID_PLATFORMS.join(', ')}`));
+      process.exit(1);
+    }
+    selectedPlatforms = raw as PlatformSelection;
+  }
+
   // Load config
   const config = await loadConfig();
   setCachedConfig(config);
@@ -21,8 +40,7 @@ export async function runCreate(keyword: string, options: { platforms?: string; 
     llmFactory.register(name, providerConfig);
   }
 
-  const provider = llmFactory.get(config.defaultProvider);
-  const pipeline = buildCreatePipeline(config);
+  const pipeline = buildCreatePipeline(config, selectedPlatforms);
 
   const outputDir = config.output?.dir ?? './output';
   const runId = `create_${Date.now()}`;
@@ -34,9 +52,13 @@ export async function runCreate(keyword: string, options: { platforms?: string; 
   const context = new PipelineContext('create', runDir, runId);
   const progress = new ProgressDisplay();
 
+  const platformList = selectedPlatforms
+    ? selectedPlatforms.map((p) => PLATFORM_LABELS[p]).join(' / ')
+    : '全部';
+
   console.log(chalk.bold('\n🔨 ContentForge — 原创生成\n'));
   console.log(`关键词: ${keyword}`);
-  console.log(`平台: 公众号 / 小红书 / 抖音\n`);
+  console.log(`平台: ${platformList}\n`);
 
   // Register step callbacks
   pipeline.onStepComplete((stepName, result) => {
@@ -77,9 +99,9 @@ export async function runCreate(keyword: string, options: { platforms?: string; 
 export function registerCreateCommand(program: Command): void {
   program
     .command('create')
-    .description('从关键词生成三平台原创内容')
+    .description('从关键词生成原创内容')
     .requiredOption('-k, --keyword <text>', '关键词或主题')
-    .option('-p, --platforms <list>', '平台列表 (逗号分隔，默认全部)')
+    .option('-p, --platforms <list>', `平台列表 (逗号分隔，可选: wechat,xiaohongshu,douyin，默认全部)`)
     .option('-c, --context <text>', '用户补充说明')
     .action(async (opts) => {
       try {

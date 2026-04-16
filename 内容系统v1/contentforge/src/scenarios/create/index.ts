@@ -1,5 +1,5 @@
 import { Pipeline } from '../../core/pipeline.js';
-import { llmFactory, type ProviderType } from '../../llm/factory.js';
+import { llmFactory } from '../../llm/factory.js';
 import type { Config } from '../../config/schema.js';
 import {
   TopicAnalysisStep,
@@ -16,14 +16,25 @@ import {
   MaterialSearchStep,
 } from './steps/index.js';
 
+const ALL_PLATFORMS = ['wechat', 'xiaohongshu', 'douyin'] as const;
+type Platform = typeof ALL_PLATFORMS[number];
+
+const PLATFORM_STEP_NAMES = {
+  outline: { wechat: 'outline-wechat', xiaohongshu: 'outline-xiaohongshu', douyin: 'outline-douyin' },
+  content: { wechat: 'content-wechat', xiaohongshu: 'content-xiaohongshu', douyin: 'content-douyin' },
+  review: { wechat: 'review-wechat', xiaohongshu: 'review-xiaohongshu', douyin: 'review-douyin' },
+};
+
+export type PlatformSelection = Platform[];
+
 /**
  * Build and return a configured Create Pipeline (Scenario A).
  *
- * Usage:
- *   const pipeline = buildCreatePipeline(config);
- *   const { context } = await pipeline.run({ keyword: 'AI' }, context);
+ * @param config - Configuration object
+ * @param platforms - Array of platforms to generate for. Defaults to all three.
+ *   Example: ['wechat'] or ['wechat', 'douyin']
  */
-export function buildCreatePipeline(config: Config): Pipeline {
+export function buildCreatePipeline(config: Config, platforms?: PlatformSelection): Pipeline {
   // Get the default provider
   const providerConfig = config.providers[config.defaultProvider];
   if (!providerConfig) {
@@ -33,47 +44,67 @@ export function buildCreatePipeline(config: Config): Pipeline {
   const provider = llmFactory.get(config.defaultProvider);
   const defaultModel = providerConfig.defaultModel;
 
-  // Instantiate steps
+  // Default to all platforms
+  const selected: PlatformSelection = platforms?.length ? platforms : [...ALL_PLATFORMS];
+
+  // Shared steps — always run
   const topicAnalysis = new TopicAnalysisStep(provider, defaultModel);
   const topicAssignment = new TopicAssignmentStep(provider, defaultModel);
-
-  const outlineWechat = new OutlineWechatStep(provider, defaultModel);
-  const outlineXiaohongshu = new OutlineXiaohongshuStep(provider, defaultModel);
-  const outlineDouyin = new OutlineDouyinStep(provider, defaultModel);
-
-  // Step 4 — material search (P1, optional/placeholder)
   const materialSearch = new MaterialSearchStep(provider, defaultModel);
 
-  const contentWechat = new ContentWechatStep(provider, defaultModel);
-  const contentXiaohongshu = new ContentXiaohongshuStep(provider, defaultModel);
-  const contentDouyin = new ContentDouyinStep(provider, defaultModel);
+  // Platform-specific steps — only for selected platforms
+  const outlineSteps = selected
+    .map((p) => {
+      if (p === 'wechat') return new OutlineWechatStep(provider, defaultModel);
+      if (p === 'xiaohongshu') return new OutlineXiaohongshuStep(provider, defaultModel);
+      if (p === 'douyin') return new OutlineDouyinStep(provider, defaultModel);
+      return null;
+    })
+    .filter(Boolean) as (OutlineWechatStep | OutlineXiaohongshuStep | OutlineDouyinStep)[];
 
-  const reviewWechat = new ReviewWechatStep(provider, defaultModel);
-  const reviewXiaohongshu = new ReviewXiaohongshuStep(provider, defaultModel);
-  const reviewDouyin = new ReviewDouyinStep(provider, defaultModel);
+  const contentSteps = selected
+    .map((p) => {
+      if (p === 'wechat') return new ContentWechatStep(provider, defaultModel);
+      if (p === 'xiaohongshu') return new ContentXiaohongshuStep(provider, defaultModel);
+      if (p === 'douyin') return new ContentDouyinStep(provider, defaultModel);
+      return null;
+    })
+    .filter(Boolean) as (ContentWechatStep | ContentXiaohongshuStep | ContentDouyinStep)[];
+
+  const reviewSteps = selected
+    .map((p) => {
+      if (p === 'wechat') return new ReviewWechatStep(provider, defaultModel);
+      if (p === 'xiaohongshu') return new ReviewXiaohongshuStep(provider, defaultModel);
+      if (p === 'douyin') return new ReviewDouyinStep(provider, defaultModel);
+      return null;
+    })
+    .filter(Boolean) as (ReviewWechatStep | ReviewXiaohongshuStep | ReviewDouyinStep)[];
+
+  const allSteps = [
+    topicAnalysis,
+    topicAssignment,
+    ...outlineSteps,
+    materialSearch,
+    ...contentSteps,
+    ...reviewSteps,
+  ];
+
+  // Build parallel groups for non-empty groups
+  const outlineNames = outlineSteps.map((s) => s.config.name);
+  const contentNames = contentSteps.map((s) => s.config.name);
+  const reviewNames = reviewSteps.map((s) => s.config.name);
+
+  const parallelGroups = [
+    { stepNames: outlineNames, concurrency: 3 },
+    { stepNames: ['material-search'], concurrency: 1 },
+    { stepNames: contentNames, concurrency: 3 },
+    { stepNames: reviewNames, concurrency: 3 },
+  ].filter((g) => g.stepNames.length > 0);
 
   return new Pipeline({
     name: 'create',
     description: 'Generate multi-platform content from a keyword',
-    steps: [
-      topicAnalysis,
-      topicAssignment,
-      outlineWechat,
-      outlineXiaohongshu,
-      outlineDouyin,
-      materialSearch,
-      contentWechat,
-      contentXiaohongshu,
-      contentDouyin,
-      reviewWechat,
-      reviewXiaohongshu,
-      reviewDouyin,
-    ],
-    parallelGroups: [
-      { stepNames: ['outline-wechat', 'outline-xiaohongshu', 'outline-douyin'], concurrency: 3 },
-      { stepNames: ['material-search'], concurrency: 1 },
-      { stepNames: ['content-wechat', 'content-xiaohongshu', 'content-douyin'], concurrency: 3 },
-      { stepNames: ['review-wechat', 'review-xiaohongshu', 'review-douyin'], concurrency: 3 },
-    ],
+    steps: allSteps,
+    parallelGroups,
   });
 }
