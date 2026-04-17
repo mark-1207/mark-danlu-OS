@@ -15,6 +15,8 @@ export const ViralGenomeSchema = z.object({
     wordRatio: z.number(),
     emotionMark: z.string(),
     technique: z.string(),
+    // P0-2: 每段的论证方式（如"引用权威→对比→结论"、"问题共鸣→原因分析→方案"）
+    argumentativePath: z.string(),
   })),
   hookTechnique: z.object({
     type: z.string(),
@@ -34,6 +36,11 @@ export const ViralGenomeSchema = z.object({
   viralFactors: z.array(z.string()),
   contentDensityScore: z.number(),
   estimatedReadTime: z.string(),
+  // P0-1: 原文高光表达，禁止在二创中使用
+  forbiddenExpressions: z.array(z.object({
+    text: z.string(),
+    reason: z.string(),
+  })),
 });
 
 export type ViralGenome = z.infer<typeof ViralGenomeSchema>;
@@ -50,6 +57,8 @@ export const DifferentiationDirectionSchema = z.object({
   differentiationScore: z.number(),
   feasibilityScore: z.number(),
   compositeScore: z.number(),
+  // P2-5: 本方向的段落逻辑链（每个方向必须有不同的论证路径）
+  structuralCommitment: z.string(),
 });
 
 export type DifferentiationDirection = z.infer<typeof DifferentiationDirectionSchema>;
@@ -74,6 +83,8 @@ export const NewOutlineSectionSchema = z.object({
   }),
   wordRatio: z.number(),
   emotionTarget: z.string(),
+  // P1-3: 本段落的论证方式，必须与原文的 argumentativePath 不同
+  argumentativePath: z.string(),
 });
 
 export const NewOutlineSchema = z.object({

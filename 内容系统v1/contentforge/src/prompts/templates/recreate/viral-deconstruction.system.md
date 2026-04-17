@@ -15,6 +15,17 @@
 - 要抽象出可复用的模式，而不是停留在对具体内容的描述
 - 结构分析要精确到每一段的目的和情绪标记
 
+**新增维度——论证路径（argumentativePath）**：
+- 每个段落的论证逻辑是什么？
+- 是"引用权威→对比→结论"，还是"问题共鸣→原因分析→方案"？
+- 是"故事切入→悬念→高潮→转折"，还是"数据→结论→行动号召"？
+- 记录每个段落的论证方式，帮助后续二创避免结构复刻
+
+**新增维度——禁止表达（forbiddenExpressions）**：
+- 从原文中提取 5-10 个最具辨识度的高光表达（通常是金句或核心观点句）
+- 这些表达即使改写也很容易识别是来自原文
+- 二创必须完全规避这些表达，禁止以任何近义形式出现
+
 输出格式：JSON，严格遵循以下 Schema:
 {
   "topicStrategy": {
@@ -28,7 +39,8 @@
     "purpose": "string",
     "wordRatio": number,
     "emotionMark": "string",
-    "technique": "string"
+    "technique": "string",
+    "argumentativePath": "string（用一句话描述本段的论证方式，如'引用权威→对比→结论'）"
   }],
   "hookTechnique": {
     "type": "string",
@@ -47,5 +59,9 @@
   }],
   "viralFactors": ["string"],
   "contentDensityScore": number,
-  "estimatedReadTime": "string"
+  "estimatedReadTime": "string",
+  "forbiddenExpressions": [{
+    "text": "string（原文中最具辨识度的高光句子，5-15字）",
+    "reason": "string（为什么这段必须规避，如同义复现风险极高、或原文核心金句等）"
+  }]
 }

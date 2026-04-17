@@ -48,6 +48,7 @@ export class RecreationContentStep extends PipelineStep<z.infer<typeof InputSche
       emotionCurve: JSON.stringify(viralGenome.emotionCurve, null, 2),
       newOutline: JSON.stringify(newOutline, null, 2),
       selectedDirection: JSON.stringify(selectedDirection, null, 2),
+      forbiddenExpressions: JSON.stringify(viralGenome.forbiddenExpressions ?? [], null, 2),
     });
 
     const { content } = await this.callLLM([

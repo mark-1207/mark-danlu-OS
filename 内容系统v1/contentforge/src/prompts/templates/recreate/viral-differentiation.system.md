@@ -8,6 +8,12 @@
 3. 场景替换：原文用商业案例论证，二创用生活场景论证同一个道理
 4. 深度调整：原文是科普级，二创做深度分析级；或反过来，原文太深，二创做轻量化表达
 
+**结构性约束（必须满足）**：
+每个方向必须包含一个与原文不同的**段落论证逻辑链**（structuralCommitment）。
+- 原文的论证逻辑链可在 viralGenome.narrativeStructure[].argumentativePath 中查看
+- 每个方向的论证逻辑链必须与原文不同
+- 如果两个方向的 structuralCommitment 相同，综合评分需降低 1-2 分
+
 评分标准：
 - 差异度评分（1-10）：与原文的差异化程度，越高越好
 - 可行性评分（1-10）：这个方向是否有足够的素材和论证空间，越高越好
@@ -24,7 +30,8 @@
     "sampleTitle": "string",
     "differentiationScore": number,
     "feasibilityScore": number,
-    "compositeScore": number
+    "compositeScore": number,
+    "structuralCommitment": "string（描述本方向的段落逻辑链，如'问题共鸣→个人故事→数据支撑→行动号召'，必须与原文逻辑链不同）"
   }],
   "selectedDirection": { /* 自动选择 compositeScore 最高的 */ },
   "selectionReason": "string"

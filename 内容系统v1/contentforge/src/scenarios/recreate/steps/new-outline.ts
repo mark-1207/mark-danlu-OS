@@ -45,6 +45,7 @@ export class NewOutlineStep extends PipelineStep<z.infer<typeof InputSchema>, Ne
       narrativeStructure: JSON.stringify(viralGenome.narrativeStructure, null, 2),
       emotionCurve: JSON.stringify(viralGenome.emotionCurve, null, 2),
       selectedDirection: JSON.stringify(selectedDirection, null, 2),
+      forbiddenExpressions: JSON.stringify(viralGenome.forbiddenExpressions ?? [], null, 2),
     });
 
     return this.callLLMJson<NewOutline>([

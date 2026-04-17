@@ -43,6 +43,7 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
   protected async doExecute(input: z.infer<typeof InputSchema>, context: PipelineContext): Promise<DualReviewResult> {
     const originalArticle = context.get<string>('_originalArticle');
     const recreationArticle = context.get<string>('recreation-content');
+    const viralGenome = context.get<ViralGenome>('viral-deconstruction');
     if (!originalArticle || !recreationArticle) throw new Error('Missing context: _originalArticle or recreation-content');
 
     let article = recreationArticle;
@@ -51,7 +52,7 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
     // ── P0: Originality rewrite loop ──────────────────────────────────
     while (iteration < MAX_ITERATIONS) {
       iteration++;
-      const reviewResult = await this.reviewOnce(originalArticle, article);
+      const reviewResult = await this.reviewOnce(originalArticle, article, viralGenome);
 
       if (!reviewResult.needsRewrite) {
         // P0 passed — evaluate P1/P2
@@ -83,10 +84,10 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
         };
       }
 
-      article = await this.rewriteFlaggedParagraphs(article, reviewResult.originalityReport.flaggedParagraphs);
+      article = await this.rewriteFlaggedParagraphs(article, reviewResult.originalityReport.flaggedParagraphs, iteration);
     }
 
-    return await this.reviewOnce(originalArticle, article);
+    return await this.reviewOnce(originalArticle, article, viralGenome);
   }
 
   private extractTriggers(
@@ -164,10 +165,15 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
     return triggers;
   }
 
-  private async reviewOnce(original: string, recreation: string): Promise<DualReviewResult> {
+  private async reviewOnce(original: string, recreation: string, viralGenome?: ViralGenome): Promise<DualReviewResult> {
     const template = await promptLoader.load('recreate', 'dual-review');
 
-    const systemPrompt = template.system;
+    // Build argumentative paths reference for structural similarity check
+    const argumentativePaths = viralGenome?.narrativeStructure
+      .map((s, i) => `第${i + 1}段: ${s.argumentativePath}`)
+      .join('\n') ?? '';
+
+    const systemPrompt = template.system.replace('{{argumentativePaths}}', argumentativePaths || '（无原文论证路径数据）');
     const userPrompt = template.user
       .replace('{{originalArticle}}', original)
       .replace('{{recreationArticle}}', recreation);
@@ -178,20 +184,48 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
     ]);
   }
 
+  /**
+   * Rewrite flagged paragraphs using escalation strategy:
+   * - iteration 1: inject narrative identity (e.g. "从外卖小哥视角重写")
+   * - iteration 2: force different argumentative method
+   * - iteration 3 (final): regenerate from viral genome (drop original entirely)
+   */
   private async rewriteFlaggedParagraphs(
     article: string,
     flaggedParagraphs: Array<{ paragraphIndex: number; recreationText: string }>,
+    iteration: number,
   ): Promise<string> {
     const lines = article.split('\n');
     const flaggedIndices = new Set(flaggedParagraphs.map((p) => p.paragraphIndex));
 
+    const strategy = iteration === 1
+      ? 'narrative-identity'
+      : iteration === 2
+      ? 'argumentative-shift'
+      : 'structural-regeneration';
+
     for (const idx of flaggedIndices) {
       if (idx >= 0 && idx < lines.length) {
         const originalText = flaggedParagraphs.find((p) => p.paragraphIndex === idx)?.recreationText ?? lines[idx];
+        let rewritePrompt: string;
 
-        const rewritePrompt = `请将以下段落改写，要求：保持相同的意思，但用完全不同的表达方式，禁止使用原文的任何完整句子或相似表达。\n\n原文：${originalText}`;
+        if (strategy === 'narrative-identity') {
+          // Strategy 1: inject a specific narrative POV to break stylistic similarity
+          const povOptions = ['从外卖小哥的真实视角', '从一个刚毕业的应届生角度', '从一个宝妈的日常场景', '从一个产品经理的角度'];
+          const pov = povOptions[idx % povOptions.length];
+          rewritePrompt = `${pov}，将以下段落用完全不同的叙事身份和表达风格重写。保持核心信息，但必须改变：1）叙事身份 2）句式结构 3）用词选择。禁止使用原文任何完整句子或近义表达。\n\n原文：${originalText}`;
+        } else if (strategy === 'argumentative-shift') {
+          // Strategy 2: force a different argumentative method
+          const methodOptions = ['用故事叙事替代说理', '用数据对比替代定性结论', '用问答形式替代陈述形式', '用反常识视角替代常规认知'];
+          const method = methodOptions[idx % methodOptions.length];
+          rewritePrompt = `用"${method}"的方式重写以下段落。要求：改变论证方式而非仅仅换词，必须实质性地改变论述结构。禁止使用原文任何完整句子或近义表达。\n\n原文：${originalText}`;
+        } else {
+          // Strategy 3: regenerate from scratch using only the structural instruction
+          rewritePrompt = `完全重新生成以下段落的内容。只保留与原文相同的主题方向，用全新的论点、全新的案例、全新的表达方式来写。禁止引用或借鉴原文的任何具体表述。\n\n原文：${originalText}`;
+        }
+
         const { content } = await this.callLLM([
-          { role: 'system', content: '你是一位创意写作专家，擅长同义改写。' },
+          { role: 'system', content: '你是一位创意写作专家，擅长内容重构。' },
           { role: 'user', content: rewritePrompt },
         ]);
         lines[idx] = content.trim();
