@@ -43,7 +43,11 @@ export async function runRecreate(
 
   // Read and validate original article
   const rawFile = await fs.readFile(path.resolve(inputPath));
-  const validation = await validateAndCleanInput(rawFile, path.basename(inputPath));
+  const validation = await validateAndCleanInput(
+    rawFile,
+    path.basename(inputPath),
+    config.inputValidation ?? {},
+  );
 
   if (validation.errors.length > 0) {
     console.error(chalk.red('\n错误: 输入验证失败\n'));

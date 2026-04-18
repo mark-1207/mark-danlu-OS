@@ -49,6 +49,13 @@ const ConfigSchema = z.object({
       onExceedAction: z.enum(['skip-local-rewrite', 'abort']).default('skip-local-rewrite'),
     })
     .nullish(),
+  inputValidation: z
+    .object({
+      minLengthError: z.number().optional().describe('Minimum content length (chars) to allow — below this blocks with error'),
+      minLengthWarn: z.number().optional().describe('Content length below this generates a warning but continues'),
+      htmlHandling: z.enum(['strip', 'reject']).default('strip'),
+    })
+    .optional(),
   search: z
     .object({
       enabled: z.boolean().default(false),

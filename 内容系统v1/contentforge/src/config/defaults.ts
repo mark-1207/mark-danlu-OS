@@ -44,6 +44,11 @@ export const DEFAULT_CONFIG: Config = {
     maxCostPerRun: undefined,
     onExceedAction: 'skip-local-rewrite',
   },
+  inputValidation: {
+    minLengthError: 200,
+    minLengthWarn: 500,
+    htmlHandling: 'strip',
+  },
   search: {
     enabled: false,
   },
