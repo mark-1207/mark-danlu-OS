@@ -61,3 +61,8 @@ output:
 search:
   enabled: true
   provider: tavily
+
+# 成本控制：限制单次 recreate 运行的最高预估成本
+costControl:
+  # maxCostPerRun: 0.5    # 最高预估成本（美元），不设置则无上限
+  # onExceedAction: skip-local-rewrite  # 超过上限时：skip-local-rewrite（跳过元素级优化）或 abort（中止运行）

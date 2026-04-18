@@ -137,8 +137,25 @@ export async function runRecreate(
   }
 
   // Check if P1/P2 element-level optimization is needed
-  const needsLocalRewrite = finalContext.get<boolean>('needsLocalRewrite');
-  if (needsLocalRewrite) {
+  let shouldRunLocalRewrite = finalContext.get<boolean>('needsLocalRewrite') ?? false;
+  if (shouldRunLocalRewrite) {
+    // Cost cap check before running local-rewrite
+    const costControl = config.costControl;
+    if (costControl?.maxCostPerRun != null) {
+      const tokenUsage = finalContext.getTotalTokenUsage();
+      const currentCost = estimateCost(tokenUsage.input, tokenUsage.output);
+      if (currentCost > costControl.maxCostPerRun) {
+        if (costControl.onExceedAction === 'abort') {
+          console.log(chalk.red(`\n⚠️  预估成本 $${currentCost.toFixed(4)} 超过上限 $${costControl.maxCostPerRun}，中止运行\n`));
+          throw new Error(`Cost cap exceeded: $${currentCost.toFixed(4)} > $${costControl.maxCostPerRun}`);
+        }
+        console.log(chalk.yellow(`\n⚠️  预估成本 $${currentCost.toFixed(4)} 超过上限 $${costControl.maxCostPerRun}，跳过元素级优化\n`));
+        shouldRunLocalRewrite = false;
+      }
+    }
+  }
+
+  if (shouldRunLocalRewrite) {
     const triggers = finalContext.get<Array<{ element: string; action: string }>>('optimization-triggers') ?? [];
     console.log(chalk.yellow(`\n⚙️  正在进行元素级优化 (${triggers.length} 项)...\n`));
 

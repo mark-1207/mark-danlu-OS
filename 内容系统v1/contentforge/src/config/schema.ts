@@ -43,6 +43,12 @@ const ConfigSchema = z.object({
       saveIntermediateArtifacts: z.boolean().default(true),
     })
     .optional(),
+  costControl: z
+    .object({
+      maxCostPerRun: z.number().optional().describe('Maximum estimated cost per run in USD'),
+      onExceedAction: z.enum(['skip-local-rewrite', 'abort']).default('skip-local-rewrite'),
+    })
+    .optional(),
   search: z
     .object({
       enabled: z.boolean().default(false),

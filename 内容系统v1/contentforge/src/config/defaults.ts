@@ -40,6 +40,10 @@ export const DEFAULT_CONFIG: Config = {
     dir: './output',
     saveIntermediateArtifacts: true,
   },
+  costControl: {
+    maxCostPerRun: undefined,
+    onExceedAction: 'skip-local-rewrite',
+  },
   search: {
     enabled: false,
   },
