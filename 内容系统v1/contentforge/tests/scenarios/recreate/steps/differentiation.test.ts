@@ -22,10 +22,10 @@ describe('DifferentiationStep', () => {
 
     const mockLLMResponse = {
       directions: [
-        { name: '角度1', perspectiveShift: 'shift', audienceShift: 'aud', contentShift: 'cnt', newAngle: 'new', sampleTitle: 'title1', differentiationScore: 8, feasibilityScore: 7, compositeScore: 7.6 },
-        { name: '角度2', perspectiveShift: 's2', audienceShift: 'a2', contentShift: 'c2', newAngle: 'n2', sampleTitle: 'title2', differentiationScore: 6, feasibilityScore: 9, compositeScore: 7.2 },
+        { name: '角度1', perspectiveShift: 'shift', audienceShift: 'aud', contentShift: 'cnt', newAngle: 'new', sampleTitle: 'title1', differentiationScore: 8, feasibilityScore: 7, compositeScore: 7.6, structuralCommitment: '问题共鸣→个人故事→数据支撑' },
+        { name: '角度2', perspectiveShift: 's2', audienceShift: 'a2', contentShift: 'c2', newAngle: 'n2', sampleTitle: 'title2', differentiationScore: 6, feasibilityScore: 9, compositeScore: 7.2, structuralCommitment: '观点对比→案例分析→方法总结' },
       ],
-      selectedDirection: { name: '角度1', perspectiveShift: 'shift', audienceShift: 'aud', contentShift: 'cnt', newAngle: 'new', sampleTitle: 'title1', differentiationScore: 8, feasibilityScore: 7, compositeScore: 7.6 },
+      selectedDirection: { name: '角度1', perspectiveShift: 'shift', audienceShift: 'aud', contentShift: 'cnt', newAngle: 'new', sampleTitle: 'title1', differentiationScore: 8, feasibilityScore: 7, compositeScore: 7.6, structuralCommitment: '问题共鸣→个人故事→数据支撑' },
       selectionReason: 'highest composite score',
     };
 
@@ -50,7 +50,7 @@ describe('DifferentiationStep', () => {
 
     const mockLLMResponse = {
       directions: [
-        { name: '角度1', perspectiveShift: 's', audienceShift: 'a', contentShift: 'c', newAngle: 'n', sampleTitle: 't1', differentiationScore: 8, feasibilityScore: 7, compositeScore: 7.6 },
+        { name: '角度1', perspectiveShift: 's', audienceShift: 'a', contentShift: 'c', newAngle: 'n', sampleTitle: 't1', differentiationScore: 8, feasibilityScore: 7, compositeScore: 7.6, structuralCommitment: '问题切入→故事展开→观点升华' },
       ],
       selectedDirection: null,
       selectionReason: 'User will select interactively',
@@ -85,9 +85,9 @@ describe('DifferentiationStep', () => {
 
     const mockLLMResponse = {
       directions: [
-        { name: 'a', perspectiveShift: '', audienceShift: '', contentShift: '', newAngle: '', sampleTitle: '', differentiationScore: 5, feasibilityScore: 5, compositeScore: 5 },
+        { name: 'a', perspectiveShift: '', audienceShift: '', contentShift: '', newAngle: '', sampleTitle: '', differentiationScore: 5, feasibilityScore: 5, compositeScore: 5, structuralCommitment: '引入→分析→结论' },
       ],
-      selectedDirection: { name: 'a', perspectiveShift: '', audienceShift: '', contentShift: '', newAngle: '', sampleTitle: '', differentiationScore: 5, feasibilityScore: 5, compositeScore: 5 },
+      selectedDirection: { name: 'a', perspectiveShift: '', audienceShift: '', contentShift: '', newAngle: '', sampleTitle: '', differentiationScore: 5, feasibilityScore: 5, compositeScore: 5, structuralCommitment: '引入→分析→结论' },
       selectionReason: 'auto',
     };
 
