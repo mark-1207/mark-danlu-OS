@@ -138,7 +138,10 @@ export class Pipeline {
               logger.info(`[Pipeline:${this.config.name}] skipping already-completed step: ${step.config.name}`);
               return existing;
             }
-            const result = await this.runStep(step, context.get(step.config.name) ?? {}, context);
+            // Always pass {} as input — doExecute reads from context directly.
+            // Passing the restored artifact would cause inputSchema.parse() to fail
+            // since it expects an object, not a string (e.g. recreation-content is a string).
+            const result = await this.runStep(step, {}, context);
             context.setStepResult(step.config.name, result);
             if (result.success && result.data !== undefined) {
               context.set(step.config.name, result.data);
@@ -163,7 +166,10 @@ export class Pipeline {
           continue;
         }
 
-        const result = await this.runStep(step, context.get(step.config.name) ?? {}, context);
+        // Always pass {} as input — doExecute reads from context directly.
+        // Passing the restored artifact would cause inputSchema.parse() to fail
+        // since it expects an object, not a string (e.g. recreation-content is a string).
+        const result = await this.runStep(step, {}, context);
         context.setStepResult(step.config.name, result);
         if (result.success && result.data !== undefined) {
           context.set(step.config.name, result.data);

@@ -143,6 +143,13 @@ export class PipelineContext {
         const content = await fs.readFile(artifactPath, 'utf-8');
         const data = JSON.parse(content);
         context.set(stepName, data);
+        // Reconstruct step result so resumeFrom skips already-completed steps
+        context.setStepResult(stepName, {
+          success: true,
+          data,
+          tokenUsage: { input: 0, output: 0 },
+          durationMs: 0,
+        });
       } catch {
         // artifact file may not exist for some steps
       }

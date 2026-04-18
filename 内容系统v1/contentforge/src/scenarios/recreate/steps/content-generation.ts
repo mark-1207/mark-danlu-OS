@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import path from 'path';
-import { PipelineStep } from '../../../core/step.js';
+import { PipelineStep, type StepResult } from '../../../core/step.js';
 import { PipelineContext } from '../../../core/context.js';
 import type { LLMProvider } from '../../../llm/types.js';
 import { promptLoader } from '../../../prompts/loader.js';
@@ -33,6 +33,34 @@ export class RecreationContentStep extends PipelineStep<z.infer<typeof InputSche
 
   constructor(provider: LLMProvider, defaultModel: string) {
     super(provider, defaultModel);
+  }
+
+  /**
+   * Override execute to bypass safeJsonParse — this step returns raw text, not JSON.
+   * The base class callLLMJson would call safeJsonParse which fails on plain text,
+   * causing a wasted retry and then returning {content} instead of the string.
+   */
+  async execute(input: z.infer<typeof InputSchema>, context: PipelineContext): Promise<StepResult<string>> {
+    const validatedInput = this.inputSchema.parse(input);
+    const startTime = Date.now();
+
+    for (let attempt = 0; attempt <= this.config.retries; attempt++) {
+      try {
+        const result = await this.doExecute(validatedInput, context);
+        const validatedOutput = this.outputSchema.parse(result);
+        const durationMs = Date.now() - startTime;
+        const tokenUsage = this.lastTokenUsage;
+        return { success: true, data: validatedOutput, tokenUsage, durationMs };
+      } catch (error) {
+        if (attempt < this.config.retries) {
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+      }
+    }
+
+    // Should not reach here if retries handle all cases; fallback
+    const durationMs = Date.now() - startTime;
+    return { success: false, error: 'Step failed after retries', durationMs };
   }
 
   protected async doExecute(input: z.infer<typeof InputSchema>, context: PipelineContext): Promise<string> {
