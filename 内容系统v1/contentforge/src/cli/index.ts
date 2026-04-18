@@ -4,6 +4,7 @@ import { registerRecreateCommand } from './commands/recreate.js';
 import { registerBatchCommand } from './commands/batch.js';
 import { registerResumeCommand } from './commands/resume.js';
 import { registerConfigCommand } from './commands/config.js';
+import { registerLearnCommand } from './commands/learn.js';
 
 export function buildCLI(): Command {
   const program = new Command();
@@ -18,6 +19,7 @@ export function buildCLI(): Command {
   registerBatchCommand(program);
   registerResumeCommand(program);
   registerConfigCommand(program);
+  registerLearnCommand(program);
 
   return program;
 }

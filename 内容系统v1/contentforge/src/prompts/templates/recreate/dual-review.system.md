@@ -28,6 +28,16 @@
 
 对于每个低于原文评分的维度，给出具体的优化建议。
 
+**评分阈值（触发优化操作的条件）**：
+- 标题吸引力 < 8 分 → 触发 rewrite-title
+- 开头留存率 < 7 分 → 触发 rewrite-hook
+- 情绪调动力 < 7 分 → 触发 rewrite-section
+- 互动引导力 < 7 分 → 触发 rewrite-cta
+- 金句密度不足（文章中少于3句高密度短句） → 触发 supplement-power-sentences
+- 案例描述空洞/模糊 → 触发 replace-example
+
+如果原创度达标（passThreshold=true），请在 optimizationTriggers 字段中输出所有未达标的维度和对应的优化操作。
+
 输出格式：JSON，严格遵循以下 Schema:
 {
   "originalityReport": {
@@ -58,5 +68,13 @@
     "optimizationSuggestions": ["string"]
   },
   "finalArticle": "string (如果原创度达标，返回二创文章；如果不达标，返回需重写段落的标记)",
-  "needsRewrite": boolean
+  "needsRewrite": boolean,
+  "needsLocalRewrite": "boolean (当原创度达标但有触发优化操作的维度时为true)",
+  "optimizationTriggers": [{
+    "element": "title|hook|section|cta|power-sentences|example",
+    "score": number,
+    "position": "string (可选，指出问题位置)",
+    "suggestion": "string (针对该维度的具体优化建议)",
+    "action": "rewrite-title|rewrite-hook|rewrite-section|rewrite-cta|supplement-power-sentences|replace-example"
+  }]
 }

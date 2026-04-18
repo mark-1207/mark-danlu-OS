@@ -10,8 +10,13 @@ import { PipelineContext } from '../../core/context.js';
 import { setupRunLogger } from '../../utils/logger.js';
 import { logger } from '../../utils/logger.js';
 import { estimateCost } from '../../utils/token-counter.js';
+import type { ViralGenome } from '../../scenarios/recreate/types.js';
 
-export async function runResume(runId: string, fromStep: string): Promise<void> {
+export async function runResume(
+  runId: string,
+  fromStep: string,
+  options: { snapshot?: boolean } = {},
+): Promise<void> {
   const config = await loadConfig();
   setCachedConfig(config);
 
@@ -23,7 +28,7 @@ export async function runResume(runId: string, fromStep: string): Promise<void> 
   const runDir = path.join(outputDir, runId);
 
   await setupRunLogger(runDir);
-  const context = await PipelineContext.restore(runId, runDir);
+  const context = await PipelineContext.restore(runId, outputDir);
 
   // Detect scenario from runId prefix
   const isRecreate = runId.startsWith('recreate_');
@@ -33,6 +38,44 @@ export async function runResume(runId: string, fromStep: string): Promise<void> 
   const pipeline = isRecreate
     ? buildRecreatePipeline(config, direction as 'auto' | 'interactive')
     : buildCreatePipeline(config);
+
+  // Snapshot resume: load snapshot and inject into context, skip to content-generation
+  if (options.snapshot) {
+    const snapshotPath = path.join(runDir, 'viral-genome-snapshot.json');
+    let snapshotData: ViralGenome;
+    try {
+      const content = await fs.readFile(snapshotPath, 'utf-8');
+      snapshotData = JSON.parse(content) as ViralGenome;
+    } catch {
+      console.error(chalk.red(`错误: 找不到快照文件 ${snapshotPath}`));
+      process.exit(1);
+    }
+
+    // Load existing artifacts that are already completed
+    const diffOutput = context.get('viral-differentiation');
+    const originalArticle = context.get<string>('_originalArticle');
+
+    // Inject snapshot and required artifacts into context
+    context.set('viral-deconstruction', snapshotData);
+    if (diffOutput) context.set('viral-differentiation', diffOutput);
+    if (originalArticle) context.set('_originalArticle', originalArticle);
+
+    // Mark viral-deconstruction and viral-differentiation as already completed in context
+    // so resumeFrom skips them
+    const vdResult = context.getStepResult('viral-deconstruction');
+    const vdDiffResult = context.getStepResult('viral-differentiation');
+    if (!vdResult) context.setStepResult('viral-deconstruction', { success: true, data: snapshotData, tokenUsage: { input: 0, output: 0 }, durationMs: 0 });
+    if (!vdDiffResult && diffOutput) context.setStepResult('viral-differentiation', { success: true, data: diffOutput, tokenUsage: { input: 0, output: 0 }, durationMs: 0 });
+
+    console.log(chalk.bold(`\n▶ Snapshot resume: ${runId} (genome loaded, skipping to content generation)\n`));
+    const { context: finalContext } = await pipeline.resumeFrom('recreation-content', context);
+
+    const tokenUsage = finalContext.getTotalTokenUsage();
+    const cost = estimateCost(tokenUsage.input, tokenUsage.output);
+    console.log(chalk.green('\n✅ Resume 完成\n'));
+    console.log(`预估成本: $${cost.toFixed(4)}\n`);
+    return;
+  }
 
   console.log(chalk.bold(`\n▶ Resume: ${runId} from step "${fromStep}" (direction: ${direction})\n`));
 
@@ -152,12 +195,18 @@ export function registerResumeCommand(program: Command): void {
     .argument('<runId>', '运行 ID')
     .option('--from-step <name>', '从哪个步骤恢复')
     .option('-s, --step <name>', '从哪个步骤恢复 (简写)')
+    .option('--snapshot', '从 viral-genome 快照恢复，跳过前3步，直接从内容生成继续')
     .action(async (runId: string, opts) => {
       try {
+        if (opts.snapshot) {
+          await runResume(runId, 'recreation-content', { snapshot: true });
+          return;
+        }
         const fromStep = opts.step ?? opts.fromStep;
         if (!fromStep) {
-          console.error(chalk.red('错误: 需要 --from-step 参数'));
+          console.error(chalk.red('错误: 需要 --from-step 参数，或使用 --snapshot 从快照恢复'));
           console.log('用法: resume <run-id> --from-step <step-name>');
+          console.log('      resume <run-id> --snapshot  — 从快照恢复，跳过已完成的步骤');
           console.log('      resume steps <run-id>  — 查看某次运行的状态');
           console.log('      resume list           — 列出所有运行记录');
           process.exit(1);

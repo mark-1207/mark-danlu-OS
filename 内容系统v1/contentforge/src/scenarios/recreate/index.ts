@@ -1,6 +1,7 @@
 import { Pipeline } from '../../core/pipeline.js';
 import { llmFactory } from '../../llm/factory.js';
 import type { Config } from '../../config/schema.js';
+import { PipelineStep } from '../../core/step.js';
 import {
   ViralDeconstructionStep,
   DifferentiationStep,
@@ -8,6 +9,7 @@ import {
   RecreationContentStep,
   DualReviewStep,
   LocalRewriteStep,
+  PlatformAdaptationStep,
 } from './steps/index.js';
 
 /**
@@ -18,8 +20,13 @@ import {
  *
  * @param config - Configuration object
  * @param direction - 'auto' uses LLM-selected direction; 'interactive' outputs all directions for user selection
+ * @param platforms - Target platforms for adaptation (if empty, no adaptation step is added)
  */
-export function buildRecreatePipeline(config: Config, direction: 'auto' | 'interactive' = 'auto'): Pipeline {
+export function buildRecreatePipeline(
+  config: Config,
+  direction: 'auto' | 'interactive' = 'auto',
+  platforms: string[] = [],
+): Pipeline {
   const providerConfig = config.providers[config.defaultProvider];
   if (!providerConfig) {
     throw new Error(`Default provider '${config.defaultProvider}' not found in config`);
@@ -35,25 +42,20 @@ export function buildRecreatePipeline(config: Config, direction: 'auto' | 'inter
   const dualReview = new DualReviewStep(provider, defaultModel);
   const localRewrite = new LocalRewriteStep(provider, defaultModel);
 
-  const baseSteps = [
+  const allSteps: PipelineStep[] = [
     viralDeconstruction,
     differentiation,
     newOutline,
     recreationContent,
     dualReview,
-  ];
-
-  // localRewrite is inserted AFTER dualReview via resumeFrom when needsLocalRewrite=true.
-  // The CLI/resume handler checks dualReview's output and triggers resume if needed.
-  const allSteps = [
-    viralDeconstruction,
-    differentiation,
-    newOutline,
-    recreationContent,
-    dualReview,
-    // localRewrite is conditionally inserted — see runWithLocalRewrite
     localRewrite,
   ];
+
+  // platform-adaptation is added last if platforms are specified
+  if (platforms.length > 0) {
+    const platformAdaptation = new PlatformAdaptationStep(provider, defaultModel);
+    allSteps.push(platformAdaptation);
+  }
 
   return new Pipeline({
     name: 'recreate',

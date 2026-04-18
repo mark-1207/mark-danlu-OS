@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 // ─── Step 1: Viral Deconstruction ──────────────────────────────────
 
-export const ViralGenomeSchema = z.object({
+export const ViralGenomeSchema: z.ZodType<ViralGenome> = z.object({
   topicStrategy: z.object({
     painPoint: z.string(),
     emotionalTrigger: z.string(),
@@ -41,7 +41,37 @@ export const ViralGenomeSchema = z.object({
     text: z.string(),
     reason: z.string(),
   })),
-});
+}).strict().refine(
+  (data) => data.forbiddenExpressions.length >= 3,
+  {
+    message: 'forbiddenExpressions must have at least 3 items (提取的高光表达过少，二创无法有效规避风险)',
+    path: ['forbiddenExpressions'],
+  },
+).refine(
+  (data) => data.narrativeStructure.length >= 3,
+  {
+    message: 'narrativeStructure must have at least 3 sections (叙事结构段数过少，无法支撑完整文章)',
+    path: ['narrativeStructure'],
+  },
+).refine(
+  (data) => data.narrativeStructure.every((s) => s.argumentativePath.trim().length > 0),
+  {
+    message: 'Each narrativeStructure item must have a non-empty argumentativePath (每段必须有论证路径描述)',
+    path: ['narrativeStructure'],
+  },
+).refine(
+  (data) => data.emotionCurve.every((e) => e.intensity > 0),
+  {
+    message: 'Each emotionCurve entry must have intensity > 0 (情绪曲线强度值不能为0)',
+    path: ['emotionCurve'],
+  },
+).refine(
+  (data) => data.hookTechnique.template.trim().length > 0,
+  {
+    message: 'hookTechnique.template must be non-empty (钩子模板不能为空)',
+    path: ['hookTechnique', 'template'],
+  },
+);
 
 export type ViralGenome = z.infer<typeof ViralGenomeSchema>;
 
@@ -145,14 +175,14 @@ export const DualReviewResultSchema = z.object({
   finalArticle: z.string(),
   needsRewrite: z.boolean(),
   // P1/P2 triggers — present when originality passes but element scores are below threshold
-  needsLocalRewrite: z.boolean().optional(),
+  needsLocalRewrite: z.boolean().default(false),
   optimizationTriggers: z.array(z.object({
     element: z.enum(['title', 'hook', 'section', 'cta', 'power-sentences', 'example']),
     score: z.number(),
     position: z.string().optional(), // e.g. "paragraph 3" or "opening" or "emotionCurve position 2"
     suggestion: z.string(),
     action: z.enum(['rewrite-title', 'rewrite-hook', 'rewrite-section', 'rewrite-cta', 'supplement-power-sentences', 'replace-example']),
-  })).optional(),
+  })).default([]),
 });
 
 export type DualReviewResult = z.infer<typeof DualReviewResultSchema>;

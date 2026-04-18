@@ -73,7 +73,7 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
         }
 
         // All clear
-        return { ...reviewResult, finalArticle: article };
+        return { ...reviewResult, finalArticle: article, needsRewrite: false, needsLocalRewrite: false };
       }
 
       if (iteration >= MAX_ITERATIONS) {
@@ -81,6 +81,7 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
           ...reviewResult,
           finalArticle: article,
           needsRewrite: true,
+          needsLocalRewrite: false,
         };
       }
 

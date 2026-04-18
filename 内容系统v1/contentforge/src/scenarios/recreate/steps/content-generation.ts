@@ -1,8 +1,11 @@
 import { z } from 'zod';
+import path from 'path';
 import { PipelineStep } from '../../../core/step.js';
 import { PipelineContext } from '../../../core/context.js';
 import type { LLMProvider } from '../../../llm/types.js';
 import { promptLoader } from '../../../prompts/loader.js';
+import { getCachedConfig } from '../../../config/loader.js';
+import { getFragmentLoader } from '../../../fragment-library/fragment-loader.js';
 import {
   ViralGenomeSchema,
   DifferentiationDirectionSchema,
@@ -42,6 +45,22 @@ export class RecreationContentStep extends PipelineStep<z.infer<typeof InputSche
 
     const template = await promptLoader.load('recreate', 'recreation-content');
 
+    // Load relevant fragments for prompt injection
+    let fragmentSection = '';
+    try {
+      const config = getCachedConfig();
+      const outputDir = config.output?.dir ?? './output';
+      const corpusDir = path.join(path.resolve(outputDir), 'corpus');
+      const loader = getFragmentLoader(corpusDir);
+      const sentences = loader.getSentenceFragments(undefined, 'universal', 5);
+      const paragraphs = loader.getParagraphFragments(undefined, 'universal', 3);
+      if (sentences.length > 0 || paragraphs.length > 0) {
+        fragmentSection = '\n\n' + loader.formatForPrompt(sentences, paragraphs);
+      }
+    } catch {
+      // Fragments not available yet — skip
+    }
+
     const systemPrompt = promptLoader.render(template.system, {});
     const userPrompt = promptLoader.render(template.user, {
       narrativeStructure: JSON.stringify(viralGenome.narrativeStructure, null, 2),
@@ -53,7 +72,7 @@ export class RecreationContentStep extends PipelineStep<z.infer<typeof InputSche
 
     const { content } = await this.callLLM([
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
+      { role: 'user', content: userPrompt + fragmentSection },
     ]);
 
     return content;
