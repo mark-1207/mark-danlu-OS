@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
+import { execSync } from 'child_process';
 
 export interface RunLock {
   pid: number;
@@ -76,7 +77,6 @@ function processExists(pid: number): boolean {
   try {
     if (process.platform === 'win32') {
       // Use tasklist on Windows — must parse output to check if PID actually appears
-      const { execSync } = require('child_process');
       const output = execSync(`tasklist /FI "PID eq ${pid}" /NH`, {
         stdio: 'pipe',
         timeout: 3000,
@@ -87,7 +87,6 @@ function processExists(pid: number): boolean {
       return output.includes(String(pid));
     } else {
       // Unix: signal 0 checks if process exists without sending any signal
-      const { execSync } = require('child_process');
       execSync(`kill -0 ${pid}`, { stdio: 'pipe', timeout: 3000 });
       return true;
     }
