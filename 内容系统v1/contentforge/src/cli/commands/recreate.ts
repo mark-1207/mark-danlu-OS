@@ -8,6 +8,7 @@ import { buildRecreatePipeline } from '../../scenarios/recreate/index.js';
 import { PipelineContext } from '../../core/context.js';
 import { setupRunLogger } from '../../utils/logger.js';
 import { logger } from '../../utils/logger.js';
+import { validateAndCleanInput } from '../../utils/input-validator.js';
 import { ProgressDisplay } from '../ui/progress.js';
 import { interactiveSelect } from '../ui/prompts.js';
 import { estimateCost } from '../../utils/token-counter.js';
@@ -40,9 +41,29 @@ export async function runRecreate(
   // Acquire run lock to prevent concurrent resume conflicts
   await acquireRunLock(runId, outputDir);
 
-  // Read original article
-  const originalArticle = await fs.readFile(path.resolve(inputPath), 'utf-8');
-  const articleTitle = originalArticle.split('\n')[0].slice(0, 60);
+  // Read and validate original article
+  const rawFile = await fs.readFile(path.resolve(inputPath));
+  const validation = await validateAndCleanInput(rawFile, path.basename(inputPath));
+
+  if (validation.errors.length > 0) {
+    console.error(chalk.red('\n错误: 输入验证失败\n'));
+    for (const error of validation.errors) {
+      console.error(chalk.red(`  - ${error}`));
+    }
+    if (validation.detectedIssues.wasHtml) {
+      console.error(chalk.yellow('  (检测到 HTML 内容，已尝试自动清理）'));
+    }
+    process.exit(1);
+  }
+
+  if (validation.warnings.length > 0) {
+    for (const warning of validation.warnings) {
+      console.warn(chalk.yellow(`\n警告: ${warning}`));
+    }
+  }
+
+  const originalArticle = validation.cleaned;
+  const articleTitle = originalArticle.split('\n')[0].replace(/^#+\s*/, '').slice(0, 60);
 
   const context = new PipelineContext('recreate', runDir, runId);
   context.set('_originalArticle', originalArticle);
