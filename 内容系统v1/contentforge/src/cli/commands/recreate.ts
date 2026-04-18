@@ -11,6 +11,7 @@ import { logger } from '../../utils/logger.js';
 import { ProgressDisplay } from '../ui/progress.js';
 import { interactiveSelect } from '../ui/prompts.js';
 import { estimateCost } from '../../utils/token-counter.js';
+import { acquireRunLock, releaseRunLock } from '../../utils/run-lock.js';
 import type { DifferentiationOutput, DifferentiationDirection, DualReviewResult } from '../../scenarios/recreate/types.js';
 
 export async function runRecreate(
@@ -35,6 +36,9 @@ export async function runRecreate(
 
   await fs.mkdir(runDir, { recursive: true });
   await setupRunLogger(runDir);
+
+  // Acquire run lock to prevent concurrent resume conflicts
+  await acquireRunLock(runId, outputDir);
 
   // Read original article
   const originalArticle = await fs.readFile(path.resolve(inputPath), 'utf-8');
@@ -134,6 +138,8 @@ export async function runRecreate(
     } else {
       throw error;
     }
+  } finally {
+    await releaseRunLock(runId, outputDir);
   }
 
   // Check if P1/P2 element-level optimization is needed

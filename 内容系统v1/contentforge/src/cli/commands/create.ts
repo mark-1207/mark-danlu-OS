@@ -10,6 +10,7 @@ import { setupRunLogger } from '../../utils/logger.js';
 import { logger } from '../../utils/logger.js';
 import { ProgressDisplay } from '../ui/progress.js';
 import { estimateCost } from '../../utils/token-counter.js';
+import { acquireRunLock, releaseRunLock } from '../../utils/run-lock.js';
 
 const VALID_PLATFORMS = ['wechat', 'xiaohongshu', 'douyin'] as const;
 const PLATFORM_LABELS: Record<string, string> = {
@@ -49,6 +50,9 @@ export async function runCreate(keyword: string, options: { platforms?: string; 
   await fs.mkdir(runDir, { recursive: true });
   await setupRunLogger(runDir);
 
+  // Acquire run lock to prevent concurrent resume conflicts
+  await acquireRunLock(runId, outputDir);
+
   const context = new PipelineContext('create', runDir, runId);
   const progress = new ProgressDisplay();
 
@@ -75,7 +79,13 @@ export async function runCreate(keyword: string, options: { platforms?: string; 
   };
 
   progress.startStep('topic-analysis', '主题深挖');
-  const { context: finalContext } = await pipeline.run(input, context);
+  let finalContext: PipelineContext;
+  try {
+    const result = await pipeline.run(input, context);
+    finalContext = result.context;
+  } finally {
+    await releaseRunLock(runId, outputDir);
+  }
 
   // Summarize results
   const tokenUsage = finalContext.getTotalTokenUsage();
