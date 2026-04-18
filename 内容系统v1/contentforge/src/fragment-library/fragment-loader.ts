@@ -86,12 +86,16 @@ export class FragmentLoader {
       return true;
     });
 
-    // Score and sort by keyword relevance
+    // Score and sort by keyword relevance + useCount penalty
     if (contextKeywords && contextKeywords.length > 0) {
-      const scored = filtered.map(f => ({
-        fragment: f,
-        score: computeKeywordScore(f.tags, f.structure, '', contextKeywords),
-      }));
+      const scored = filtered.map(f => {
+        const keywordScore = computeKeywordScore(f.tags, f.structure, '', contextKeywords);
+        // Apply useCount penalty: 5% per use above 10, max 50% reduction
+        const useCount = f.useCount ?? 0;
+        const penalty = useCount > 10 ? Math.min((useCount - 10) * 0.05, 0.5) : 0;
+        const finalScore = keywordScore * (1 - penalty);
+        return { fragment: f, score: finalScore, keywordScore };
+      });
 
       // Sort by score descending, then by source (edited first)
       scored.sort((a, b) => {
@@ -145,10 +149,13 @@ export class FragmentLoader {
     });
 
     if (contextKeywords && contextKeywords.length > 0) {
-      const scored = filtered.map(f => ({
-        fragment: f,
-        score: computeKeywordScore(f.tags, f.narrativeStructure, f.emotionalArc, contextKeywords),
-      }));
+      const scored = filtered.map(f => {
+        const keywordScore = computeKeywordScore(f.tags, f.narrativeStructure, f.emotionalArc, contextKeywords);
+        const useCount = f.useCount ?? 0;
+        const penalty = useCount > 10 ? Math.min((useCount - 10) * 0.05, 0.5) : 0;
+        const finalScore = keywordScore * (1 - penalty);
+        return { fragment: f, score: finalScore, keywordScore };
+      });
 
       scored.sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
