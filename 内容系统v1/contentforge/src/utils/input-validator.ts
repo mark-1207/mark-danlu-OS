@@ -66,15 +66,24 @@ function isPureTitle(text: string): boolean {
 
 function isTruncated(text: string): boolean {
   const trimmed = text.trim();
-  const listOpenings = (trimmed.match(/^[-*+]\s|\d+\.\s/gm) || []).length;
-  const listClosings = (trimmed.match(/\n(?=[^-*+]|\d+\.)/g) || []).length;
-  if (listOpenings > listClosings + 2) return true;
+  const lines = trimmed.split('\n');
+
+  // Check: if last non-blank line is a list item, content ends abruptly
+  let lastNonBlankIndex = lines.length - 1;
+  while (lastNonBlankIndex >= 0 && !lines[lastNonBlankIndex].trim()) lastNonBlankIndex--;
+  if (lastNonBlankIndex >= 0) {
+    const lastNonBlank = lines[lastNonBlankIndex];
+    if (/^[-*+]\s|\d+\.\s/.test(lastNonBlank)) {
+      // Last non-blank line is a list item with nothing after it
+      return true;
+    }
+  }
+
+  // Check: unbalanced brackets
   const openBrackets = (trimmed.match(/\[/g) || []).length;
   const closeBrackets = (trimmed.match(/\]/g) || []).length;
   if (openBrackets > closeBrackets) return true;
-  const lines = trimmed.split('\n');
-  const lastLine = lines[lines.length - 1] || '';
-  if (lastLine.length > 300 && /[.!。！？]$/.test(lastLine) === false) return true;
+
   return false;
 }
 
@@ -131,6 +140,16 @@ export async function validateAndCleanInput(
       warnings,
       errors,
       detectedIssues: { wasHtml: hadHtml, wasEncodingIssue: hadEncodingIssue, wasTruncated: false, wasTooShort: false, wasPureTitle: false, wasPureLinks: true, wasEmpty: false },
+    };
+  }
+
+  if (isTruncated(cleaned)) {
+    errors.push('文章内容被截断（列表或段落中途结束），请提供完整内容');
+    return {
+      cleaned,
+      warnings,
+      errors,
+      detectedIssues: { wasHtml: hadHtml, wasEncodingIssue: hadEncodingIssue, wasTruncated: true, wasTooShort: false, wasPureTitle: false, wasPureLinks: false, wasEmpty: false },
     };
   }
 
