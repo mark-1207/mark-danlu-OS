@@ -72,7 +72,7 @@ author: mark
 
 使用 `--stats`、`--decay`、`--list`、`--delete`、`--inspect` 等参数时进入管理模式。
 
-#### `--stats` 查看统计
+**`--stats` 查看统计**
 
 展示：
 
@@ -83,7 +83,7 @@ author: mark
 - Decay 状态分布（active / dormant / expired）
 - 风格画像（情绪基调、结构偏好、已分析篇数）
 
-#### `--decay` 老化扫描
+**`--decay` 老化扫描**
 
 对碎片库执行老化规则：
 
@@ -92,17 +92,17 @@ author: mark
 - 更新对应碎片的 `decayLevel` 状态
 - 打印扫描前后状态对比
 
-#### `--list [--by-source]` 列出碎片
+**`--list [--by-source]` 列出碎片**
 
 - 默认按 type 分组展示（句式碎片 + 段落碎片）
 - `--by-source` 按 edited/external 分组
 - 每条显示：ID、类型、原文摘录（40字截断）、来源文件
 
-#### `--delete <id>` 删除碎片
+**`--delete <id>` 删除碎片**
 
 按 ID 删除单个碎片，同时从 manifest 中移除引用。
 
-#### `--inspect <runId>` 查看来源
+**`--inspect <runId>` 查看来源**
 
 根据 runId 或文件名查找 manifest 条目，显示：
 
@@ -110,12 +110,12 @@ author: mark
 - 提取的句式/段落数量
 - 所有碎片 ID
 
----
-
 ## 输出格式
 
-### 增量分析输出
+- **必须包含**：碎片库当前状态、分析结果摘要（或管理操作结果）
+- **风格**：chalk 彩色格式化，信息密度高
 
+**增量分析输出**：
 ```
 📚 碎片库当前状态
 句式碎片: N 个
@@ -130,57 +130,93 @@ author: mark
 分析了 N 个 edited 配对
 分析了 N 个 external 文章
 新增碎片: N 个
+
+碎片库最新统计：
+  句式碎片: N 个
+  段落碎片: N 个
 ```
 
-### 管理模式输出
+**`--stats` 输出**：表格化统计，含 decay 分布和风格画像。
 
-- `--stats`：表格化统计输出
-- `--decay`：扫描前后对比表
-- `--list`：分组列表，每条带 ID 和原文摘录
-- `--delete`：`✅ 已删除碎片 {id}`
-- `--inspect`：manifest 条目详情
+**`--decay` 输出**：扫描前后对比表（active / dormant / expired 数量变化）。
 
-## CLI 触发命令
+**`--list` 输出**：分组列表，每条带 ID、类型、原文摘录（40字截断）、来源文件。
 
-```bash
-# 默认：增量分析 corpus 目录
+**`--delete` 输出**：`✅ 已删除碎片 {id}` 或 `错误: 未找到碎片 {id}`。
+
+**`--inspect` 输出**：manifest 条目详情（分析时间、来源类型、关联文件、碎片数量、ID 列表）。
+
+## 示例
+
+**用户输入**：
+```
 node dist/index.js learn
-
-# 指定 corpus 目录
-node dist/index.js learn --corpus-dir ./output/corpus
-
-# 查看统计
-node dist/index.js learn --stats
-
-# 执行老化扫描
-node dist/index.js learn --decay
-
-# 列出碎片
-node dist/index.js learn --list
-
-# 按来源分组列出
-node dist/index.js learn --list --by-source
-
-# 删除指定碎片
-node dist/index.js learn --delete <fragment-id>
-
-# 查看碎片来源
-node dist/index.js learn --inspect <runId>
-
-# 清空指定类型所有碎片
-node dist/index.js learn --clear-type hook
 ```
 
-## 碎片类型参考
+**你的回答**：
+```
+📚 碎片库当前状态
+句式碎片: 42 个
+段落碎片: 18 个
+分析记录: 5 条
+分析文章: 3 篇 edited + 2 篇 external
+风格基调: 情绪共鸣型
 
-**句式类型**：hook、transition、cta、power-line、rhetorical-question、data-opener
+🔍 开始增量分析...
 
-**段落类型**：opening、argument、emotional-peak、closing、case-study
+✅ 分析完成
+分析了 1 个 edited 配对
+分析了 2 个 external 文章
+新增碎片: 7 个
+
+碎片库最新统计：
+  句式碎片: 49 个
+  段落碎片: 20 个
+```
+
+**用户输入**：
+```
+node dist/index.js learn --stats
+```
+
+**你的回答**：
+```
+📊 碎片库统计
+
+句式碎片: 49 个
+段落碎片: 20 个
+分析记录: 6 条
+
+来源分布:
+  来自我的改写 (edited): 38 个
+  来自外部参考 (external): 31 个
+
+各类型数量:
+  sentence.hook: 8
+  sentence.transition: 12
+  paragraph.opening: 5
+  ...
+
+Decay 状态:
+  active: 60 个
+  dormant: 7 个
+  expired: 2 个
+
+风格画像:
+  情绪基调: 情绪共鸣型
+  结构偏好: 层层递进式
+  已分析 edited: 4 篇
+  已分析 external: 3 篇
+```
 
 ## 错误处理
 
-- **corpus 目录不存在**：提示"corpus 目录不存在，请先运行 create/recreate 生成内容"
-- **碎片 ID 不存在**：提示"未找到碎片 {id}"
-- **无效类型名**：列出所有有效句式/段落类型
-- **LLM 分析失败**：记录错误，输出到终端，`process.exit(1)`
-- **corpus 为空**：提示"碎片库为空，请先放入文章并运行 learn"
+如果遇到 **corpus 目录不存在**，提示"corpus 目录不存在，请先运行 create/recreate 生成内容"，正常退出。
+
+如果遇到 **碎片 ID 不存在**，提示"未找到碎片 {id}"。
+
+如果遇到 **无效类型名**，列出所有有效句式/段落类型。
+
+如果遇到 **LLM 分析失败**，记录错误，输出到终端，`process.exit(1)`。
+
+如果遇到 **corpus 为空**，提示"碎片库为空，请先放入文章并运行 learn"。
