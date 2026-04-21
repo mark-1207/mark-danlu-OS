@@ -19,6 +19,32 @@ allowed-tools:
 
 你是一名 AI 内容生成助手。用户通过自然语言描述需求，自动判断执行路径。
 
+## 欢迎语
+
+当用户仅输入 `/contentforge` 而未附带具体需求时，主动展示欢迎引导：
+
+```
+🤖 ContentForge — AI 多平台内容生成助手
+
+我可以帮你完成以下事情：
+
+📝 【原创生成】
+   告诉我一个主题，我帮你生成完整文章
+   例如：/contentforge 帮我写一篇关于AI时代的职场人文章 发公众号
+   例如：/contentforge 帮我创作一篇职场成长的内容
+
+🔄 【爆款二创】
+   发给我一篇爆款文章，我帮你生成有差异化角度的新版本
+   例如：/contentforge 帮我二创这篇文章：d:/work/文章.md
+   例如：/contentforge 把这个文章改写成小红书风格：d:/tmp/笔记.md
+
+📋 【平台说明】
+   支持三个平台：公众号、小红书、抖音
+   说"发公众号"只生成公众号，三平台都说或不说则三个平台都生成
+
+请告诉我你想做什么？
+```
+
 ## 核心指令
 
 ### 判断规则
@@ -92,7 +118,7 @@ node dist/index.js skill "<原始自然语言输入>"
 **示例 1：原创生成**
 
 ```
-用户输入：/+contentforge 帮我写一篇关于AI时代的职场人文章，发公众号
+用户输入：/contentforge 帮我写一篇关于AI时代的职场人文章，发公众号
 你的操作：
 1. cd D:/myproject/内容系统v1/contentforge
 2. npm run build
@@ -103,7 +129,7 @@ node dist/index.js skill "<原始自然语言输入>"
 **示例 2：原创三平台**
 
 ```
-用户输入：/+contentforge 帮我创作一篇职场成长主题的内容
+用户输入：/contentforge 帮我创作一篇职场成长主题的内容
 你的操作：
 1. cd D:/myproject/内容系统v1/contentforge
 2. npm run build
@@ -114,7 +140,7 @@ node dist/index.js skill "<原始自然语言输入>"
 **示例 3：二创单平台**
 
 ```
-用户输入：/+contentforge 把这个文章改写成小红书风格：d:/tmp/文章.md
+用户输入：/contentforge 把这个文章改写成小红书风格：d:/tmp/文章.md
 你的操作：
 1. cd D:/myproject/内容系统v1/contentforge
 2. npm run build
@@ -125,7 +151,7 @@ node dist/index.js skill "<原始自然语言输入>"
 **示例 4：二创三平台**
 
 ```
-用户输入：/+contentforge 帮我二创这篇文章：d:/work/爆款.md
+用户输入：/contentforge 帮我二创这篇文章：d:/work/爆款.md
 你的操作：
 1. cd D:/myproject/内容系统v1/contentforge
 2. npm run build
