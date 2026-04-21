@@ -5,6 +5,7 @@ import { registerBatchCommand } from './commands/batch.js';
 import { registerResumeCommand } from './commands/resume.js';
 import { registerConfigCommand } from './commands/config.js';
 import { registerLearnCommand } from './commands/learn.js';
+import { registerSkillCommand } from './commands/skill.js';
 
 export function buildCLI(): Command {
   const program = new Command();
@@ -20,6 +21,7 @@ export function buildCLI(): Command {
   registerResumeCommand(program);
   registerConfigCommand(program);
   registerLearnCommand(program);
+  registerSkillCommand(program);
 
   return program;
 }
