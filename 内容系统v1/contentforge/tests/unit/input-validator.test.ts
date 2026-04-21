@@ -80,5 +80,20 @@ describe('input-validator', () => {
       const result = await validateAndCleanInput(Buffer.from(content, 'utf-8'), 'chinese.md');
       expect(result.errors).toHaveLength(0);
     });
+
+    it('strips HTML when htmlHandling is strip (default)', async () => {
+      // Need enough content to pass minLengthError (200 chars) after stripping HTML tags
+      const htmlContent = '<p>足够的正文内容能够通过长度检查。'.repeat(20) + '</p>';
+      const result = await validateAndCleanInput(Buffer.from(htmlContent), 'test.html', { htmlHandling: 'strip' });
+      expect(result.errors).toHaveLength(0);
+      expect(result.detectedIssues.wasHtml).toBe(true);
+      expect(result.cleaned).not.toContain('<p>');
+    });
+
+    it('rejects HTML when htmlHandling is reject', async () => {
+      const htmlContent = '<p>足够的正文内容能够通过长度检查。'.repeat(20) + '</p>';
+      const result = await validateAndCleanInput(Buffer.from(htmlContent), 'test.html', { htmlHandling: 'reject' });
+      expect(result.errors.some(e => e.includes('HTML'))).toBe(true);
+    });
   });
 });

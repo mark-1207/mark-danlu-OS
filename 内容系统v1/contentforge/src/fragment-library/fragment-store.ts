@@ -241,20 +241,32 @@ export class FragmentStore {
   /**
    * Mark a fragment as used (called when fragment is selected for injection).
    * Updates useCount and lastUsedAt; resets decayLevel to 'active'.
+   * After USE_COUNT_DORMANT_THRESHOLD uses, promotes decayLevel to 'dormant'
+   * to signal the fragment is approaching overuse.
    */
   markFragmentUsed(id: string): boolean {
+    const USE_COUNT_DORMANT_THRESHOLD = 5;
     const sentence = this.getSentenceById(id);
     if (sentence) {
       sentence.useCount = (sentence.useCount ?? 0) + 1;
       sentence.lastUsedAt = new Date().toISOString();
-      sentence.decayLevel = 'active';
+      // After threshold uses, signal approaching overuse via decayLevel
+      if (sentence.useCount >= USE_COUNT_DORMANT_THRESHOLD && sentence.decayLevel === 'active') {
+        sentence.decayLevel = 'dormant';
+      } else {
+        sentence.decayLevel = 'active';
+      }
       return true;
     }
     const paragraph = this.getParagraphById(id);
     if (paragraph) {
       paragraph.useCount = (paragraph.useCount ?? 0) + 1;
       paragraph.lastUsedAt = new Date().toISOString();
-      paragraph.decayLevel = 'active';
+      if (paragraph.useCount >= USE_COUNT_DORMANT_THRESHOLD && paragraph.decayLevel === 'active') {
+        paragraph.decayLevel = 'dormant';
+      } else {
+        paragraph.decayLevel = 'active';
+      }
       return true;
     }
     return false;

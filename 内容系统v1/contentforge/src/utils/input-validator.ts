@@ -96,11 +96,13 @@ function hasGibberish(text: string): boolean {
 export interface ValidateOptions {
   minLengthError?: number;
   minLengthWarn?: number;
+  htmlHandling?: 'strip' | 'reject';
 }
 
 const DEFAULT_OPTIONS: ValidateOptions = {
   minLengthError: MIN_CONTENT_FOR_ANALYSIS,
   minLengthWarn: MIN_LENGTH_WARN,
+  htmlHandling: 'strip',
 };
 
 export async function validateAndCleanInput(
@@ -118,6 +120,16 @@ export async function validateAndCleanInput(
   let cleaned = decodedText;
   const hadHtml = containsHtml(cleaned);
   if (hadHtml) {
+    if (opts.htmlHandling === 'reject') {
+      errors.push('检测到 HTML 格式内容，请提供纯 Markdown 格式文件');
+      const encIssue = hadEncodingIssue;
+      return {
+        cleaned,
+        warnings,
+        errors,
+        detectedIssues: { wasHtml: true, wasEncodingIssue: encIssue, wasTruncated: false, wasTooShort: false, wasPureTitle: false, wasPureLinks: false, wasEmpty: false },
+      };
+    }
     cleaned = stripHtmlTags(cleaned);
   }
 
