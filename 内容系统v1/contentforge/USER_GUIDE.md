@@ -238,20 +238,22 @@ node dist/index.js batch --input 关键词列表.txt --scenario create
 
 ## 生成的文件都放在哪了？
 
-每次运行都会在 `output/` 目录下创建一个带时间戳的文件夹：
+每次运行都会在 `output/` 目录下创建一个带时间戳的文件夹，文件名使用**生成内容本身的标题**：
 
 ```
 output/
-├── create_20260418_143052/     # 原创生成
-│   ├── content-wechat.md        # 公众号文章
-│   ├── content-xiaohongshu.md   # 小红书文章
+├── create_20260418_143052/              # 原创生成
+│   ├── {文章标题}.wechat.md              # 公众号文章
+│   ├── {文章标题}.xhs.md                 # 小红书文章
+│   └── {文章标题}.douyin.md             # 抖音文案
+├── recreate_20260418_150230/              # 爆款二创
+│   ├── {新标题}.md                        # 二创正文（含评分报告头部）
+│   ├── {新标题}.wechat.md               # 公众号适配版
+│   ├── {新标题}.xhs.md                  # 小红书适配版
 │   └── ...
-├── recreate_20260418_150230/     # 爆款二创
-│   ├── recreation.md             # 二创总结报告
-│   └── ...
-└── corpus/                       # 碎片库（自动积累）
-    ├── original/                 # 原始文章 + 二创文
-    └── fragment-library.json     # 碎片数据库
+└── corpus/                                # 碎片库（自动积累）
+    ├── original/                          # 原始文章 + 二创文
+    └── fragment-library.json              # 碎片数据库
 ```
 
 **不需要删除这些文件夹**——它们是 ContentForge 学习你的写作风格的素材来源。
@@ -322,7 +324,7 @@ node dist/index.js learn --decay
 
 ## 理解二创的评分报告
 
-每次二创完成后，会生成 `recreation.md` 文件，里面有评分信息：
+每次二创完成后，会生成以新文章标题命名的 Markdown 文件（如 `{新标题}.md`），文件头部包含评分信息：
 
 ```
 | 维度 | 评分 |
