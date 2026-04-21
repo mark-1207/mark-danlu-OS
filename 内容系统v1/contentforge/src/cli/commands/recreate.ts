@@ -13,6 +13,7 @@ import { ProgressDisplay } from '../ui/progress.js';
 import { interactiveSelect } from '../ui/prompts.js';
 import { estimateCost } from '../../utils/token-counter.js';
 import { acquireRunLock, releaseRunLock } from '../../utils/run-lock.js';
+import { sanitizeFilename } from '../../utils/sanitize.js';
 import type { DifferentiationOutput, DifferentiationDirection, DualReviewResult } from '../../scenarios/recreate/types.js';
 
 export async function runRecreate(
@@ -209,16 +210,20 @@ export async function runRecreate(
     if (platformResult) {
       for (const [platform, result] of Object.entries(platformResult)) {
         const ext = platform === 'xiaohongshu' ? 'xhs.md' : `${platform}.md`;
-        await fs.writeFile(path.join(runDir, `recreation.${ext}`), result.adaptedContent, 'utf-8');
+        const platformFileName = sanitizeFilename(result.title);
+        await fs.writeFile(path.join(runDir, `${platformFileName}.${ext}`), result.adaptedContent, 'utf-8');
       }
     }
   }
 
   // Write markdown summary file
-  await writeMarkdownSummary(runDir, finalContext, articleTitle);
+  const recreationContent = finalContext.get<string>('recreation-content');
+  const recreationTitle = recreationContent
+    ? recreationContent.split('\n')[0].replace(/^#+\s*/, '').trim()
+    : articleTitle;
+  await writeMarkdownSummary(runDir, finalContext, articleTitle, recreationTitle);
 
   // Auto-save to corpus/original/ for fragment library learning (with version history)
-  const recreationContent = finalContext.get<string>('recreation-content');
   if (recreationContent) {
     const corpusOriginalDir = path.join(outputDir, 'corpus', 'original');
     await fs.mkdir(corpusOriginalDir, { recursive: true });
@@ -269,6 +274,7 @@ async function writeMarkdownSummary(
   runDir: string,
   context: PipelineContext,
   originalTitle: string,
+  recreationTitle: string,
 ): Promise<void> {
   const recreationContent = context.get<string>('recreation-content');
   const diffOutput = context.get<DifferentiationOutput>('viral-differentiation');
@@ -279,10 +285,8 @@ async function writeMarkdownSummary(
   const direction = diffOutput?.selectedDirection;
   const viralReport = dualReviewResult?.viralPotentialReport;
 
-  // Extract title from first line
-  const title = recreationContent
-    ? recreationContent.split('\n')[0].replace(/^#+\s*/, '').trim()
-    : '无标题';
+  // Use the recreation title passed from caller (extracted from content)
+  const title = recreationTitle;
 
   const originalityScore = dualReviewResult?.originalityReport?.overallScore ?? 0;
   const passThreshold = dualReviewResult?.originalityReport?.passThreshold ?? false;
@@ -329,7 +333,7 @@ ${recreationContent ?? '(无正文)'}
 ${localRewriteSuccess && localRewriteResult?.appliedTriggers?.length ? localRewriteResult.appliedTriggers.map(t => `- 优化元素：${t.element}（${t.action}）`).join('\n') : ''}
 `;
 
-  await fs.writeFile(path.join(runDir, 'recreation.md'), md, 'utf-8');
+  await fs.writeFile(path.join(runDir, `${sanitizeFilename(title)}.md`), md, 'utf-8');
 }
 
 export function registerRecreateCommand(program: Command): void {
