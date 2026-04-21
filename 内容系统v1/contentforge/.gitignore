@@ -19,9 +19,13 @@ out/
 # IDE settings
 .vscode/
 .idea/
-.claude/
 *.swp
 *.swo
+
+# Claude settings (local only, not versioned)
+.claude/settings*.json
+.claude/hooks/
+.claude/tasks/
 
 # OS files
 .DS_Store

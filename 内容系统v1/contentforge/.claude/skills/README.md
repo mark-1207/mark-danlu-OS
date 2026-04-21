@@ -21,6 +21,7 @@
 
 | 技能名 | 触发场景 | 说明 |
 |--------|----------|------|
+| `contentforge` | "/+contentforge"、自然语言内容生成 | 统一入口，自动判断原创/二创、平台 |
 | `contentforge-recreate` | "二创"、"爆款改写" | 爆款文章差异化二创完整工作流 |
 | `contentforge-learn` | "学习入库"、"更新碎片库" | 碎片库增量分析与维护管理 |
 
@@ -29,6 +30,8 @@
 ```
 .claude/
   skills/
+    contentforge/                  ← 自然语言统一入口（/+contentforge）
+      SKILL.md
     contentforge-recreate/
       SKILL.md                    ← 二创工作流规范
     contentforge-learn/
