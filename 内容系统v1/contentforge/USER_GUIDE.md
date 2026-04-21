@@ -275,7 +275,48 @@ ContentForge 接受**纯文本 Markdown 文件**（`.md`）作为输入。
 - 被截断的文章（列表写到一半突然结束）
 - 太短的内容（少于 200 字）
 
-如果输入了不支持的内容，ContentForge 会给出明确的错误提示。
+### 输入验证选项
+
+ContentForge 会对输入内容进行预检验，包括：
+
+- **HTML 内容**：默认自动剥离 HTML 标签后继续处理（微信公众号复制的文章可直接使用）
+- **编码问题**：自动检测并尝试处理 GB18030 编码
+- **内容截断**：检测列表是否中途结束、括号是否成对
+- **过短内容**：少于 200 字报错退出；200-500 字发出警告但不阻止
+
+你也可以在配置文件中设置 `htmlHandling: reject`，让 ContentForge 直接拒绝 HTML 内容而不是自动清理：
+
+```yaml
+inputValidation:
+  minLengthError: 200
+  minLengthWarn: 500
+  htmlHandling: reject  # 'strip'（默认，自动清理）或 'reject'（直接拒绝）
+```
+
+---
+
+## 碎片库与老化机制
+
+ContentForge 会用二创的文章自动学习你的写作风格。随着使用，碎片库会积累句式和段落碎片。
+
+### 碎片为什么会"老化"？
+
+ContentForge 会根据两种信号降低碎片质量：
+
+1. **时间**：60 天以上未使用的碎片降为"休眠"状态，180 天以上彻底淘汰
+2. **使用次数**：单个碎片被引用 5 次以上时，会自动降为"休眠"状态
+
+这保证了碎片库反映的是你**近期**的写作水平，不会用很旧的碎片拉低新文章的质量。
+
+### 清理碎片库
+
+```bash
+# 查看碎片库状态（能看到 active / dormant / expired 数量）
+node dist/index.js learn --stats
+
+# 执行老化扫描，更新老旧碎片状态
+node dist/index.js learn --decay
+```
 
 ---
 
@@ -356,8 +397,14 @@ scenarios:
 
 # 成本控制（避免单次消耗过高）
 costControl:
-  maxCostPerRun: 0.5    # 最高预估成本（美元）
-  onExceedAction: skip-local-rewrite  # 超限时跳过精细优化
+  maxCostPerRun: 0.5    # 最高预估成本（美元），不设置则无上限
+  onExceedAction: skip-local-rewrite  # 超限时：skip-local-rewrite（跳过精细优化）或 abort（中止运行）
+
+# 输入验证
+inputValidation:
+  minLengthError: 200    # 低于此长度直接报错退出
+  minLengthWarn: 500     # 低于此长度仅警告不阻止
+  htmlHandling: strip    # 'strip'（自动清理HTML）或 'reject'（直接拒绝）
 
 # 搜索功能（素材检索用）
 search:
