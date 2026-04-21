@@ -1,8 +1,8 @@
 ---
 name: contentforge
 description: |
-  AI 多平台内容生成统一入口。当用户说"/+contentforge 帮我写一篇..."、"/+contentforge 帮我二创..."、
-  "/+contentforge 发一篇公众号文章"或类似自然语言指令时触发。
+  AI 多平台内容生成统一入口。当用户说"/contentforge 帮我写一篇..."、"/contentforge 帮我二创..."、
+  "/contentforge 发一篇公众号文章"或类似自然语言指令时触发。
   自动判断是原创还是二创，自动识别目标平台并执行对应工作流。
 version: 1.0.0
 author: mark
