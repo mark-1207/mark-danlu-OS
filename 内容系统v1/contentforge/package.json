@@ -15,7 +15,8 @@
     "test:ui": "vitest --ui",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "cleanup": "node --input-type=module -e \"import fs from 'node:fs';import path from 'node:path';const d='output';fs.readdirSync(d).filter(f=>f!='corpus'&&!f.startsWith('.')).forEach(f=>{fs.rmSync(path.join(d,f),{recursive:true,force:true});console.log('removed:',f)});\""
   },
   "keywords": [
     "content-generation",
