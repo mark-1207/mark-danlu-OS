@@ -5,12 +5,14 @@ import fs from 'fs/promises';
 import { loadConfig, setCachedConfig } from '../../config/loader.js';
 import { llmFactory } from '../../llm/factory.js';
 import { buildCreatePipeline, type PlatformSelection } from '../../scenarios/create/index.js';
+import type { ReviewResult } from '../../scenarios/create/types.js';
 import { PipelineContext } from '../../core/context.js';
 import { setupRunLogger } from '../../utils/logger.js';
 import { logger } from '../../utils/logger.js';
 import { ProgressDisplay } from '../ui/progress.js';
 import { estimateCost } from '../../utils/token-counter.js';
 import { acquireRunLock, releaseRunLock } from '../../utils/run-lock.js';
+import { sanitizeFilename } from '../../utils/sanitize.js';
 
 const VALID_PLATFORMS = ['wechat', 'xiaohongshu', 'douyin'] as const;
 const PLATFORM_LABELS: Record<string, string> = {
@@ -85,6 +87,18 @@ export async function runCreate(keyword: string, options: { platforms?: string; 
     finalContext = result.context;
   } finally {
     await releaseRunLock(runId, outputDir);
+  }
+
+  // Write named output files for each platform using recommended title
+  const platformNames = selectedPlatforms ?? (['wechat', 'xiaohongshu', 'douyin'] as const);
+  for (const platform of platformNames) {
+    const reviewResult = finalContext.get<ReviewResult>(`review-${platform}`);
+    if (!reviewResult) continue;
+
+    const { recommendedTitle, revisedContent } = reviewResult;
+    const safeTitle = sanitizeFilename(recommendedTitle);
+    const ext = platform === 'xiaohongshu' ? 'xhs.md' : `${platform}.md`;
+    await fs.writeFile(path.join(runDir, `${safeTitle}.${ext}`), revisedContent, 'utf-8');
   }
 
   // Summarize results
