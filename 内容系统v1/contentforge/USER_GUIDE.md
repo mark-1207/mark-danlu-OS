@@ -96,7 +96,7 @@ KIMI_BASE_URL=https://yunwu.ai/v1
 
 **方式 B：直接修改配置文件**
 
-编辑 `contentforge.config.yaml`，在 `providers.kimi` 下填入：
+编辑 `config/contentforge.yaml`，在 `providers.kimi` 下填入：
 
 ```yaml
 providers:
@@ -346,7 +346,7 @@ node dist/index.js learn --decay
 
 ### Q：运行时报错 "API Key 无效"
 
-检查 `.env` 或 `contentforge.config.yaml` 中的 API Key 是否正确填入，Key 前后不要有多余空格。
+检查 `.env` 或 `config/contentforge.yaml` 中的 API Key 是否正确填入，Key 前后不要有多余空格。
 
 ### Q：运行时报错 "内容为空"
 
@@ -354,7 +354,7 @@ node dist/index.js learn --decay
 
 ### Q：运行很慢
 
-正常现象，AI 生成文章需要时间（约 1-3 分钟）。可以在 `contentforge.config.yaml` 中调高 `concurrency.maxParallel` 来加速（不建议超过 5）。
+正常现象，AI 生成文章需要时间（约 1-3 分钟）。可以在 `config/contentforge.yaml` 中调高 `concurrency.maxParallel` 来加速（不建议超过 5）。
 
 ### Q：生成的文章不满意
 
@@ -387,7 +387,7 @@ node dist/index.js learn --decay
 
 ## 配置参考
 
-编辑 `contentforge.config.yaml` 可以调整行为：
+编辑 `config/contentforge.yaml` 可以调整行为：
 
 ```yaml
 # 场景参数

@@ -169,7 +169,7 @@ node dist/index.js batch --input 关键词列表.txt --scenario create
 node dist/index.js config --show
 ```
 
-成本上限控制（在 `contentforge.config.yaml` 中）：
+成本上限控制（在 `config/contentforge.yaml` 中）：
 ```yaml
 costControl:
   maxCostPerRun: 0.5    # 最高预估成本（美元）

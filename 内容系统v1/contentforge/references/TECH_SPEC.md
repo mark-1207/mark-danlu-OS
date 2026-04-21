@@ -44,7 +44,7 @@ contentforge/
 ├── package.json
 ├── tsconfig.json
 ├── .env.example                    # 环境变量模板
-├── contentforge.config.yaml        # 默认配置文件
+├── config/contentforge.yaml        # 默认配置文件
 ├── README.md
 │
 ├── src/
@@ -380,7 +380,7 @@ const ConfigSchema = z.object({
 ## 4. 配置文件示例
 
 ```yaml
-# contentforge.config.yaml
+# config/contentforge.yaml
 
 providers:
   anthropic:

@@ -425,7 +425,7 @@ export class OllamaProvider implements LLMProvider {
 ```
 
 ```yaml
-# contentforge.config.yaml
+# config/contentforge.yaml
 providers:
   ollama:
     type: ollama

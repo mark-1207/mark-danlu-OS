@@ -29,7 +29,7 @@
 
 4. 创建 `.env.example` 文件
 
-5. 创建默认配置文件 `contentforge.config.yaml`（参见 TECH_SPEC.md 第 4 节）
+5. 创建默认配置文件 `config/contentforge.yaml`（参见 TECH_SPEC.md 第 4 节）
 
 ### Phase 2: 基础设施层
 

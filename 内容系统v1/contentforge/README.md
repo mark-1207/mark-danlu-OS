@@ -89,7 +89,7 @@ KIMI_BASE_URL=https://yunwu.ai/v1
 
 **方式 B：修改配置文件**
 
-编辑 `contentforge.config.yaml`，在 `providers.kimi` 下添加 `apiKey`。
+编辑 `config/contentforge.yaml`，在 `providers.kimi` 下添加 `apiKey`。
 
 ### 第三步：验证安装成功
 
@@ -254,7 +254,7 @@ output/
 ## 常见问题
 
 **Q：报错"API Key 无效"**
-检查 `.env` 或 `contentforge.config.yaml` 中的 API Key 是否正确，Key 前后不要有多余空格。
+检查 `.env` 或 `config/contentforge.yaml` 中的 API Key 是否正确，Key 前后不要有多余空格。
 
 **Q：报错"内容为空"或"内容过短"**
 输入的文章太短或格式不对。确保文章有正文内容，不是纯标题或纯链接。建议至少 500 字以上。
@@ -282,7 +282,7 @@ node dist/index.js learn --decay  # 清理长期不用的碎片
 
 ## 配置参考
 
-编辑 `contentforge.config.yaml`：
+编辑 `config/contentforge.yaml`：
 
 ```yaml
 # AI 服务商配置
@@ -337,7 +337,7 @@ contentforge/
 │   └── contentforge-learn/     # 碎片库学习 Skill
 ├── output/                     # 生成的内容
 ├── tests/                      # 单元测试
-├── contentforge.config.yaml    # 配置文件
+├── config/contentforge.yaml    # 配置文件
 └── USER_GUIDE.md              # 用户手册（面向普通用户）
 ```
 
