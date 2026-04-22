@@ -179,9 +179,11 @@ interface TopicAnalysisConfirmed {
 |------|------|
 | `←→` | 切换平台 |
 | `1-3` | 直接选中该编号标题 |
-| `r` | 原地重写当前平台的标题候选（重新调用 LLM，只生成该平台3个标题） |
+| `r` | 原地重写当前平台的标题候选（重新调用 LLM，只生成该平台3个标题）；**其他已确认平台不受影响** |
 | `e` | 编辑当前平台的切入角度描述（打开单行输入） |
 | `回车` | 确认所有选择，进入自动化 Pipeline |
+
+**`r` 重写行为补充：** 当用户在平台 A 按 `r` 重新生成标题时，平台 B/C 的已确认选择（标题索引、angleOverride）保持不变。重写完成后焦点停留在平台 A，用户可继续调整后按 `←→` 切走。
 
 ### 输出
 
@@ -231,7 +233,21 @@ runCreateInteractive(keyword, options)
 
 ---
 
-## `--no-interactive` 模式
+## `--no-interactive` 模式（重要：现有自动化兼容性）
+
+**`create` 默认行为变更为需要交互确认**。这意味着现有 CI/自动化脚本会受影响，需要显式添加 `--no-interactive` 保持原有行为：
+
+```bash
+# 现有自动化脚本不受影响（需添加 --no-interactive）
+node dist/index.js create --keyword "AI时代" --no-interactive
+
+# 新用户交互式体验（默认）
+node dist/index.js create --keyword "AI时代"
+```
+
+**CI/迁移清单：**
+- 所有调用 `create` 命令的自动化脚本需加上 `--no-interactive` flag
+- 文档中 `create` 命令示例需同步更新
 
 新增 CLI flag `--no-interactive`：
 
