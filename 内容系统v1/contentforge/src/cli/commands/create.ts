@@ -49,12 +49,13 @@ const PLATFORM_LABELS: Record<string, string> = {
 // ─── Helper: buildTopicAnalysisReview ─────────────────────────────────────────
 
 function buildTopicAnalysisReview(ta: TopicAnalysis): TopicAnalysisReview {
+  // All subTopics default to pending — user decides everything (no pre-confirmed)
   const subTopics = ta.subTopics.map((s, i) => ({
     index: i,
     name: s.name,
     description: s.description,
     heatLevel: s.heatLevel,
-    decision: s.heatLevel === 'low' ? ('confirmed' as const) : ('pending' as const),
+    decision: 'pending' as const,
   }));
   const controversies = ta.controversies.map((c, i) => ({
     index: i,

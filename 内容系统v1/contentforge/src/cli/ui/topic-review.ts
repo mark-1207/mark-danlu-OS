@@ -170,7 +170,7 @@ const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout
     }
 
     console.log(chalk.dim('─'.repeat(60)));
-    console.log(chalk.dim('  ↑↓ 选择   空格 确认   r 重新分析   a 增加排除方向   回车 确认'));
+    console.log(chalk.dim('  ↑↓ 选择   空格 选中/取消   Tab 切换分组   r 重新分析   a 增加排除方向   回车 确认\n'));
   }
 
   return new Promise((resolve) => {
