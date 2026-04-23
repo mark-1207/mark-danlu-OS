@@ -221,3 +221,72 @@ export interface CreateFinalOutput {
     };
   };
 }
+
+// ─── 选题确认阶段 ────────────────────────────────────────────────
+
+export const SubTopicDecisionSchema = z.object({
+  index: z.number(),
+  name: z.string(),
+  description: z.string(),
+  heatLevel: z.enum(['high', 'medium', 'low']),
+  decision: z.enum(['pending', 'confirmed', 'rejected']),
+});
+
+export const ControversyDecisionSchema = z.object({
+  index: z.number(),
+  topic: z.string(),
+  sideA: z.string(),
+  sideB: z.string(),
+  decision: z.enum(['pending', 'confirmed', 'rejected']),
+});
+
+export const TopicAnalysisReviewSchema = z.object({
+  keyword: z.string(),
+  subTopics: z.array(SubTopicDecisionSchema),
+  painPoints: z.array(z.object({
+    index: z.number(),
+    description: z.string(),
+    targetAudience: z.string(),
+    emotionalTrigger: z.string(),
+    decision: z.enum(['pending', 'confirmed', 'rejected']),
+  })),
+  trendingAngles: z.array(z.object({
+    index: z.number(),
+    angle: z.string(),
+    whyTrending: z.string(),
+    suitablePlatforms: z.array(z.string()),
+    decision: z.enum(['pending', 'confirmed', 'rejected']),
+  })),
+  controversies: z.array(ControversyDecisionSchema),
+  targetDemographics: z.array(z.object({
+    index: z.number(),
+    group: z.string(),
+    interests: z.array(z.string()),
+    contentPreferences: z.array(z.string()),
+    decision: z.enum(['pending', 'confirmed', 'rejected']),
+  })),
+});
+
+export type TopicAnalysisReview = z.infer<typeof TopicAnalysisReviewSchema>;
+
+export interface TopicAnalysisConfirmed {
+  topicAnalysis: TopicAnalysis;
+  selectedSubTopicIndices: number[];
+  excludeDirections: string[];
+  extraDirections?: string[];
+}
+
+export interface PlatformSelectionConfirmed {
+  titleIndex: number;
+  title: string;
+  angleOverride?: string;
+}
+
+export interface TopicAssignmentConfirmed {
+  topicAssignment: PlatformAssignments;
+  selections: {
+    wechat: PlatformSelectionConfirmed;
+    xiaohongshu: PlatformSelectionConfirmed;
+    douyin: PlatformSelectionConfirmed;
+  };
+}
