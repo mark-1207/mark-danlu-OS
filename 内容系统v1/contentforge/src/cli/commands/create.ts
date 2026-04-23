@@ -151,12 +151,14 @@ export async function runCreate(
 
       // Build review data and show TUI Step 1
       let reviewData = buildTopicAnalysisReview(topicAnalysisResult);
-      const { selectedIndices, excludeDirections } = await reviewTopicAnalysis(reviewData, async (group) => {
+      let currentExcludeDirections: string[] = [];
+      const { selectedIndices, excludeDirections, extraDirections } = await reviewTopicAnalysis(reviewData, async (group) => {
         // Re-run topic-analysis with excludeDirections
         progress.startStep('topic-analysis-rewrite', '重新分析');
+        currentExcludeDirections = [...currentExcludeDirections, ...extraDirections];
         const ctx2 = new PipelineContext('create', runDir, runId + '_ta2');
         const newResult = await topicStep.execute(
-          { keyword, userContext: options.context, excludeDirections },
+          { keyword, userContext: options.context, excludeDirections: currentExcludeDirections },
           ctx2,
         );
         if (!newResult.success) {
@@ -186,6 +188,7 @@ export async function runCreate(
       context.set('topic-analysis-confirmed', {
         topicAnalysis: topicAnalysisResult,
         excludeDirections,
+        extraDirections,
       });
 
       // ── Step 2: Topic Assignment → TUI ────────────────────────────────────────

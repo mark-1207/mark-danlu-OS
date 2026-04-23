@@ -55,13 +55,13 @@ function heatLabel(level: 'high' | 'medium' | 'low'): string {
 export async function reviewTopicAnalysis(
   reviewData: TopicAnalysisReview,
   onRewrite: (group: string) => Promise<TopicAnalysisReview>,
-): Promise<{ selectedIndices: number[]; excludeDirections: string[] }> {
+): Promise<{ selectedIndices: number[]; excludeDirections: string[]; extraDirections: string[] }> {
   // Non-TTY fallback — resolve immediately with all pending subTopics selected
   if (!process.stdin.isTTY) {
     const selectedIndices = reviewData.subTopics
       .map((st, i) => (st.decision === 'pending' ? i : -1))
       .filter((i) => i >= 0);
-    return { selectedIndices, excludeDirections: [] };
+    return { selectedIndices, excludeDirections: [], extraDirections: [] };
   }
 
   // State
@@ -74,6 +74,7 @@ export async function reviewTopicAnalysis(
       .map((st, i) => (st.decision === 'confirmed' ? i : -1))
       .filter((i) => i >= 0),
   );
+  const extraDirections: string[] = [];
 
 const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
   readline.emitKeypressEvents(process.stdin);
@@ -169,7 +170,7 @@ const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout
     }
 
     console.log(chalk.dim('─'.repeat(60)));
-    console.log(chalk.dim('  ↑↓ 选择   空格 确认   r 重新分析   回车 确认'));
+    console.log(chalk.dim('  ↑↓ 选择   空格 确认   r 重新分析   a 增加排除方向   回车 确认'));
   }
 
   return new Promise((resolve) => {
@@ -199,7 +200,25 @@ const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout
         const excludeDirections = reviewData.subTopics
           .filter((st) => st.decision === 'rejected')
           .map((st) => st.name);
-        resolve({ selectedIndices, excludeDirections });
+        resolve({ selectedIndices, excludeDirections, extraDirections });
+        return;
+      }
+
+      if (keyName === 'a' || keyName === 'A') {
+        process.stdin.pause();
+        cleanup();
+        rl.question(chalk.cyan('输入想排除的方向（直接回车跳过）: '), (answer) => {
+          const direction = answer.trim();
+          if (direction) {
+            extraDirections.push(direction);
+          }
+          const newRl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
+          readline.emitKeypressEvents(process.stdin);
+          process.stdin.setRawMode?.(true);
+          process.stdin.resume();
+          process.stdin.on('keypress', onKeypress);
+          render();
+        });
         return;
       }
 
