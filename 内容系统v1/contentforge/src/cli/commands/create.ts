@@ -134,217 +134,234 @@ export async function runCreate(
   const defaultModel = providerConfig.defaultModel;
 
   if (isInteractive) {
-    // ─── Interactive flow ────────────────────────────────────────────────────────
+    // ─── Interactive flow ───────────────────────────────────────────────────────
 
-    const progress = new ProgressDisplay();
+    try {
+      const progress = new ProgressDisplay();
 
-    // ── Step 1: Topic Analysis → TUI ──────────────────────────────────────────
-    progress.startStep('topic-analysis', '主题深挖');
-    const topicStep = new TopicAnalysisStep(provider, defaultModel);
-    const ctx1 = new PipelineContext('create', runDir, runId + '_ta');
-    const taResult = await topicStep.execute({ keyword, userContext: options.context }, ctx1);
-    if (!taResult.success) {
-      throw new Error(`Topic analysis failed: ${taResult.error}`);
-    }
-    const topicAnalysisResult = taResult.data! as TopicAnalysis;
-
-    // Build review data and show TUI Step 1
-    let reviewData = buildTopicAnalysisReview(topicAnalysisResult);
-    const { selectedIndices, excludeDirections } = await reviewTopicAnalysis(reviewData, async (group) => {
-      // Re-run topic-analysis with excludeDirections
-      progress.startStep('topic-analysis-rewrite', '重新分析');
-      const ctx2 = new PipelineContext('create', runDir, runId + '_ta2');
-      const newResult = await topicStep.execute(
-        { keyword, userContext: options.context, excludeDirections },
-        ctx2,
-      );
-      if (!newResult.success) {
-        throw new Error(`Topic analysis rewrite failed: ${newResult.error}`);
+      // ── Step 1: Topic Analysis → TUI ──────────────────────────────────────────
+      progress.startStep('topic-analysis', '主题深挖');
+      const topicStep = new TopicAnalysisStep(provider, defaultModel);
+      const ctx1 = new PipelineContext('create', runDir, runId + '_ta');
+      const taResult = await topicStep.execute({ keyword, userContext: options.context }, ctx1);
+      if (!taResult.success) {
+        throw new Error(`Topic analysis failed: ${taResult.error ?? 'unknown'}`);
       }
-      progress.completeStep('topic-analysis-rewrite', newResult.durationMs, '');
-      return buildTopicAnalysisReview(newResult.data! as TopicAnalysis);
-    });
-    progress.completeStep('topic-analysis', taResult.durationMs, `tokens: +${taResult.tokenUsage.output}`);
+      let topicAnalysisResult = taResult.data! as TopicAnalysis;
 
-    // Store confirmed topic analysis in context
-    context.set('topic-analysis', topicAnalysisResult);
-    context.set('topic-analysis-confirmed', {
-      topicAnalysis: topicAnalysisResult,
-      selectedSubTopicIndices: selectedIndices,
-      excludeDirections,
-    });
+      // Build review data and show TUI Step 1
+      let reviewData = buildTopicAnalysisReview(topicAnalysisResult);
+      const { selectedIndices, excludeDirections } = await reviewTopicAnalysis(reviewData, async (group) => {
+        // Re-run topic-analysis with excludeDirections
+        progress.startStep('topic-analysis-rewrite', '重新分析');
+        const ctx2 = new PipelineContext('create', runDir, runId + '_ta2');
+        const newResult = await topicStep.execute(
+          { keyword, userContext: options.context, excludeDirections },
+          ctx2,
+        );
+        if (!newResult.success) {
+          throw new Error(`Topic analysis rewrite failed: ${newResult.error ?? 'unknown'}`);
+        }
+        progress.completeStep('topic-analysis-rewrite', newResult.durationMs, '');
+        return buildTopicAnalysisReview(newResult.data! as TopicAnalysis);
+      });
+      progress.completeStep('topic-analysis', taResult.durationMs, `tokens: +${taResult.tokenUsage.output}`);
 
-    // ── Step 2: Topic Assignment → TUI ────────────────────────────────────────
-    progress.startStep('topic-assignment', '话题分配');
-    const taStep = new TopicAssignmentStep(provider, defaultModel);
-    const taAssignResult = await taStep.execute({}, context);
-    if (!taAssignResult.success) {
-      throw new Error(`Topic assignment failed: ${taAssignResult.error}`);
-    }
-    const platformAssignmentsResult = taAssignResult.data! as import('../../scenarios/create/types.js').PlatformAssignments;
+      // Rebuild topicAnalysisResult from reviewData subTopics (which reflect any rewrite)
+      topicAnalysisResult = {
+        keyword: reviewData.keyword,
+        subTopics: reviewData.subTopics.map((s) => ({
+          name: s.name,
+          description: s.description,
+          heatLevel: s.heatLevel,
+        })),
+        painPoints: topicAnalysisResult.painPoints,
+        trendingAngles: topicAnalysisResult.trendingAngles,
+        controversies: topicAnalysisResult.controversies,
+        targetDemographics: topicAnalysisResult.targetDemographics,
+      };
 
-    // Build display data for TUI Step 2
-    const displayData: TopicAssignmentDisplay = {
-      wechat: {
-        angle: platformAssignmentsResult.wechat.angle,
-        titles: platformAssignmentsResult.wechat.titleDrafts,
-        selectedIndex: 0,
-      },
-      xiaohongshu: {
-        angle: platformAssignmentsResult.xiaohongshu.angle,
-        titles: platformAssignmentsResult.xiaohongshu.titleDrafts,
-        selectedIndex: 0,
-      },
-      douyin: {
-        angle: platformAssignmentsResult.douyin.angle,
-        titles: platformAssignmentsResult.douyin.titleDrafts,
-        selectedIndex: 0,
-      },
-    };
-    const selections = await reviewTopicAssignment(displayData);
-    progress.completeStep('topic-assignment', taAssignResult.durationMs, `tokens: +${taAssignResult.tokenUsage.output}`);
+      // Store confirmed topic analysis in context
+      context.set('topic-analysis', topicAnalysisResult);
+      context.set('topic-analysis-confirmed', {
+        topicAnalysis: topicAnalysisResult,
+        selectedSubTopicIndices: selectedIndices,
+        excludeDirections,
+      });
 
-    // Store confirmed topic assignment in context
-    context.set('topic-assignment', platformAssignmentsResult);
-    context.set('topic-assignment-confirmed', {
-      topicAssignment: platformAssignmentsResult,
-      selections,
-    });
-
-    // Write confirmed title per platform so outline steps can read it
-    const allPlatforms = selectedPlatforms ?? (['wechat', 'xiaohongshu', 'douyin'] as const);
-    for (const platform of allPlatforms) {
-      const sel = selections[platform as keyof typeof selections];
-      if (sel) {
-        context.set(`confirmed-title-${platform}`, sel.title);
+      // ── Step 2: Topic Assignment → TUI ────────────────────────────────────────
+      progress.startStep('topic-assignment', '话题分配');
+      const taStep = new TopicAssignmentStep(provider, defaultModel);
+      const taAssignResult = await taStep.execute({}, context);
+      if (!taAssignResult.success) {
+        throw new Error(`Topic assignment failed: ${taAssignResult.error ?? 'unknown'}`);
       }
-    }
+      const platformAssignmentsResult = taAssignResult.data! as import('../../scenarios/create/types.js').PlatformAssignments;
 
-    // ── Remaining steps: run outline → material-search → content → review ─────
-    // The context already has topic-analysis, topic-analysis-confirmed,
-    // topic-assignment, topic-assignment-confirmed, and confirmed-title-* set.
+      // Build display data for TUI Step 2
+      const displayData: TopicAssignmentDisplay = {
+        wechat: {
+          angle: platformAssignmentsResult.wechat.angle,
+          titles: platformAssignmentsResult.wechat.titleDrafts,
+          selectedIndex: 0,
+        },
+        xiaohongshu: {
+          angle: platformAssignmentsResult.xiaohongshu.angle,
+          titles: platformAssignmentsResult.xiaohongshu.titleDrafts,
+          selectedIndex: 0,
+        },
+        douyin: {
+          angle: platformAssignmentsResult.douyin.angle,
+          titles: platformAssignmentsResult.douyin.titleDrafts,
+          selectedIndex: 0,
+        },
+      };
+      const selections = await reviewTopicAssignment(displayData);
+      progress.completeStep('topic-assignment', taAssignResult.durationMs, `tokens: +${taAssignResult.tokenUsage.output}`);
 
-    const platformsToRun = allPlatforms;
+      // Store confirmed topic assignment in context
+      context.set('topic-assignment', platformAssignmentsResult);
+      context.set('topic-assignment-confirmed', {
+        topicAssignment: platformAssignmentsResult,
+        selections,
+      });
 
-    // Step 3: Outlines (parallel)
-    progress.startStep('outline-wechat', '大纲-公众号');
-    progress.startStep('outline-xiaohongshu', '大纲-小红书');
-    progress.startStep('outline-douyin', '大纲-抖音');
-
-    const outlineSteps = platformsToRun.map((p) => {
-      if (p === 'wechat') return new OutlineWechatStep(provider, defaultModel);
-      if (p === 'xiaohongshu') return new OutlineXiaohongshuStep(provider, defaultModel);
-      if (p === 'douyin') return new OutlineDouyinStep(provider, defaultModel);
-      return null;
-    }).filter(Boolean) as (OutlineWechatStep | OutlineXiaohongshuStep | OutlineDouyinStep)[];
-
-    const outlineResults = await Promise.all(outlineSteps.map((step) => step.execute({}, context)));
-    for (let i = 0; i < outlineSteps.length; i++) {
-      const r = outlineResults[i];
-      context.setStepResult(outlineSteps[i].config.name, r);
-      if (r.success && r.data !== undefined) {
-        context.set(outlineSteps[i].config.name, r.data);
+      // Write confirmed title per platform so outline steps can read it
+      const allPlatforms = selectedPlatforms ?? (['wechat', 'xiaohongshu', 'douyin'] as const);
+      for (const platform of allPlatforms) {
+        const sel = selections[platform as keyof typeof selections];
+        if (sel) {
+          context.set(`confirmed-title-${platform}`, sel.title);
+        }
       }
-      if (r.success) {
-        progress.completeStep(outlineSteps[i].config.name, r.durationMs, '');
+      await context.persist();
+
+      // ── Remaining steps: run outline → material-search → content → review ─────
+      // The context already has topic-analysis, topic-analysis-confirmed,
+      // topic-assignment, topic-assignment-confirmed, and confirmed-title-* set.
+
+      const platformsToRun = allPlatforms;
+
+      // Step 3: Outlines (parallel)
+      progress.startStep('outline-wechat', '大纲-公众号');
+      progress.startStep('outline-xiaohongshu', '大纲-小红书');
+      progress.startStep('outline-douyin', '大纲-抖音');
+
+      const outlineSteps = platformsToRun.map((p) => {
+        if (p === 'wechat') return new OutlineWechatStep(provider, defaultModel);
+        if (p === 'xiaohongshu') return new OutlineXiaohongshuStep(provider, defaultModel);
+        if (p === 'douyin') return new OutlineDouyinStep(provider, defaultModel);
+        return null;
+      }).filter(Boolean) as (OutlineWechatStep | OutlineXiaohongshuStep | OutlineDouyinStep)[];
+
+      const outlineResults = await Promise.all(outlineSteps.map((step) => step.execute({}, context)));
+      for (let i = 0; i < outlineSteps.length; i++) {
+        const r = outlineResults[i];
+        context.setStepResult(outlineSteps[i].config.name, r);
+        if (r.success && r.data !== undefined) {
+          context.set(outlineSteps[i].config.name, r.data);
+        }
+        if (r.success) {
+          progress.completeStep(outlineSteps[i].config.name, r.durationMs, '');
+        } else {
+          progress.failStep(outlineSteps[i].config.name, r.error ?? 'unknown');
+        }
+      }
+
+      // Step 4: Material Search
+      progress.startStep('material-search', '素材搜索');
+      const matStep = new MaterialSearchStep(provider, defaultModel);
+      const matResult = await matStep.execute({}, context);
+      context.setStepResult('material-search', matResult);
+      if (matResult.success && matResult.data !== undefined) {
+        context.set('material-search', matResult.data);
+      }
+      if (matResult.success) {
+        progress.completeStep('material-search', matResult.durationMs, '');
       } else {
-        progress.failStep(outlineSteps[i].config.name, r.error ?? 'unknown');
+        progress.failStep('material-search', matResult.error ?? 'unknown');
       }
-    }
 
-    // Step 4: Material Search
-    progress.startStep('material-search', '素材搜索');
-    const matStep = new MaterialSearchStep(provider, defaultModel);
-    const matResult = await matStep.execute({}, context);
-    context.setStepResult('material-search', matResult);
-    if (matResult.success && matResult.data !== undefined) {
-      context.set('material-search', matResult.data);
-    }
-    if (matResult.success) {
-      progress.completeStep('material-search', matResult.durationMs, '');
-    } else {
-      progress.failStep('material-search', matResult.error ?? 'unknown');
-    }
+      // Step 5: Content Generation (parallel)
+      progress.startStep('content-wechat', '内容-公众号');
+      progress.startStep('content-xiaohongshu', '内容-小红书');
+      progress.startStep('content-douyin', '内容-抖音');
 
-    // Step 5: Content Generation (parallel)
-    progress.startStep('content-wechat', '内容-公众号');
-    progress.startStep('content-xiaohongshu', '内容-小红书');
-    progress.startStep('content-douyin', '内容-抖音');
+      const contentSteps = platformsToRun.map((p) => {
+        if (p === 'wechat') return new ContentWechatStep(provider, defaultModel);
+        if (p === 'xiaohongshu') return new ContentXiaohongshuStep(provider, defaultModel);
+        if (p === 'douyin') return new ContentDouyinStep(provider, defaultModel);
+        return null;
+      }).filter(Boolean) as (ContentWechatStep | ContentXiaohongshuStep | ContentDouyinStep)[];
 
-    const contentSteps = platformsToRun.map((p) => {
-      if (p === 'wechat') return new ContentWechatStep(provider, defaultModel);
-      if (p === 'xiaohongshu') return new ContentXiaohongshuStep(provider, defaultModel);
-      if (p === 'douyin') return new ContentDouyinStep(provider, defaultModel);
-      return null;
-    }).filter(Boolean) as (ContentWechatStep | ContentXiaohongshuStep | ContentDouyinStep)[];
-
-    const contentResults = await Promise.all(contentSteps.map((step) => step.execute({}, context)));
-    for (let i = 0; i < contentSteps.length; i++) {
-      const r = contentResults[i];
-      context.setStepResult(contentSteps[i].config.name, r);
-      if (r.success && r.data !== undefined) {
-        context.set(contentSteps[i].config.name, r.data);
+      const contentResults = await Promise.all(contentSteps.map((step) => step.execute({}, context)));
+      for (let i = 0; i < contentSteps.length; i++) {
+        const r = contentResults[i];
+        context.setStepResult(contentSteps[i].config.name, r);
+        if (r.success && r.data !== undefined) {
+          context.set(contentSteps[i].config.name, r.data);
+        }
+        if (r.success) {
+          progress.completeStep(contentSteps[i].config.name, r.durationMs, '');
+        } else {
+          progress.failStep(contentSteps[i].config.name, r.error ?? 'unknown');
+        }
       }
-      if (r.success) {
-        progress.completeStep(contentSteps[i].config.name, r.durationMs, '');
-      } else {
-        progress.failStep(contentSteps[i].config.name, r.error ?? 'unknown');
+
+      // Step 6: Review (parallel)
+      progress.startStep('review-wechat', '审核-公众号');
+      progress.startStep('review-xiaohongshu', '审核-小红书');
+      progress.startStep('review-douyin', '审核-抖音');
+
+      const reviewSteps = platformsToRun.map((p) => {
+        if (p === 'wechat') return new ReviewWechatStep(provider, defaultModel);
+        if (p === 'xiaohongshu') return new ReviewXiaohongshuStep(provider, defaultModel);
+        if (p === 'douyin') return new ReviewDouyinStep(provider, defaultModel);
+        return null;
+      }).filter(Boolean) as (ReviewWechatStep | ReviewXiaohongshuStep | ReviewDouyinStep)[];
+
+      const reviewResults = await Promise.all(reviewSteps.map((step) => step.execute({}, context)));
+      for (let i = 0; i < reviewSteps.length; i++) {
+        const r = reviewResults[i];
+        context.setStepResult(reviewSteps[i].config.name, r);
+        if (r.success && r.data !== undefined) {
+          context.set(reviewSteps[i].config.name, r.data);
+        }
+        if (r.success) {
+          progress.completeStep(reviewSteps[i].config.name, r.durationMs, '');
+        } else {
+          progress.failStep(reviewSteps[i].config.name, r.error ?? 'unknown');
+        }
       }
-    }
+      // Persist final context (after all steps succeeded)
+      await context.persist();
 
-    // Step 6: Review (parallel)
-    progress.startStep('review-wechat', '审核-公众号');
-    progress.startStep('review-xiaohongshu', '审核-小红书');
-    progress.startStep('review-douyin', '审核-抖音');
-
-    const reviewSteps = platformsToRun.map((p) => {
-      if (p === 'wechat') return new ReviewWechatStep(provider, defaultModel);
-      if (p === 'xiaohongshu') return new ReviewXiaohongshuStep(provider, defaultModel);
-      if (p === 'douyin') return new ReviewDouyinStep(provider, defaultModel);
-      return null;
-    }).filter(Boolean) as (ReviewWechatStep | ReviewXiaohongshuStep | ReviewDouyinStep)[];
-
-    const reviewResults = await Promise.all(reviewSteps.map((step) => step.execute({}, context)));
-    for (let i = 0; i < reviewSteps.length; i++) {
-      const r = reviewResults[i];
-      context.setStepResult(reviewSteps[i].config.name, r);
-      if (r.success && r.data !== undefined) {
-        context.set(reviewSteps[i].config.name, r.data);
+      // Write output files
+      for (const platform of platformsToRun) {
+        const reviewResult = context.get<ReviewResult>(`review-${platform}`);
+        if (!reviewResult) continue;
+        const { recommendedTitle, revisedContent } = reviewResult;
+        const safeTitle = sanitizeFilename(recommendedTitle);
+        const ext = platform === 'xiaohongshu' ? 'xhs.md' : `${platform}.md`;
+        await fs.writeFile(path.join(runDir, `${safeTitle}.${ext}`), revisedContent, 'utf-8');
       }
-      if (r.success) {
-        progress.completeStep(reviewSteps[i].config.name, r.durationMs, '');
-      } else {
-        progress.failStep(reviewSteps[i].config.name, r.error ?? 'unknown');
+
+      // Summarize
+      const tokenUsage = context.getTotalTokenUsage();
+      const cost = estimateCost(tokenUsage.input, tokenUsage.output);
+      console.log(chalk.bold('\n✅ 生成完成\n'));
+      console.log(`输出目录: ${runDir}`);
+      console.log(`总 token: input=${tokenUsage.input} output=${tokenUsage.output}`);
+      console.log(`预估成本: $${cost.toFixed(4)}\n`);
+      const files = await fs.readdir(runDir);
+      console.log('生成文件:');
+      for (const file of files) {
+        if (file !== 'run.log') {
+          console.log(`  - ${file}`);
+        }
       }
-    }
-
-    // Persist final context
-    await context.persist();
-    await releaseRunLock(runId, outputDir);
-
-    // Write output files
-    for (const platform of platformsToRun) {
-      const reviewResult = context.get<ReviewResult>(`review-${platform}`);
-      if (!reviewResult) continue;
-      const { recommendedTitle, revisedContent } = reviewResult;
-      const safeTitle = sanitizeFilename(recommendedTitle);
-      const ext = platform === 'xiaohongshu' ? 'xhs.md' : `${platform}.md`;
-      await fs.writeFile(path.join(runDir, `${safeTitle}.${ext}`), revisedContent, 'utf-8');
-    }
-
-    // Summarize
-    const tokenUsage = context.getTotalTokenUsage();
-    const cost = estimateCost(tokenUsage.input, tokenUsage.output);
-    console.log(chalk.bold('\n✅ 生成完成\n'));
-    console.log(`输出目录: ${runDir}`);
-    console.log(`总 token: input=${tokenUsage.input} output=${tokenUsage.output}`);
-    console.log(`预估成本: $${cost.toFixed(4)}\n`);
-    const files = await fs.readdir(runDir);
-    console.log('生成文件:');
-    for (const file of files) {
-      if (file !== 'run.log') {
-        console.log(`  - ${file}`);
-      }
+    } finally {
+      await releaseRunLock(runId, outputDir);
     }
   } else {
     // ─── Non-interactive flow: run full pipeline ──────────────────────────────
