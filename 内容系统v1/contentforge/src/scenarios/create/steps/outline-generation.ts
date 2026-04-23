@@ -34,9 +34,12 @@ export class OutlineWechatStep extends PipelineStep<z.infer<typeof WechatInputSc
   protected async doExecute(input: z.infer<typeof WechatInputSchema>, context: PipelineContext): Promise<WechatOutline> {
     const assignments = context.get<PlatformAssignments>('topic-assignment');
     if (!assignments) throw new Error('topic-assignment not found in context');
+    const confirmedTitle = context.get<string>('confirmed-title-wechat');
+    const title = confirmedTitle ?? assignments.wechat.titleDrafts[0];
+    const topicCard = { ...assignments.wechat, title };
     const template = await promptLoader.load('create', 'outline', 'wechat');
     const systemPrompt = promptLoader.render(template.system, {});
-    const userPrompt = promptLoader.render(template.user, { topicCard: JSON.stringify(assignments.wechat, null, 2) });
+    const userPrompt = promptLoader.render(template.user, { topicCard: JSON.stringify(topicCard, null, 2) });
 
     return this.callLLMJson<WechatOutline>([
       { role: 'system', content: systemPrompt },
@@ -60,9 +63,12 @@ export class OutlineXiaohongshuStep extends PipelineStep<z.infer<typeof Xiaohong
   protected async doExecute(input: z.infer<typeof XiaohongshuInputSchema>, context: PipelineContext): Promise<XiaohongshuOutline> {
     const assignments = context.get<PlatformAssignments>('topic-assignment');
     if (!assignments) throw new Error('topic-assignment not found in context');
+    const confirmedTitle = context.get<string>('confirmed-title-xiaohongshu');
+    const title = confirmedTitle ?? assignments.xiaohongshu.titleDrafts[0];
+    const topicCard = { ...assignments.xiaohongshu, title };
     const template = await promptLoader.load('create', 'outline', 'xiaohongshu');
     const systemPrompt = promptLoader.render(template.system, {});
-    const userPrompt = promptLoader.render(template.user, { topicCard: JSON.stringify(assignments.xiaohongshu, null, 2) });
+    const userPrompt = promptLoader.render(template.user, { topicCard: JSON.stringify(topicCard, null, 2) });
 
     return this.callLLMJson<XiaohongshuOutline>([
       { role: 'system', content: systemPrompt },
@@ -86,9 +92,12 @@ export class OutlineDouyinStep extends PipelineStep<z.infer<typeof DouyinInputSc
   protected async doExecute(input: z.infer<typeof DouyinInputSchema>, context: PipelineContext): Promise<DouyinOutline> {
     const assignments = context.get<PlatformAssignments>('topic-assignment');
     if (!assignments) throw new Error('topic-assignment not found in context');
+    const confirmedTitle = context.get<string>('confirmed-title-douyin');
+    const title = confirmedTitle ?? assignments.douyin.titleDrafts[0];
+    const topicCard = { ...assignments.douyin, title };
     const template = await promptLoader.load('create', 'outline', 'douyin');
     const systemPrompt = promptLoader.render(template.system, {});
-    const userPrompt = promptLoader.render(template.user, { topicCard: JSON.stringify(assignments.douyin, null, 2) });
+    const userPrompt = promptLoader.render(template.user, { topicCard: JSON.stringify(topicCard, null, 2) });
 
     return this.callLLMJson<DouyinOutline>([
       { role: 'system', content: systemPrompt },
