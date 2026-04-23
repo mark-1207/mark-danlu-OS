@@ -44,13 +44,9 @@ export class TopicAssignmentStep extends PipelineStep<z.infer<typeof InputSchema
     }
 
     // Read confirmation constraints from interactive review step
+    // excludeDirections: 限定"不做"的方向，AI 在排除边界内自由发挥
     const confirmed = context.get<TopicAnalysisConfirmed>('topic-analysis-confirmed');
     const excludeDirections = confirmed?.excludeDirections ?? [];
-    const selectedSubTopicIndices = confirmed?.selectedSubTopicIndices ?? [];
-    const selectedSubTopicFocus = selectedSubTopicIndices
-      .map((i) => topicAnalysis.subTopics[i]?.name)
-      .filter(Boolean)
-      .join('、');
 
     const excludeDirectionsStr = excludeDirections.map((d) => `- ${d}`).join('\n');
 
@@ -65,7 +61,6 @@ export class TopicAssignmentStep extends PipelineStep<z.infer<typeof InputSchema
     const userPrompt = promptLoader.render(template.user, {
       topicAnalysis: JSON.stringify(topicAnalysis, null, 2),
       excludeDirections: excludeDirectionsStr,
-      selectedSubTopicFocus,
     });
 
     const result = await this.callLLMJson<PlatformAssignments>([

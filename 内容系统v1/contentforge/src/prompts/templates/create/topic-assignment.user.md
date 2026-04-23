@@ -7,11 +7,6 @@
 {{excludeDirections}}
 {{/if}}
 
-{{#if selectedSubTopicFocus}}
-重点聚焦以下子话题（请优先从这些方向设计标题）：
-{{selectedSubTopicFocus}}
-{{/if}}
-
 请按照要求输出 JSON 格式的选题分配结果。JSON Schema:
 {
   "wechat": {
