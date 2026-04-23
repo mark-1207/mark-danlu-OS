@@ -127,6 +127,20 @@ node dist/index.js create --keyword "AI"
 
 > 如果提示找不到 `dist/index.js`，先运行 `pnpm run build`。
 
+**运行后会展示选题思路**，你可以：
+- 查看 AI 分析的子话题、热度和争议点
+- 用空格键选中/取消某些方向
+- 按 `r` 让 AI 重新分析
+- 按 `a` 添加额外想排除的方向
+- 按 `Tab` 切换分组（子话题/争议话题/热门角度）
+- 选完后按回车，AI 会基于你的选择为三个平台分配差异化角度
+
+如果不想交互，直接全自动生成，加 `--no-interactive`：
+
+```bash
+node dist/index.js create --keyword "AI" --no-interactive
+```
+
 **整个过程大约 1-3 分钟**，终端会显示每一步的进度：
 
 ```
@@ -176,8 +190,11 @@ Step 5  双重审查        检查原创度 + 评估爆款潜力
 
 | 命令 | 说明 |
 |------|------|
-| `create --keyword "AI"` | 生成 AI 主题的三平台文章 |
+| `create --keyword "AI"` | 生成 AI 主题的三平台文章（交互式确认选题方向） |
+| `create --keyword "AI" --no-interactive` | 跳过选题确认，全自动生成（适合 CI/自动化脚本） |
 | `create --keyword "职场成长" --platforms wechat` | 只生成公众号文章 |
+
+> **交互式确认说明**：默认情况下，`create` 会先展示 AI 的选题思路（子话题、角度、标题候选），你可以修改后再继续生成。按 `?` 查看 TUI 操作键位。
 
 ### recreate — 爆款二创
 
@@ -419,7 +436,8 @@ search:
 
 | 命令 | 用途 |
 |------|------|
-| `node dist/index.js create --keyword "主题"` | 从关键词生成三平台文章 |
+| `node dist/index.js create --keyword "主题"` | 从关键词生成三平台文章（交互式选题确认） |
+| `node dist/index.js create --keyword "主题" --no-interactive` | 全自动生成（适合 CI/自动化） |
 | `node dist/index.js recreate --input 文件.md` | 对文章进行二创 |
 | `node dist/index.js resume list` | 列出历史运行 |
 | `node dist/index.js resume <ID>` | 从断点继续 |
