@@ -179,13 +179,15 @@ const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout
       if (keyName === 'r' && key?.meta === false) {
         // Re-run analysis for current group
         process.stdin.pause();
+        consoleClear();
+        console.log(chalk.cyan('  ⏳ 正在重新分析...\n'));
         onRewrite(activeGroup).then((newData) => {
           Object.assign(reviewData, newData);
           process.stdin.resume();
           render();
         }).catch((err) => {
           process.stdin.resume();
-          console.error(chalk.red(`重写失败: ${err.message}`));
+          console.error(chalk.red(`  ✗ 重写失败: ${err.message}`));
           render();
         });
         return;
