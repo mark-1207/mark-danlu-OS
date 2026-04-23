@@ -75,11 +75,9 @@ export async function reviewTopicAnalysis(
       .filter((i) => i >= 0),
   );
 
-  const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
+const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
   readline.emitKeypressEvents(process.stdin);
   process.stdin.setRawMode?.(true);
-
-  let keyBuffer = '';
 
   const getItemsInGroup = (group: Group) => {
     switch (group) {
@@ -185,6 +183,10 @@ export async function reviewTopicAnalysis(
           Object.assign(reviewData, newData);
           process.stdin.resume();
           render();
+        }).catch((err) => {
+          process.stdin.resume();
+          console.error(chalk.red(`重写失败: ${err.message}`));
+          render();
         });
         return;
       }
@@ -200,15 +202,13 @@ export async function reviewTopicAnalysis(
       }
 
       if (keyName === 'up' || keyName === 'k') {
-        const items = getItemsInGroup(activeGroup);
         cursorInGroup = Math.max(0, cursorInGroup - 1);
         render();
         return;
       }
 
       if (keyName === 'down' || keyName === 'j') {
-        const items = getItemsInGroup(activeGroup);
-        cursorInGroup = Math.min(items.length - 1, cursorInGroup + 1);
+        cursorInGroup = Math.min(getItemsInGroup(activeGroup).length - 1, cursorInGroup + 1);
         render();
         return;
       }
@@ -349,10 +349,11 @@ export async function reviewTopicAssignment(
       if (keyName === 'return' || keyName === 'enter') {
         cleanup();
         const toConfirm = (platform: Platform): PlatformSelectionConfirmed => {
-          const idx = platform === activePlatform ? cursorInTitles : assignment[platform].selectedIndex;
+          const rawIdx = platform === activePlatform ? cursorInTitles : assignment[platform].selectedIndex;
+          const safeIdx = Math.min(Math.max(0, rawIdx), assignment[platform].titles.length - 1);
           return {
-            titleIndex: idx,
-            title: assignment[platform].titles[idx],
+            titleIndex: safeIdx,
+            title: assignment[platform].titles[safeIdx],
           };
         };
         resolve({
@@ -380,15 +381,13 @@ export async function reviewTopicAssignment(
       }
 
       if (keyName === 'up' || keyName === 'k') {
-        const titles = assignment[activePlatform].titles;
         cursorInTitles = Math.max(0, cursorInTitles - 1);
         render();
         return;
       }
 
       if (keyName === 'down' || keyName === 'j') {
-        const titles = assignment[activePlatform].titles;
-        cursorInTitles = Math.min(titles.length - 1, cursorInTitles + 1);
+        cursorInTitles = Math.min(assignment[activePlatform].titles.length - 1, cursorInTitles + 1);
         render();
         return;
       }
@@ -402,6 +401,9 @@ export async function reviewTopicAssignment(
           render();
           return;
         }
+      } else if (/^[4-9]$/.test(keyName)) {
+        // Feedback for out-of-range number keys
+        console.log(chalk.gray('只支持1-3'));
       }
 
       render();
