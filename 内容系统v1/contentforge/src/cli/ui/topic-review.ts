@@ -292,6 +292,14 @@ export async function reviewTopicAssignment(
 
   let activePlatform: Platform = 'wechat';
   let cursorInTitles = assignment.wechat.selectedIndex;
+  let editingAngle = false;
+
+  // Keep a copy of original angle for each platform (for angleOverride detection)
+  const originalAngles = {
+    wechat: assignment.wechat.angle,
+    xiaohongshu: assignment.xiaohongshu.angle,
+    douyin: assignment.douyin.angle,
+  };
 
   const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
   readline.emitKeypressEvents(process.stdin);
@@ -335,7 +343,7 @@ export async function reviewTopicAssignment(
     }
 
     console.log(chalk.dim('─'.repeat(60)));
-    console.log(chalk.dim('  ←→ 切换平台   ↑↓ 选择标题   1-3 直接选择   回车 确认'));
+    console.log(chalk.dim('  ←→ 切换平台   ↑↓ 选择标题   1-3 直接选择   e 编辑角度   回车 确认'));
   }
 
   function getSelectedIndexForPlatform(platform: Platform): number {
@@ -351,10 +359,12 @@ export async function reviewTopicAssignment(
         const toConfirm = (platform: Platform): PlatformSelectionConfirmed => {
           const rawIdx = platform === activePlatform ? cursorInTitles : assignment[platform].selectedIndex;
           const safeIdx = Math.min(Math.max(0, rawIdx), assignment[platform].titles.length - 1);
-          return {
-            titleIndex: safeIdx,
-            title: assignment[platform].titles[safeIdx],
-          };
+          const title = assignment[platform].titles[safeIdx];
+          // if angle was edited via 'e', capture as override
+          const angleOverride = assignment[platform].angle !== originalAngles[platform]
+            ? assignment[platform].angle
+            : undefined;
+          return { titleIndex: safeIdx, title, angleOverride };
         };
         resolve({
           wechat: toConfirm('wechat'),
@@ -389,6 +399,26 @@ export async function reviewTopicAssignment(
       if (keyName === 'down' || keyName === 'j') {
         cursorInTitles = Math.min(assignment[activePlatform].titles.length - 1, cursorInTitles + 1);
         render();
+        return;
+      }
+
+      if (keyName === 'e' || keyName === 'E') {
+        process.stdin.pause();
+        cleanup();
+        rl.question(chalk.cyan('输入新角度描述（直接回车跳过）: '), (answer) => {
+          const newAngle = answer.trim();
+          if (newAngle) {
+            assignment[activePlatform].angle = newAngle;
+            originalAngles[activePlatform] = newAngle;
+          }
+          // Reinitialize readline after cleanup
+          const newRl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
+          readline.emitKeypressEvents(process.stdin);
+          process.stdin.setRawMode?.(true);
+          process.stdin.resume();
+          process.stdin.on('keypress', onKeypress);
+          render();
+        });
         return;
       }
 

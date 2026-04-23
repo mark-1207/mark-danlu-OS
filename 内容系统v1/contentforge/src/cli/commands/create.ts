@@ -231,6 +231,9 @@ export async function runCreate(
         const sel = selections[platform as keyof typeof selections];
         if (sel) {
           context.set(`confirmed-title-${platform}`, sel.title);
+          if (sel.angleOverride) {
+            context.set(`angle-override-${platform}`, sel.angleOverride);
+          }
         }
       }
       await context.persist();
