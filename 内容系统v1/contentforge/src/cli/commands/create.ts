@@ -185,7 +185,6 @@ export async function runCreate(
       context.set('topic-analysis', topicAnalysisResult);
       context.set('topic-analysis-confirmed', {
         topicAnalysis: topicAnalysisResult,
-        selectedSubTopicIndices: selectedIndices,
         excludeDirections,
       });
 

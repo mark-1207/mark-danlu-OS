@@ -271,7 +271,6 @@ export type TopicAnalysisReview = z.infer<typeof TopicAnalysisReviewSchema>;
 
 export interface TopicAnalysisConfirmed {
   topicAnalysis: TopicAnalysis;
-  selectedSubTopicIndices: number[];
   excludeDirections: string[];
   extraDirections?: string[];
 }
