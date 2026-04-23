@@ -6,7 +6,7 @@ import { PipelineStep } from '../../../core/step.js';
 import { PipelineContext } from '../../../core/context.js';
 import type { LLMProvider } from '../../../llm/types.js';
 import { promptLoader } from '../../../prompts/loader.js';
-import { PlatformAssignmentsSchema, TopicAnalysisSchema, type PlatformAssignments, type TopicAnalysis } from '../types.js';
+import { PlatformAssignmentsSchema, TopicAnalysisSchema, type PlatformAssignments, type TopicAnalysis, type TopicAnalysisConfirmed } from '../types.js';
 
 const InputSchema = z.object({
   // topicAnalysis is read from context, not input
@@ -43,6 +43,17 @@ export class TopicAssignmentStep extends PipelineStep<z.infer<typeof InputSchema
       throw new Error('topic-analysis result not found in context');
     }
 
+    // Read confirmation constraints from interactive review step
+    const confirmed = context.get<TopicAnalysisConfirmed>('topic-analysis-confirmed');
+    const excludeDirections = confirmed?.excludeDirections ?? [];
+    const selectedSubTopicIndices = confirmed?.selectedSubTopicIndices ?? [];
+    const selectedSubTopicFocus = selectedSubTopicIndices
+      .map((i) => topicAnalysis.subTopics[i]?.name)
+      .filter(Boolean)
+      .join('、');
+
+    const excludeDirectionsStr = excludeDirections.map((d) => `- ${d}`).join('\n');
+
     const template = await promptLoader.load('create', 'topic-assignment');
 
     const systemPrompt = promptLoader.render(template.system, {
@@ -53,6 +64,8 @@ export class TopicAssignmentStep extends PipelineStep<z.infer<typeof InputSchema
 
     const userPrompt = promptLoader.render(template.user, {
       topicAnalysis: JSON.stringify(topicAnalysis, null, 2),
+      excludeDirections: excludeDirectionsStr,
+      selectedSubTopicFocus,
     });
 
     const result = await this.callLLMJson<PlatformAssignments>([
