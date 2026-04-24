@@ -686,6 +686,46 @@
       document.getElementById('batch-summary').style.display = 'block';
     }
 
+    function showUrlBatchSummary(success, failed, durationMs) {
+      const elapsed = durationMs < 1000 ? `${durationMs}ms` : `${(durationMs / 1000).toFixed(1)}s`;
+      const failedItems = urlQueue.filter(u => u.status === 'fail');
+
+      let html = `
+        <div class="batch-summary-header">
+          <span class="batch-summary-title">URL 转换完成</span>
+          <span class="batch-summary-time">用时 ${elapsed}</span>
+        </div>
+        <div class="batch-summary-stats">
+          <div class="batch-stat total">
+            <span class="stat-value">${success + failed}</span>
+            <span class="stat-label">总计</span>
+          </div>
+          <div class="batch-stat success">
+            <span class="stat-value">${success}</span>
+            <span class="stat-label">成功</span>
+          </div>
+          <div class="batch-stat error">
+            <span class="stat-value">${failed}</span>
+            <span class="stat-label">失败</span>
+          </div>
+        </div>`;
+
+      if (failedItems.length > 0) {
+        html += `<div class="batch-failed-list">`;
+        failedItems.forEach(u => {
+          html += `<div class="failed-item">
+            <span class="failed-icon">!</span>
+            <span>${truncateUrl(u.url)}</span>
+          </div>
+          <div class="batch-failed-reason">${u.errorMsg || '未知错误'}</div>`;
+        });
+        html += `</div>`;
+      }
+
+      document.getElementById('batch-summary').innerHTML = html;
+      document.getElementById('batch-summary').style.display = 'block';
+    }
+
     // Batch download handler
     document.getElementById('batch-download').addEventListener('click', async () => {
       const selected = fileQueue.filter(f => f.status === 'done' && f.result && f.selected !== false);
