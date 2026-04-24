@@ -98,6 +98,7 @@ export class RecreationContentStep extends PipelineStep<z.infer<typeof InputSche
     const viralGenome = context.get<ViralGenome>('viral-deconstruction');
     const diffOutput = context.get<DifferentiationOutput>('viral-differentiation');
     const newOutline = context.get<NewOutline>('new-outline');
+    const styleInject = context.get<{ systemPrompt: string; constraints: string[] }>('style-inject');
     if (!viralGenome || !diffOutput || !newOutline) throw new Error('Missing context: viral-deconstruction, viral-differentiation, or new-outline');
     const selectedDirection = diffOutput.selectedDirection;
     if (!selectedDirection) throw new Error('No differentiation direction selected');
@@ -165,6 +166,14 @@ export class RecreationContentStep extends PipelineStep<z.infer<typeof InputSche
     }
 
     const systemPrompt = promptLoader.render(template.system, {});
+    // Inject writer style if available
+    let finalSystemPrompt = systemPrompt;
+    if (styleInject) {
+      finalSystemPrompt += '\n\n【写作风格】\n' + styleInject.systemPrompt;
+      if (styleInject.constraints.length > 0) {
+        finalSystemPrompt += '\n\n【风格约束】\n' + styleInject.constraints.join('\n');
+      }
+    }
     const userPrompt = promptLoader.render(template.user, {
       narrativeStructure: JSON.stringify(viralGenome.narrativeStructure, null, 2),
       emotionCurve: JSON.stringify(viralGenome.emotionCurve, null, 2),
@@ -174,7 +183,7 @@ export class RecreationContentStep extends PipelineStep<z.infer<typeof InputSche
     });
 
     const { content } = await this.callLLM([
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: finalSystemPrompt },
       { role: 'user', content: userPrompt + fragmentSection },
     ]);
 
