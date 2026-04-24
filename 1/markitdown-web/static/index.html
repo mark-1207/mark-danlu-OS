@@ -803,7 +803,8 @@
       list.innerHTML = urlQueue.map((u, i) => `
         <div class="url-item">
           <span class="url-status ${u.status}">${u.status === 'pending' ? '' : u.status === 'done' ? '✓' : '!'}</span>
-          <span class="url-text" title="${u.url}">${truncateUrl(u.url)}</span>
+          <span class="url-text" title="${escapeHtml(u.url)}">${escapeHtml(truncateUrl(u.url))}</span>
+          ${u.status === 'fail' && u.errorMsg ? `<span class="url-error-hint" title="${escapeHtml(u.errorMsg)}" style="color: var(--error); font-size: 0.75rem; cursor: help; margin: 0 4px;">(?)</span>` : ''}
           <span class="url-remove" onclick="removeUrl(${i})">✕</span>
         </div>
       `).join('');
