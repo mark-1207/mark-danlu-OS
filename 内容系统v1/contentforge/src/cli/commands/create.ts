@@ -439,23 +439,25 @@ export async function runCreate(
       }
     }
 
-    // Ask post-gen and handle revision
-    const decision = await askPostGen();
-    if (decision === 'abort') {
-      console.log(chalk.yellow('\n已退出\n'));
-      return;
+    // Ask post-gen and handle revision (interactive only to avoid hanging CI)
+    if (isInteractive) {
+      const decision = await askPostGen();
+      if (decision === 'abort') {
+        console.log(chalk.yellow('\n已退出\n'));
+        return;
+      }
+      if (decision === 'revise') {
+        console.log(chalk.cyan('\n↺ 进入修订流程...\n'));
+        const revisionPipeline = new RevisionPipeline({
+          parentRunId: runId,
+          provider,
+          defaultModel,
+          outputDir: outputDir,
+        });
+        await revisionPipeline.run();
+      }
+      // decision === 'accept' → continue (fall through)
     }
-    if (decision === 'revise') {
-      console.log(chalk.cyan('\n↺ 进入修订流程...\n'));
-      const revisionPipeline = new RevisionPipeline({
-        parentRunId: runId,
-        provider,
-        defaultModel,
-        outputDir: outputDir,
-      });
-      await revisionPipeline.run();
-    }
-    // decision === 'accept' → continue (fall through)
   }
 }
 

@@ -271,29 +271,32 @@ export async function runRecreate(
     }
   }
 
-  // Ask post-gen and handle revision
-  const decision = await askPostGen();
-  if (decision === 'abort') {
-    console.log(chalk.yellow('\n已退出\n'));
-    return;
-  }
-  if (decision === 'revise') {
-    console.log(chalk.cyan('\n↺ 进入修订流程...\n'));
-    const providerConfig = config.providers[config.defaultProvider];
-    if (!providerConfig) {
-      throw new Error(`Default provider '${config.defaultProvider}' not found in config`);
+  // Ask post-gen and handle revision (interactive only to avoid hanging CI)
+  const isInteractive = process.stdin.isTTY;
+  if (isInteractive) {
+    const decision = await askPostGen();
+    if (decision === 'abort') {
+      console.log(chalk.yellow('\n已退出\n'));
+      return;
     }
-    const provider = llmFactory.get(config.defaultProvider);
-    const defaultModel = providerConfig.defaultModel;
-    const revisionPipeline = new RevisionPipeline({
-      parentRunId: runId,
-      provider,
-      defaultModel,
-      outputDir: outputDir,
-    });
-    await revisionPipeline.run();
+    if (decision === 'revise') {
+      console.log(chalk.cyan('\n↺ 进入修订流程...\n'));
+      const providerConfig = config.providers[config.defaultProvider];
+      if (!providerConfig) {
+        throw new Error(`Default provider '${config.defaultProvider}' not found in config`);
+      }
+      const provider = llmFactory.get(config.defaultProvider);
+      const defaultModel = providerConfig.defaultModel;
+      const revisionPipeline = new RevisionPipeline({
+        parentRunId: runId,
+        provider,
+        defaultModel,
+        outputDir: outputDir,
+      });
+      await revisionPipeline.run();
+    }
+    // decision === 'accept' → fall through to exit
   }
-  // decision === 'accept' → fall through to exit
 }
 
 async function writeMarkdownSummary(
