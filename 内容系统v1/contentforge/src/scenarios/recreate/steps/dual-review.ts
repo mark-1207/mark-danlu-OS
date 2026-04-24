@@ -308,7 +308,7 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
 
     for (const idx of flaggedIndices) {
       if (idx >= 0 && idx < lines.length) {
-        const originalText = flaggedParagraphs.find((p) => p.paragraphIndex === idx)?.recreationText ?? lines[idx];
+        const originalText = flaggedParagraphs.find((p) => p.paragraphIndex === idx)?.matchedText ?? lines[idx];
         let rewritePrompt: string;
 
         if (strategy === 'narrative-identity') {
