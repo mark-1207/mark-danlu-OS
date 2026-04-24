@@ -38,6 +38,8 @@ import {
   ReviewXiaohongshuStep,
   ReviewDouyinStep,
 } from '../../scenarios/create/steps/index.js';
+import { askPostGen } from '../../scenarios/revision/cli/post-gen-prompt.js';
+import { RevisionPipeline } from '../../scenarios/revision/index.js';
 
 const VALID_PLATFORMS = ['wechat', 'xiaohongshu', 'douyin'] as const;
 const PLATFORM_LABELS: Record<string, string> = {
@@ -366,6 +368,24 @@ export async function runCreate(
           console.log(`  - ${file}`);
         }
       }
+
+      // Ask post-gen and handle revision
+      const decision = await askPostGen();
+      if (decision === 'abort') {
+        console.log(chalk.yellow('\n已退出\n'));
+        return;
+      }
+      if (decision === 'revise') {
+        console.log(chalk.cyan('\n↺ 进入修订流程...\n'));
+        const revisionPipeline = new RevisionPipeline({
+          parentRunId: runId,
+          provider,
+          defaultModel,
+          outputDir: outputDir,
+        });
+        await revisionPipeline.run();
+      }
+      // decision === 'accept' → continue to review (fall through to releaseLock)
     } finally {
       await releaseRunLock(runId, outputDir);
     }
@@ -418,6 +438,24 @@ export async function runCreate(
         console.log(`  - ${file}`);
       }
     }
+
+    // Ask post-gen and handle revision
+    const decision = await askPostGen();
+    if (decision === 'abort') {
+      console.log(chalk.yellow('\n已退出\n'));
+      return;
+    }
+    if (decision === 'revise') {
+      console.log(chalk.cyan('\n↺ 进入修订流程...\n'));
+      const revisionPipeline = new RevisionPipeline({
+        parentRunId: runId,
+        provider,
+        defaultModel,
+        outputDir: outputDir,
+      });
+      await revisionPipeline.run();
+    }
+    // decision === 'accept' → continue (fall through)
   }
 }
 

@@ -15,6 +15,8 @@ import { estimateCost } from '../../utils/token-counter.js';
 import { acquireRunLock, releaseRunLock } from '../../utils/run-lock.js';
 import { sanitizeFilename } from '../../utils/sanitize.js';
 import type { DifferentiationOutput, DifferentiationDirection, DualReviewResult } from '../../scenarios/recreate/types.js';
+import { askPostGen } from '../../scenarios/revision/cli/post-gen-prompt.js';
+import { RevisionPipeline } from '../../scenarios/revision/index.js';
 
 export async function runRecreate(
   inputPath: string,
@@ -268,6 +270,30 @@ export async function runRecreate(
       console.log(`  - ${file}`);
     }
   }
+
+  // Ask post-gen and handle revision
+  const decision = await askPostGen();
+  if (decision === 'abort') {
+    console.log(chalk.yellow('\n已退出\n'));
+    return;
+  }
+  if (decision === 'revise') {
+    console.log(chalk.cyan('\n↺ 进入修订流程...\n'));
+    const providerConfig = config.providers[config.defaultProvider];
+    if (!providerConfig) {
+      throw new Error(`Default provider '${config.defaultProvider}' not found in config`);
+    }
+    const provider = llmFactory.get(config.defaultProvider);
+    const defaultModel = providerConfig.defaultModel;
+    const revisionPipeline = new RevisionPipeline({
+      parentRunId: runId,
+      provider,
+      defaultModel,
+      outputDir: outputDir,
+    });
+    await revisionPipeline.run();
+  }
+  // decision === 'accept' → fall through to exit
 }
 
 async function writeMarkdownSummary(
