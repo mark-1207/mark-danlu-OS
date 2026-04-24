@@ -30,6 +30,11 @@ async function confirm(message: string): Promise<boolean> {
     m.createInterface({ input: process.stdin, output: process.stdout }),
   );
   return new Promise<boolean>((resolve) => {
+    const handleError = (err: Error) => {
+      rl.close();
+      resolve(false);
+    };
+    rl.on('error', handleError);
     rl.question(chalk.cyan(message + ' [y/N] '), (answer) => {
       rl.close();
       resolve(answer.trim().toLowerCase() === 'y');
@@ -41,7 +46,6 @@ export class RevisionPipeline {
   private options: RevisionPipelineOptions;
   private currentVersion: string = 'v1';
   private revisionCount: number = 0; // number of completed revision cycles
-  private revisionHistory: AppliedRevision[] = [];
 
   constructor(options: RevisionPipelineOptions) {
     this.options = options;
@@ -63,51 +67,44 @@ export class RevisionPipeline {
     context.set('parentRunId', this.options.parentRunId);
 
     // 3. Get current content from parent run (各平台内容)
-    const contents = this.extractContents(parentContext);
+    let contents = this.extractContents(parentContext);
 
     // 4. Main revision loop: R0 → R1 → confirm → loop or exit
     while (true) {
-      // R0: Element selection
-      const { selections, userInstruction } = await selectRevisionElements();
-      if (selections.length === 0) {
-        console.log(chalk.dim('未选择任何元素，退出修订'));
-        return { success: false, runId };
-      }
-
-      // R1: Execute rewrite
-      console.log(chalk.cyan('\n⏳ 正在修订...\n'));
-      const result = await executeRevisionRewrite(
-        selections,
-        contents,
-        userInstruction,
-        context,
-        this.options.provider,
-        this.options.defaultModel,
-      );
-
-      // Update contents with rewritten versions
-      Object.assign(contents, result.updatedContent);
-
-      // Show results
-      console.log(chalk.green('\n✓ 修订完成\n'));
-      for (const trigger of result.appliedTriggers) {
-        console.log(`  ${trigger.element}: ${trigger.action}`);
-        if (trigger.newText) {
-          console.log(`    新: ${trigger.newText.substring(0, 80)}...`);
+      try {
+        // R0: Element selection
+        const { selections, userInstruction } = await selectRevisionElements();
+        if (selections.length === 0) {
+          console.log(chalk.dim('未选择任何元素，退出修订'));
+          return { success: false, runId };
         }
-      }
+
+        // R1: Execute rewrite
+        console.log(chalk.cyan('\n⏳ 正在修订...\n'));
+        const result = await executeRevisionRewrite(
+          selections,
+          contents,
+          userInstruction,
+          context,
+          this.options.provider,
+          this.options.defaultModel,
+        );
+
+        // Update contents with rewritten versions (immutable update)
+        contents = { ...contents, ...result.updatedContent };
+
+        // Show results
+        console.log(chalk.green('\n✓ 修订完成\n'));
+        for (const trigger of result.appliedTriggers) {
+          console.log(`  ${trigger.element}: ${trigger.action}`);
+          if (trigger.newText) {
+            console.log(`    新: ${trigger.newText.substring(0, 80)}...`);
+          }
+        }
 
       // R2: Confirm
       const confirmed = await confirm('这版可以吗？');
       if (confirmed) {
-        // Save to revision history
-        this.revisionHistory.push({
-          version: this.currentVersion,
-          timestamp: new Date().toISOString(),
-          selections,
-          userInstruction,
-          appliedTriggers: result.appliedTriggers,
-        });
         // Persist lineage to parent runId
         await this.persistLineage(result.appliedTriggers, userInstruction, selections, contents);
 
@@ -122,6 +119,10 @@ export class RevisionPipeline {
         // Loop back to R0 with updated contents
         this.revisionCount++;
         this.currentVersion = `v${this.revisionCount + 1}`;
+      }
+      } catch (err) {
+        console.error(chalk.red(`\n错误: ${err instanceof Error ? err.message : String(err)}`));
+        console.log(chalk.dim('请重试或按 Ctrl+C 退出'));
       }
     }
   }
@@ -184,13 +185,17 @@ export class RevisionPipeline {
     manifest.versions.push(revision);
     manifest.currentVersion = this.currentVersion;
 
-    await fs.mkdir(parentDir, { recursive: true });
-    await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
-    await fs.writeFile(
-      path.join(parentDir, `${this.currentVersion}.md`),
-      Object.values(contents).join('\n\n---\n\n'),
-      'utf-8',
-    );
+    try {
+      await fs.mkdir(parentDir, { recursive: true });
+      await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+      await fs.writeFile(
+        path.join(parentDir, `${this.currentVersion}.md`),
+        Object.values(contents).join('\n\n---\n\n'),
+        'utf-8',
+      );
+    } catch (err) {
+      console.warn(chalk.yellow(`警告:  lineage 持久化失败: ${err instanceof Error ? err.message : String(err)} (内容已保存到 runId)`));
+    }
   }
 
   private async persistFinalContent(context: PipelineContext, contents: Record<string, string>): Promise<void> {
