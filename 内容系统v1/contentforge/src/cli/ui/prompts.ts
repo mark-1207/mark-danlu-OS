@@ -27,3 +27,36 @@ export async function interactiveSelect<T>(
     });
   });
 }
+
+export type RevisionChoice = 'accept' | 'revise' | 'abort';
+
+/**
+ * Ask user if they are satisfied with the generated content and want to proceed
+ * to review, revise, or abort.
+ */
+export async function confirmRevision(): Promise<RevisionChoice> {
+  console.log('\n这版满意吗？\n');
+  console.log('  [1] ✓ 满意，进入审查');
+  console.log('  [2] ↺ 修订一下（r）');
+  console.log('  [3] ✗ 不满意，退出');
+  console.log('');
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+
+  return new Promise<RevisionChoice>((resolve) => {
+    rl.question('请选择 (输入数字): ', (answer) => {
+      rl.close();
+      const index = parseInt(answer, 10) - 1;
+      // 0 = accept, 1 = revise, 2 = abort
+      if (index === 0) {
+        resolve('accept');
+      } else if (index === 1) {
+        resolve('revise');
+      } else if (index === 2) {
+        resolve('abort');
+      } else {
+        resolve('accept'); // default
+      }
+    });
+  });
+}
