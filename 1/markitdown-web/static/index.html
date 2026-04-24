@@ -783,33 +783,65 @@
       const pending = urlQueue.filter(u => u.status === 'pending');
       if (pending.length === 0) return;
 
+      urlBatchMode = pending.length > 1;
       showLoading(true);
+      document.getElementById('batch-summary').style.display = 'none';
+
+      const startTime = Date.now();
+      let successCount = 0;
+      let failCount = 0;
+
       for (const item of pending) {
         const index = urlQueue.indexOf(item);
         urlQueue[index].status = 'converting';
+        urlQueue[index].errorMsg = null;
         renderUrlList();
 
         try {
           const formData = new FormData();
           formData.append('url', item.url);
           formData.append('keep_data_uris', document.getElementById('url-keep-uris').checked);
+          formData.append('batch', urlBatchMode);
 
           const resp = await fetch(API + '/convert/url', { method: 'POST', body: formData });
           const data = await resp.json();
 
           if (data.success) {
-            urlQueue[index].status = 'done';
-            urlQueue[index].result = data;
-            showResult(data.markdown, data.meta);
+            const isValid = validateConversion(data.markdown, item.url);
+            if (isValid) {
+              urlQueue[index].status = 'done';
+              urlQueue[index].result = data;
+              successCount++;
+            } else {
+              urlQueue[index].status = 'fail';
+              urlQueue[index].errorMsg = '转换质量异常（内容乱码或过短）';
+              failCount++;
+            }
           } else {
             urlQueue[index].status = 'fail';
+            urlQueue[index].errorMsg = data.detail || '转换失败';
+            failCount++;
           }
         } catch (e) {
           urlQueue[index].status = 'fail';
+          urlQueue[index].errorMsg = e.message || '网络错误';
+          failCount++;
         }
         renderUrlList();
       }
+
       showLoading(false);
+
+      if (urlBatchMode) {
+        showUrlBatchSummary(successCount, failCount, Date.now() - startTime);
+        document.getElementById('url-batch-download').style.display = successCount > 0 ? 'inline-flex' : 'none';
+        updateUrlBatchDownloadCount();
+      } else {
+        const doneItem = urlQueue.find(u => u.status === 'done');
+        if (doneItem && doneItem.result) {
+          showResult(doneItem.result.markdown, doneItem.result.meta);
+        }
+      }
     });
 
     // Text convert
