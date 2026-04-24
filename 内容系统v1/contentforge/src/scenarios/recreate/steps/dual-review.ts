@@ -3,9 +3,8 @@ import { PipelineStep } from '../../../core/step.js';
 import { PipelineContext } from '../../../core/context.js';
 import type { LLMProvider } from '../../../llm/types.js';
 import { promptLoader } from '../../../prompts/loader.js';
-import { DualReviewResultSchema, type DualReviewResult } from '../types.js';
-import type { GoldQuote } from '../types.js';
-import { checkSimilarity, type SimilarityCheckItem, cosineSimilarity, computeEmbedding, SIMILARITY_THRESHOLD } from '../../../utils/embedding.js';
+import { DualReviewResultSchema, type DualReviewResult, type ViralGenome } from '../types.js';
+import { cosineSimilarity, computeEmbedding, SIMILARITY_THRESHOLD } from '../../../utils/embedding.js';
 import { logger } from '../../../utils/logger.js';
 
 const InputSchema = z.object({
@@ -295,7 +294,7 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
    */
   private async rewriteFlaggedParagraphs(
     article: string,
-    flaggedParagraphs: Array<{ paragraphIndex: number; recreationText: string }>,
+    flaggedParagraphs: Array<{ paragraphIndex: number; matchedText: string }>,
     iteration: number,
   ): Promise<string> {
     const lines = article.split('\n');
