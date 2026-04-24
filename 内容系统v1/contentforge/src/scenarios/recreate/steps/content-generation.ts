@@ -22,6 +22,36 @@ const InputSchema = z.object({
   selectedDirection: DifferentiationDirectionSchema.optional(),
 });
 
+/**
+ * Filter fragments by cosine similarity against original elements.
+ * Uses Promise.all for parallel embedding computation.
+ * Fails open — keeps fragment if embedding computation fails.
+ */
+async function filterFragmentsBySimilarity<T>(
+  fragments: T[],
+  getText: (f: T) => string,
+  originalElements: { embedding: number[] }[],
+  threshold = 0.80
+): Promise<T[]> {
+  if (originalElements.length === 0) return fragments;
+
+  const results = await Promise.all(
+    fragments.map(async (f) => {
+      try {
+        const emb = await computeEmbedding({ text: getText(f) });
+        const keep = !originalElements.some(
+          (el) => cosineSimilarity(emb.embedding, el.embedding) > threshold
+        );
+        return { fragment: f, keep };
+      } catch {
+        return { fragment: f, keep: true };
+      }
+    })
+  );
+
+  return results.filter((r) => r.keep).map((r) => r.fragment);
+}
+
 export class RecreationContentStep extends PipelineStep<z.infer<typeof InputSchema>, string> {
   config = {
     name: 'recreation-content',
@@ -115,49 +145,17 @@ export class RecreationContentStep extends PipelineStep<z.infer<typeof InputSche
       const paragraphs = loader.getParagraphFragments(undefined, 'universal', 3);
 
       // 过滤与原文相似的碎片（embedding > 0.80）
-      const filteredSentences = [];
-      for (const s of sentences) {
-        if (originalElements.length === 0) {
-          filteredSentences.push(s);
-          continue;
-        }
-        try {
-          const fragEmb = await computeEmbedding({ text: s.text });
-          let keep = true;
-          for (const el of originalElements) {
-            const sim = cosineSimilarity(fragEmb.embedding, el.embedding);
-            if (sim > 0.80) {
-              keep = false;
-              break;
-            }
-          }
-          if (keep) filteredSentences.push(s);
-        } catch {
-          filteredSentences.push(s);
-        }
-      }
+      const filteredSentences = await filterFragmentsBySimilarity(
+        sentences,
+        (s) => s.text,
+        originalElements
+      );
 
-      const filteredParagraphs = [];
-      for (const p of paragraphs) {
-        if (originalElements.length === 0) {
-          filteredParagraphs.push(p);
-          continue;
-        }
-        try {
-          const fragEmb = await computeEmbedding({ text: p.content.slice(0, 500) });
-          let keep = true;
-          for (const el of originalElements) {
-            const sim = cosineSimilarity(fragEmb.embedding, el.embedding);
-            if (sim > 0.80) {
-              keep = false;
-              break;
-            }
-          }
-          if (keep) filteredParagraphs.push(p);
-        } catch {
-          filteredParagraphs.push(p);
-        }
-      }
+      const filteredParagraphs = await filterFragmentsBySimilarity(
+        paragraphs,
+        (p) => p.content.slice(0, 500),
+        originalElements
+      );
 
       if (filteredSentences.length > 0 || filteredParagraphs.length > 0) {
         fragmentSection = '\n\n' + loader.formatForPrompt(filteredSentences, filteredParagraphs);
