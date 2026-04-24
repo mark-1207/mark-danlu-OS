@@ -52,7 +52,7 @@ export function cosineSimilarity(a: number[], b: number[]): number {
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-export const SIMILARITY_THRESHOLD = 0.85;
+export const SIMILARITY_THRESHOLD = 0.80;
 
 export interface SimilarityCheckItem {
   id: string;

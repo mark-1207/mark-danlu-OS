@@ -41,6 +41,13 @@ export const ViralGenomeSchema: z.ZodType<ViralGenome> = z.object({
     text: z.string(),
     reason: z.string(),
   })),
+  // P0-3: 原文金句，二创必须避免直接使用
+  goldQuotes: z.array(z.object({
+    id: z.string(),
+    text: z.string(),
+    embedding: z.array(z.number()).optional(), // 预计算，不强制
+    position: z.string(),
+  })).default([]),
   // P0-2: 原文案例（人物/场景/故事），二创必须全部替换
   caseStudies: z.array(z.object({
     id: z.string(),
