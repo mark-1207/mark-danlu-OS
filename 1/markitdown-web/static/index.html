@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markitdown Web</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    :root {
+      --bg-deep: #0f0f12;
+      --bg-card: #1a1a1f;
+      --bg-elevated: #222228;
+      --border: #2a2a32;
+      --text-primary: #f0f0f0;
+      --text-secondary: #8a8a96;
+      --text-muted: #5a5a66;
+      --accent: #e8c47c;
+      --accent-dim: #b8975a;
+      --success: #7cb98b;
+      --error: #e87878;
+      --gradient-warm: linear-gradient(135deg, #e8c47c 0%, #d4a056 100%);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+
+    body {
+      font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.6;
+      background-image:
+        radial-gradient(ellipse at 20% 0%, rgba(232, 196, 124, 0.03) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(232, 196, 124, 0.02) 0%, transparent 50%);
+    }
+
+    ::selection { background: var(--accent); color: var(--bg-deep); }
+
+    .container { max-width: 900px; margin: 0 auto; padding: 60px 24px 80px; }
+
+    .header { text-align: center; margin-bottom: 48px; animation: fadeInUp 0.6s ease-out; }
+    .logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+    .logo span { color: var(--accent); }
+    .tagline { color: var(--text-secondary); font-size: 1rem; font-weight: 300; letter-spacing: 0.05em; }
+
+    .tabs { display: flex; gap: 4px; margin-bottom: 0; animation: fadeInUp 0.6s ease-out 0.1s both; }
+    .tab {
+      flex: 1;
+      padding: 16px 24px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-radius: 12px 12px 0 0;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+    .tab:hover { color: var(--text-primary); background: var(--bg-elevated); }
+    .tab.active {
+      background: var(--bg-elevated);
+      color: var(--accent);
+      border-color: var(--accent);
+      border-bottom: 1px solid var(--bg-elevated);
+      margin-bottom: -1px;
+    }
+    .tab svg { width: 18px; height: 18px; margin-right: 8px; vertical-align: -3px; }
+
+    .panel {
+      background: var(--bg-elevated);
+      border: 1px solid var(--accent);
+      border-radius: 0 16px 16px 16px;
+      padding: 32px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+      animation: fadeInUp 0.6s ease-out 0.2s both;
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .input-row { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+    input[type="text"], textarea {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+    input[type="text"]:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(232, 196, 124, 0.1);
+    }
+    input[type="text"]::placeholder, textarea::placeholder { color: var(--text-muted); }
+    input[type="text"] { flex: 1; min-width: 200px; }
+
+    .toggle { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-secondary); cursor: pointer; }
+    .toggle input { appearance: none; width: 18px; height: 18px; border: 2px solid var(--border); border-radius: 4px; cursor: pointer; position: relative; transition: all 0.2s; }
+    .toggle input:checked { background: var(--accent); border-color: var(--accent); }
+    .toggle input:checked::after { content: '✓'; position: absolute; top: -2px; left: 2px; font-size: 12px; color: var(--bg-deep); font-weight: 700; }
+
+    .btn {
+      padding: 14px 28px;
+      background: var(--gradient-warm);
+      color: var(--bg-deep);
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(232, 196, 124, 0.25); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+    .btn svg { width: 18px; height: 18px; }
+
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      padding: 60px 40px;
+      text-align: center;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: var(--bg-card);
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(232, 196, 124, 0.03);
+    }
+    .drop-zone.dragover { transform: scale(1.01); }
+    .drop-zone svg { width: 48px; height: 48px; color: var(--accent); margin-bottom: 16px; }
+    .drop-zone p { font-size: 1rem; margin-bottom: 8px; }
+    .drop-zone .hint { font-size: 0.85rem; color: var(--text-muted); }
+    .drop-zone input { display: none; }
+
+    .file-list { margin-top: 16px; }
+    .file-list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 0 4px; }
+    .file-list-header label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; color: var(--text-secondary); }
+    .file-list-header input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--accent); }
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--bg-card);
+      border-radius: 10px;
+      margin-bottom: 8px;
+    }
+    .file-item .file-checkbox { width: 18px; height: 18px; cursor: pointer; accent-color: var(--accent); flex-shrink: 0; }
+    .file-item .file-icon { width: 36px; height: 36px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .file-item .file-icon svg { width: 18px; height: 18px; color: var(--bg-deep); }
+    .file-item .file-info { flex: 1; min-width: 0; }
+    .file-item .file-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-item .file-size { font-size: 0.8rem; color: var(--text-muted); }
+    .file-item .file-status { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+    .file-item .file-status.pending { background: var(--border); }
+    .file-item .file-status.converting { background: var(--accent); color: var(--bg-deep); animation: breathe 1.5s ease-in-out infinite; }
+    .file-item .file-status.done { background: var(--success); color: var(--bg-deep); }
+    .file-item .file-status.error { background: var(--error); color: white; }
+
+    @keyframes breathe {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(232, 196, 124, 0.4); transform: scale(1); }
+      50% { box-shadow: 0 0 0 6px rgba(232, 196, 124, 0); transform: scale(1.1); }
+    }
+
+    .file-item.converting {
+      border: 1px solid rgba(232, 196, 124, 0.5);
+      animation: itemPulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes itemPulse {
+      0%, 100% { border-color: rgba(232, 196, 124, 0.3); }
+      50% { border-color: rgba(232, 196, 124, 0.8); }
+    }
+
+    .file-item .file-remove { color: var(--text-muted); cursor: pointer; padding: 4px; margin-left: auto; }
+    .file-item .file-remove:hover { color: var(--error); }
+
+    .url-list { margin-top: 12px; max-height: 300px; overflow-y: auto; }
+    .url-item { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 10px 14px; background: var(--bg-card); border-radius: 8px; font-size: 0.9rem; }
+    .url-item .url-status { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+    .url-item .url-status.pending { background: var(--border); }
+    .url-item .url-status.done { background: var(--success); color: var(--bg-deep); }
+    .url-item .url-status.fail { background: var(--error); color: white; }
+    .url-item .url-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
+    .url-item .url-remove { color: var(--text-muted); cursor: pointer; padding: 4px; flex-shrink: 0; }
+    .url-item .url-remove:hover { color: var(--error); }
+
+    textarea { width: 100%; height: 200px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; font-size: 0.95rem; font-family: 'Source Sans 3', monospace; resize: vertical; background: var(--bg-card); color: var(--text-primary); }
+    textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(232, 196, 124, 0.1); }
+
+    label { font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 8px; display: block; }
+
+    .result { margin-top: 32px; display: none; animation: fadeInUp 0.4s ease-out; }
+    .result.show { display: block; }
+
+    .meta-card {
+      background: linear-gradient(135deg, rgba(232, 196, 124, 0.08) 0%, rgba(232, 196, 124, 0.02) 100%);
+      border: 1px solid rgba(232, 196, 124, 0.2);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .meta-title { font-family: 'Playfair Display', serif; font-size: 1.5rem; font-weight: 600; margin-bottom: 16px; color: var(--accent); word-break: break-all; }
+    .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; }
+    .meta-item { display: flex; flex-direction: column; gap: 4px; }
+    .meta-item .label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .meta-item .value { font-size: 1rem; color: var(--text-primary); font-weight: 500; }
+    .meta-item .value.success { color: var(--success); }
+
+    .output-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .output-label { font-size: 0.9rem; color: var(--text-secondary); font-weight: 500; }
+    .markdown-output {
+      width: 100%;
+      min-height: 350px;
+      max-height: 500px;
+      padding: 20px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-family: 'Source Sans 3', 'SF Mono', Consolas, monospace;
+      line-height: 1.7;
+      background: var(--bg-card);
+      color: var(--text-primary);
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-y: auto;
+    }
+    .markdown-output::-webkit-scrollbar { width: 8px; }
+    .markdown-output::-webkit-scrollbar-track { background: var(--bg-card); border-radius: 4px; }
+    .markdown-output::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .markdown-output::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    .actions { margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn-secondary { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--bg-elevated); border-color: var(--accent); }
+    .btn-success { background: var(--success); color: var(--bg-deep); }
+    .btn-success:hover { box-shadow: 0 8px 20px rgba(124, 185, 139, 0.25); }
+
+    .error { color: var(--error); font-size: 0.9rem; margin-top: 16px; padding: 12px 16px; background: rgba(232, 120, 120, 0.1); border-radius: 8px; display: none; }
+    .error.show { display: block; }
+    .loading { color: var(--text-secondary); font-size: 0.9rem; margin-top: 16px; display: none; text-align: center; padding: 20px; }
+    .loading.show { display: block; }
+    .loading::after { content: ''; display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin-left: 10px; vertical-align: middle; }
+
+    .batch-summary {
+      background: linear-gradient(135deg, rgba(124, 185, 139, 0.08) 0%, rgba(124, 185, 139, 0.02) 100%);
+      border: 1px solid rgba(124, 185, 139, 0.3);
+      border-radius: 12px;
+      padding: 20px 24px;
+      animation: fadeInUp 0.4s ease-out;
+    }
+    .batch-summary-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .batch-summary-title { font-weight: 600; font-size: 1rem; color: var(--text-primary); }
+    .batch-summary-time { font-size: 0.85rem; color: var(--text-muted); }
+    .batch-summary-stats { display: flex; gap: 24px; }
+    .batch-stat { display: flex; flex-direction: column; gap: 2px; }
+    .batch-stat .stat-value { font-size: 1.5rem; font-weight: 700; }
+    .batch-stat .stat-label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; }
+    .batch-stat.success .stat-value { color: var(--success); }
+    .batch-stat.error .stat-value { color: var(--error); }
+    .batch-stat.total .stat-value { color: var(--accent); }
+    .batch-failed-list { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(232, 120, 120, 0.2); }
+    .batch-failed-list .failed-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 0.9rem; color: var(--error); }
+    .batch-failed-list .failed-item .failed-icon { width: 18px; height: 18px; background: var(--error); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+    .batch-failed-list .batch-failed-reason { color: var(--text-muted); font-size: 0.8rem; margin-left: 26px; }
+
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 640px) {
+      .container { padding: 40px 16px 60px; }
+      .logo { font-size: 2rem; }
+      .tabs { flex-wrap: wrap; }
+      .tab { flex: 1 1 calc(33% - 4px); text-align: center; padding: 12px; }
+      .tab svg { display: none; }
+      .panel { padding: 20px; }
+      .input-row { flex-wrap: wrap; }
+      .btn { width: 100%; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1 class="logo">Markit<span>down</span></h1>
+      <p class="tagline">文档转换 · 化繁为简</p>
+    </header>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="file">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        文件上传
+      </button>
+      <button class="tab" data-tab="url">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        URL 转换
+      </button>
+      <button class="tab" data-tab="text">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
+        文本输入
+      </button>
+    </div>
+
+    <div class="panel">
+      <!-- 文件上传 -->
+      <div id="tab-file" class="tab-content active">
+        <div class="drop-zone" id="drop-zone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <p>拖拽文件到此处，或点击选择文件</p>
+          <span class="hint">支持 PDF、Word、Excel、PPT、HTML、EPUB 等格式（可同时选择多个）</span>
+          <input type="file" id="file-input" accept="*/*" multiple>
+        </div>
+        <div id="file-list" class="file-list"></div>
+        <div class="input-row" style="margin-top: 16px;">
+          <label class="toggle">
+            <input type="checkbox" id="file-keep-uris">
+            保留图片 data URIs
+          </label>
+        </div>
+        <button class="btn" id="file-convert" style="margin-top: 16px;" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+          <span id="file-convert-text">开始转换</span>
+        </button>
+        <button class="btn btn-success" id="batch-download" style="margin-top: 16px; display: none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          下载已选中 (0)
+        </button>
+        <button class="btn btn-secondary" id="reset-btn" style="margin-top: 16px; display: none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          重置
+        </button>
+      </div>
+
+      <!-- URL 转换 -->
+      <div id="tab-url" class="tab-content">
+        <div class="input-row">
+          <input type="text" id="url-input" placeholder="粘贴 URL，按回车添加（支持批量）">
+          <label class="toggle" style="white-space: nowrap;">
+            <input type="checkbox" id="url-keep-uris">
+            保留图片
+          </label>
+        </div>
+        <div id="url-list" class="url-list"></div>
+        <button class="btn" id="url-convert" style="margin-top: 16px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+          批量转换
+        </button>
+      </div>
+
+      <!-- 文本输入 -->
+      <div id="tab-text" class="tab-content">
+        <label>输入要转换的内容：</label>
+        <textarea id="text-input" placeholder="粘贴文本或 HTML 内容..."></textarea>
+        <div class="input-row" style="margin-top: 16px;">
+          <input type="text" id="text-filename" value="content.txt" style="width: 180px;" placeholder="文件名">
+          <label class="toggle">
+            <input type="checkbox" id="text-keep-uris">
+            保留图片
+          </label>
+          <button class="btn" id="text-convert">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+            转换
+          </button>
+        </div>
+      </div>
+
+      <!-- 结果区 -->
+      <div id="result" class="result">
+        <div class="meta-card" id="meta-card">
+          <div class="meta-title" id="meta-title">转换完成</div>
+          <div class="meta-grid" id="meta-grid"></div>
+        </div>
+        <div class="output-header">
+          <span class="output-label">Markdown 输出</span>
+        </div>
+        <textarea id="markdown-output" class="markdown-output" readonly></textarea>
+        <div class="actions">
+          <button class="btn btn-success" id="copy-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            复制内容
+          </button>
+          <button class="btn btn-secondary" id="download-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            下载文件
+          </button>
+        </div>
+      </div>
+
+      <div id="batch-summary" class="batch-summary" style="display: none; margin-top: 20px;"></div>
+
+      <div id="error" class="error"></div>
+      <div id="loading" class="loading">转换中...</div>
+    </div>
+  </div>
+
+  <script>
+    const API = '';
+
+    let currentMarkdown = '';
+    let currentFilename = 'output.md';
+    let fileQueue = [];
+    let urlQueue = [];
+    let urlBatchMode = false;
+    let isBatchMode = false;
+
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+      });
+    });
+
+    // File handling
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) {
+        handleFiles(e.dataTransfer.files);
+      }
+    });
+
+    fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+    function handleFiles(files) {
+      for (const file of files) {
+        if (!fileQueue.some(f => f.name === file.name && f.size === file.size)) {
+          fileQueue.push({ file, status: 'pending', selected: true });
+        }
+      }
+      renderFileList();
+    }
+
+    function renderFileList() {
+      const list = document.getElementById('file-list');
+      const doneFiles = fileQueue.filter(f => f.status === 'done' && f.result);
+      const pendingSelected = fileQueue.filter(f => f.status === 'pending' && f.selected);
+      const hasConversionDone = doneFiles.length > 0;
+
+      if (fileQueue.length === 0) {
+        list.innerHTML = '';
+        document.getElementById('file-convert').disabled = true;
+        document.getElementById('batch-download').style.display = 'none';
+        document.getElementById('result').classList.remove('show');
+        return;
+      }
+
+      let html = '';
+      if (fileQueue.length > 1) {
+        const allSelected = fileQueue.every(f => f.selected !== false);
+        const selectedCount = fileQueue.filter(f => f.selected).length;
+        html += `<div class="file-list-header">
+          <label>
+            <input type="checkbox" id="select-all" ${allSelected ? 'checked' : ''} onchange="toggleSelectAll(this.checked)">
+            全选
+          </label>
+          <span style="color: var(--text-muted); font-size: 0.85rem;">已选 ${selectedCount}/${fileQueue.length} 个文件</span>
+        </div>`;
+      }
+
+      html += fileQueue.map((item, index) => {
+        const isDone = item.status === 'done' && item.result;
+        const showCheckbox = fileQueue.length > 1;
+        const isConverting = item.status === 'converting';
+        return `
+        <div class="file-item ${isConverting ? 'converting' : ''}" data-index="${index}">
+          ${showCheckbox ? `<input type="checkbox" class="file-checkbox" ${item.selected !== false ? 'checked' : ''} onchange="toggleFileSelect(${index}, this.checked)" ${item.status === 'done' ? '' : ''}>` : '<div style="width:18px"></div>'}
+          <div class="file-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div class="file-info">
+            <div class="file-name">${item.file.name}</div>
+            <div class="file-size">${(item.file.size / 1024).toFixed(1)} KB</div>
+          </div>
+          <div class="file-status ${item.status}">${item.status === 'pending' ? '' : item.status === 'converting' ? '...' : item.status === 'done' ? '✓' : '!'}</div>
+          <span class="file-remove" onclick="removeFile(${index})">✕</span>
+        </div>`;
+      }).join('');
+
+      list.innerHTML = html;
+
+      // 只转换选中的待处理文件
+      document.getElementById('file-convert').disabled = pendingSelected.length === 0;
+      const pendingCount = fileQueue.filter(f => f.status === 'pending').length;
+      document.getElementById('file-convert-text').textContent = pendingSelected.length > 0 ? `开始转换 (${pendingSelected.length})` : pendingCount > 0 ? '已选文件转换中...' : '已全部转换';
+
+      // 批量下载：只有已转换且选中的文件时才显示
+      const doneSelected = fileQueue.filter(f => f.status === 'done' && f.result && f.selected !== false);
+      document.getElementById('batch-download').style.display = doneSelected.length > 0 ? 'inline-flex' : 'none';
+      updateBatchDownloadCount();
+
+      // 批量场景下隐藏结果区（只有单文件转换后才显示预览）
+      if (hasConversionDone && doneFiles.length > 1) {
+        document.getElementById('result').classList.remove('show');
+      }
+    }
+
+    window.toggleFileSelect = function(index, checked) {
+      fileQueue[index].selected = checked;
+      renderFileList();
+    };
+
+    window.toggleSelectAll = function(checked) {
+      fileQueue.forEach(item => {
+        item.selected = checked;
+      });
+      renderFileList();
+    };
+
+    function updateBatchDownloadCount() {
+      const doneSelected = fileQueue.filter(f => f.status === 'done' && f.result && f.selected !== false);
+      const btn = document.getElementById('batch-download');
+      if (btn) {
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载已选中 (${doneSelected.length})`;
+      }
+    }
+
+    window.removeFile = function(index) {
+      fileQueue.splice(index, 1);
+      isBatchMode = false;
+      if (fileQueue.length === 0) {
+        document.getElementById('reset-btn').style.display = 'none';
+        document.getElementById('batch-summary').style.display = 'none';
+      }
+      renderFileList();
+    };
+
+    document.getElementById('reset-btn').addEventListener('click', () => {
+      fileQueue = [];
+      isBatchMode = false;
+      currentMarkdown = '';
+      document.getElementById('result').classList.remove('show');
+      document.getElementById('batch-summary').style.display = 'none';
+      document.getElementById('reset-btn').style.display = 'none';
+      renderFileList();
+    });
+
+    document.getElementById('file-convert').addEventListener('click', async () => {
+      const selectedPending = fileQueue.filter(f => f.status === 'pending' && f.selected);
+      if (selectedPending.length === 0) return;
+
+      // 批量模式：多个选中文件时不显示单个预览
+      isBatchMode = selectedPending.length > 1;
+      document.getElementById('result').classList.remove('show');
+      document.getElementById('batch-summary').style.display = 'none';
+
+      const startTime = Date.now();
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const item of selectedPending) {
+        const index = fileQueue.indexOf(item);
+        fileQueue[index].status = 'converting';
+        fileQueue[index].errorMsg = null;
+        renderFileList();
+
+        try {
+          const formData = new FormData();
+          formData.append('file', item.file);
+          formData.append('keep_data_uris', document.getElementById('file-keep-uris').checked);
+
+          const resp = await fetch(API + '/convert/file', { method: 'POST', body: formData });
+          const data = await resp.json();
+
+          if (data.success) {
+            // 校验转换质量：检测是否为有效 markdown（非乱码）
+            const isValid = validateConversion(data.markdown, item.file.name);
+            if (isValid) {
+              fileQueue[index].status = 'done';
+              fileQueue[index].result = data;
+              successCount++;
+            } else {
+              fileQueue[index].status = 'error';
+              fileQueue[index].errorMsg = '转换质量异常（内容乱码或过短）';
+              failCount++;
+            }
+          } else {
+            fileQueue[index].status = 'error';
+            fileQueue[index].errorMsg = data.detail || '转换失败';
+            failCount++;
+          }
+        } catch (e) {
+          fileQueue[index].status = 'error';
+          fileQueue[index].errorMsg = e.message || '网络错误';
+          failCount++;
+        }
+        renderFileList();
+      }
+
+      // 显示转换总结
+      showBatchSummary(successCount, failCount, Date.now() - startTime);
+      document.getElementById('reset-btn').style.display = 'inline-flex';
+    });
+
+    // 校验转换结果是否有效
+    function validateConversion(markdown, filename) {
+      if (!markdown || markdown.length < 50) return false;
+
+      const totalLen = markdown.length;
+
+      // 统计实际可读内容：中文汉字 + 英文单词（≥3字符的字母序列）
+      const chineseChars = (markdown.match(/[\u4e00-\u9fa5]/g) || []).length;
+      const englishWords = (markdown.match(/[a-zA-Z]{3,}/g) || []).join('').length;
+      const readableLen = chineseChars + englishWords;
+
+      // 可读内容占比 < 15% 视为转换失败（如只有编号骨架）
+      if (readableLen < totalLen * 0.15 && totalLen > 100) {
+        console.warn('Validation failed: readable ratio', readableLen / totalLen, 'for', filename);
+        return false;
+      }
+
+      // 特殊情况：全是数字编号和结构标记（如 001, 002, image 等）
+      const hasSubstantialContent = chineseChars > 50 || englishWords > 200;
+      if (!hasSubstantialContent && totalLen > 100) {
+        return false;
+      }
+
+      return true;
+    }
+
+    // 显示批量转换总结
+    function showBatchSummary(success, failed, durationMs) {
+      const elapsed = durationMs < 1000 ? `${durationMs}ms` : `${(durationMs / 1000).toFixed(1)}s`;
+      const failedItems = fileQueue.filter(f => f.status === 'error');
+
+      let html = `
+        <div class="batch-summary-header">
+          <span class="batch-summary-title">转换完成</span>
+          <span class="batch-summary-time">用时 ${elapsed}</span>
+        </div>
+        <div class="batch-summary-stats">
+          <div class="batch-stat total">
+            <span class="stat-value">${success + failed}</span>
+            <span class="stat-label">总计</span>
+          </div>
+          <div class="batch-stat success">
+            <span class="stat-value">${success}</span>
+            <span class="stat-label">成功</span>
+          </div>
+          <div class="batch-stat error">
+            <span class="stat-value">${failed}</span>
+            <span class="stat-label">失败</span>
+          </div>
+        </div>`;
+
+      if (failedItems.length > 0) {
+        html += `<div class="batch-failed-list">`;
+        failedItems.forEach(f => {
+          html += `<div class="failed-item">
+            <span class="failed-icon">!</span>
+            <span>${f.file.name}</span>
+          </div>
+          <div class="batch-failed-reason">${f.errorMsg || '未知错误'}</div>`;
+        });
+        html += `</div>`;
+      }
+
+      document.getElementById('batch-summary').innerHTML = html;
+      document.getElementById('batch-summary').style.display = 'block';
+    }
+
+    // Batch download handler
+    document.getElementById('batch-download').addEventListener('click', async () => {
+      const selected = fileQueue.filter(f => f.status === 'done' && f.result && f.selected !== false);
+      if (selected.length === 0) return;
+
+      if (selected.length === 1) {
+        // Single file - direct download
+        const item = selected[0];
+        const blob = new Blob([item.result.markdown], { type: 'text/markdown;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        // Use original filename with .md extension
+        const baseName = (item.result.filename || item.file.name).replace(/\.[^.]+$/, '');
+        a.download = baseName + '.md';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      // Multiple files - create zip
+      const zip = new JSZip();
+      for (const item of selected) {
+        const baseName = (item.result.filename || item.file.name).replace(/\.[^.]+$/, '');
+        const filename = baseName + '.md';
+        zip.file(filename, item.result.markdown);
+      }
+
+      try {
+        const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `converted_files_${Date.now()}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        showError('打包下载失败: ' + e.message);
+      }
+    });
+
+    // URL handling
+    const urlInput = document.getElementById('url-input');
+    urlInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const url = urlInput.value.trim();
+        if (url) {
+          addUrlToQueue(url);
+          urlInput.value = '';
+        }
+      }
+    });
+
+    function addUrlToQueue(url) {
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+      }
+      if (!urlQueue.some(u => u.url === url)) {
+        urlQueue.push({ url, status: 'pending' });
+        renderUrlList();
+      }
+    }
+
+    function renderUrlList() {
+      const list = document.getElementById('url-list');
+      if (urlQueue.length === 0) {
+        list.innerHTML = '';
+        return;
+      }
+      list.innerHTML = urlQueue.map((u, i) => `
+        <div class="url-item">
+          <span class="url-status ${u.status}">${u.status === 'pending' ? '' : u.status === 'done' ? '✓' : '!'}</span>
+          <span class="url-text" title="${u.url}">${truncateUrl(u.url)}</span>
+          <span class="url-remove" onclick="removeUrl(${i})">✕</span>
+        </div>
+      `).join('');
+    }
+
+    function truncateUrl(url) {
+      if (url.length > 60) return url.substring(0, 57) + '...';
+      return url;
+    }
+
+    window.removeUrl = function(index) {
+      urlQueue.splice(index, 1);
+      renderUrlList();
+    };
+
+    document.getElementById('url-convert').addEventListener('click', async () => {
+      const pending = urlQueue.filter(u => u.status === 'pending');
+      if (pending.length === 0) return;
+
+      showLoading(true);
+      for (const item of pending) {
+        const index = urlQueue.indexOf(item);
+        urlQueue[index].status = 'converting';
+        renderUrlList();
+
+        try {
+          const formData = new FormData();
+          formData.append('url', item.url);
+          formData.append('keep_data_uris', document.getElementById('url-keep-uris').checked);
+
+          const resp = await fetch(API + '/convert/url', { method: 'POST', body: formData });
+          const data = await resp.json();
+
+          if (data.success) {
+            urlQueue[index].status = 'done';
+            urlQueue[index].result = data;
+            showResult(data.markdown, data.meta);
+          } else {
+            urlQueue[index].status = 'fail';
+          }
+        } catch (e) {
+          urlQueue[index].status = 'fail';
+        }
+        renderUrlList();
+      }
+      showLoading(false);
+    });
+
+    // Text convert
+    document.getElementById('text-convert').addEventListener('click', async () => {
+      const text = document.getElementById('text-input').value.trim();
+      if (!text) { showError('请输入内容'); return; }
+      await convertText(text, document.getElementById('text-filename').value || 'input.txt', document.getElementById('text-keep-uris').checked);
+    });
+
+    async function convertText(text, filename, keepUris) {
+      showLoading(true);
+      hideError();
+      document.getElementById('result').classList.remove('show');
+
+      try {
+        const resp = await fetch(API + '/convert/text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: text, filename, keep_data_uris: keepUris })
+        });
+        const data = await resp.json();
+        if (data.success) {
+          showResult(data.markdown, data.meta);
+        } else {
+          showError(data.detail || '转换失败');
+        }
+      } catch (e) {
+        showError('请求失败: ' + e.message);
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    function showResult(markdown, meta) {
+      currentMarkdown = markdown;
+
+      // 批量模式下不显示单个预览
+      if (isBatchMode) return;
+
+      const title = meta?.title || '转换完成';
+      currentFilename = title.replace(/[<>:"/\\|?*]/g, '').replace(/\s+/g, '_').substring(0, 80) + '.md';
+
+      document.getElementById('meta-title').textContent = title;
+
+      let metaHtml = '';
+      if (meta?.author) metaHtml += `<div class="meta-item"><span class="label">作者</span><span class="value">${meta.author}</span></div>`;
+      if (meta?.word_count) metaHtml += `<div class="meta-item"><span class="label">字数</span><span class="value">${meta.word_count.toLocaleString()} 字</span></div>`;
+      if (meta?.reading_time) metaHtml += `<div class="meta-item"><span class="label">阅读</span><span class="value">${meta.reading_time}</span></div>`;
+      if (meta?.date) metaHtml += `<div class="meta-item"><span class="label">日期</span><span class="value">${meta.date}</span></div>`;
+      if (meta?.summary) metaHtml += `<div class="meta-item" style="grid-column: 1 / -1;"><span class="label">摘要</span><span class="value" style="font-weight: 400; color: var(--text-secondary);">${meta.summary}</span></div>`;
+
+      document.getElementById('meta-grid').innerHTML = metaHtml || '<div class="meta-item"><span class="label">状态</span><span class="value success">转换完成</span></div>';
+      document.getElementById('markdown-output').value = markdown;
+      document.getElementById('result').classList.add('show');
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error');
+      el.textContent = msg;
+      el.style.background = 'rgba(232, 120, 120, 0.1)';
+      el.style.color = 'var(--error)';
+      el.classList.add('show');
+    }
+
+    function hideError() {
+      document.getElementById('error').classList.remove('show');
+    }
+
+    function showLoading(show) {
+      document.getElementById('loading').classList.toggle('show', show);
+    }
+
+    // Copy & Download
+    document.getElementById('copy-btn').addEventListener('click', () => {
+      navigator.clipboard.writeText(currentMarkdown).then(() => {
+        const btn = document.getElementById('copy-btn');
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 已复制!';
+        setTimeout(() => {
+          btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制内容';
+        }, 2000);
+      });
+    });
+
+    document.getElementById('download-btn').addEventListener('click', () => {
+      const blob = new Blob([currentMarkdown], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = currentFilename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  </script>
+</body>
+</html>
