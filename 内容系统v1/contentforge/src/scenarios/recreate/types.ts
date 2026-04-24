@@ -41,11 +41,38 @@ export const ViralGenomeSchema: z.ZodType<ViralGenome> = z.object({
     text: z.string(),
     reason: z.string(),
   })),
+  // P0-2: 原文案例（人物/场景/故事），二创必须全部替换
+  caseStudies: z.array(z.object({
+    id: z.string(),
+    protagonist: z.string(),        // 人物身份（如"外卖小哥"、"35岁程序员"）
+    setting: z.string(),             // 场景背景
+    story: z.string(),               // 故事核心（50字内）
+    whyItWorks: z.string(),         // 为什么这个案例有效
+  })),
+  // P0-2: 原文关键数据（数字/统计），二创必须全部替换
+  keyDataPoints: z.array(z.object({
+    id: z.string(),
+    data: z.string(),                // 原始数据描述（如"72%"、"3小时"、"2024年"）
+    context: z.string(),             // 数据出现的上下文
+    field: z.string(),               // 领域标签（如"就业率"、"用户留存"等）
+  })),
 }).strict().refine(
   (data) => data.forbiddenExpressions.length >= 3,
   {
     message: 'forbiddenExpressions must have at least 3 items (提取的高光表达过少，二创无法有效规避风险)',
     path: ['forbiddenExpressions'],
+  },
+).refine(
+  (data) => data.caseStudies.length >= 1,
+  {
+    message: 'caseStudies must have at least 1 item (无案例的二创缺乏差异化锚点)',
+    path: ['caseStudies'],
+  },
+).refine(
+  (data) => data.keyDataPoints.length >= 1,
+  {
+    message: 'keyDataPoints must have at least 1 item (无数据的二创难以建立对比差异化)',
+    path: ['keyDataPoints'],
   },
 ).refine(
   (data) => data.narrativeStructure.length >= 3,
