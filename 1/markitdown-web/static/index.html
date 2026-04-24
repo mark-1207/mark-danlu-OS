@@ -925,10 +925,10 @@
     }
 
     function showResult(markdown, meta) {
-      currentMarkdown = markdown;
+      currentMarkdown = markdown || currentMarkdown;
 
       // 批量模式下不显示单个预览
-      if (isBatchMode) return;
+      if (isBatchMode || urlBatchMode) return;
 
       const title = meta?.title || '转换完成';
       currentFilename = title.replace(/[<>:"/\\|?*]/g, '').replace(/\s+/g, '_').substring(0, 80) + '.md';
