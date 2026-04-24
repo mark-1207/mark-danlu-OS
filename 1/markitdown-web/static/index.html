@@ -715,9 +715,9 @@
         failedItems.forEach(u => {
           html += `<div class="failed-item">
             <span class="failed-icon">!</span>
-            <span>${truncateUrl(u.url)}</span>
+            <span>${escapeHtml(truncateUrl(u.url))}</span>
           </div>
-          <div class="batch-failed-reason">${u.errorMsg || '未知错误'}</div>`;
+          <div class="batch-failed-reason">${escapeHtml(u.errorMsg || '未知错误')}</div>`;
         });
         html += `</div>`;
       }
@@ -807,6 +807,15 @@
           <span class="url-remove" onclick="removeUrl(${i})">✕</span>
         </div>
       `).join('');
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     }
 
     function truncateUrl(url) {
