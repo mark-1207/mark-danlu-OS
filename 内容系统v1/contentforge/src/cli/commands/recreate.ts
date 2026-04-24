@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'path';
 import fs from 'fs/promises';
+import readline from 'readline';
 import { loadConfig, setCachedConfig } from '../../config/loader.js';
 import { llmFactory } from '../../llm/factory.js';
 import { buildRecreatePipeline } from '../../scenarios/recreate/index.js';
@@ -17,6 +18,17 @@ import { sanitizeFilename } from '../../utils/sanitize.js';
 import type { DifferentiationOutput, DifferentiationDirection, DualReviewResult } from '../../scenarios/recreate/types.js';
 import { askPostGen } from '../../scenarios/revision/cli/post-gen-prompt.js';
 import { RevisionPipeline } from '../../scenarios/revision/index.js';
+
+function askUser(question: string): Promise<string> {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, escapeCodeTimeout: 300000 });
+    readline.emitKeypressEvents(process.stdin);
+    rl.question(chalk.cyan(question), (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
 
 export async function runRecreate(
   inputPath: string,
@@ -177,6 +189,39 @@ export async function runRecreate(
     }
   } finally {
     await releaseRunLock(runId, outputDir);
+  }
+
+  // TUI: show flagged elements for targeted rewrite
+  const dualReviewResult = finalContext.get<DualReviewResult>('dual-review');
+  const flaggedParagraphs = dualReviewResult?.originalityReport?.flaggedParagraphs ?? [];
+
+  if (flaggedParagraphs.length > 0 && process.stdin.isTTY) {
+    console.log(chalk.bold('\n⚠️  检测到以下内容与原文相似\n'));
+    flaggedParagraphs.forEach((item: typeof flaggedParagraphs[0], idx: number) => {
+      const typeLabel = item.type === 'goldQuote' ? '金句' : item.type === 'caseStudy' ? '案例' : '数据';
+      console.log(`  ${idx + 1}. [${typeLabel}] 相似度 ${item.similarity.toFixed(2)}`);
+      console.log(`     原文: "${item.originalText?.slice(0, 50)}..."`);
+      console.log(`     生成: "${item.matchedText?.slice(0, 50)}..."\n`);
+    });
+
+    const answer = await askUser('输入要替换的编号（逗号分隔，如 1,3），回车确认，0 跳过: ');
+
+    if (answer !== '0' && answer.trim() !== '') {
+      const selectedIndices = answer.split(',').map((s: string) => parseInt(s.trim(), 10) - 1).filter((i: number) => i >= 0 && i < flaggedParagraphs.length);
+      const targetedTriggers = selectedIndices.map((idx: number) => {
+        const item = flaggedParagraphs[idx];
+        return {
+          element: `${item.type}-${item.id}`,
+          score: item.similarity,
+          position: `段落${item.paragraphIndex}`,
+          suggestion: `原文: "${item.originalText}" | 生成: "${item.matchedText}"`,
+          action: 'rewrite-section' as const,
+        };
+      });
+
+      context.set('optimization-triggers', targetedTriggers);
+      context.set('needsLocalRewrite', true);
+    }
   }
 
   // Check if P1/P2 element-level optimization is needed
