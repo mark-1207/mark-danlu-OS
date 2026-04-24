@@ -81,6 +81,15 @@ export async function runRecreate(
   console.log(`原文: ${articleTitle}`);
   console.log(`方向选择: ${direction}\n`);
 
+  // Style TUI — select style before content generation
+  const { styleTUI } = await import('../../scenarios/style/cli/style-tui.js');
+  const stylesDir = path.join(outputDir, 'styles');
+  const corpusDir = path.join(outputDir, 'corpus');
+  const styleResult = await styleTUI({ stylesDir, corpusDir, skip: false });
+  if (styleResult.injectResult) {
+    context.set('style-inject', styleResult.injectResult);
+  }
+
   const input = { originalArticle };
 
   // In interactive mode, pause after differentiation step to let user pick a direction

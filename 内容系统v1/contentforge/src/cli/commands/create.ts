@@ -125,6 +125,15 @@ export async function runCreate(
   console.log(`关键词: ${keyword}`);
   console.log(`平台: ${platformList}\n`);
 
+  // Style TUI — select style before content generation
+  const { styleTUI } = await import('../../scenarios/style/cli/style-tui.js');
+  const stylesDir = path.join(outputDir, 'styles');
+  const corpusDir = path.join(outputDir, 'corpus');
+  const styleResult = await styleTUI({ stylesDir, corpusDir, skip: false });
+  if (styleResult.injectResult) {
+    context.set('style-inject', styleResult.injectResult);
+  }
+
   // Auto-detect TTY: if not explicitly disabled and stdin is a TTY, enable interactive
   const isInteractive = options.interactive !== false && process.stdin.isTTY;
 
