@@ -89,8 +89,10 @@ async function collectArticleSnippets(
       if (tag === 'deviant') continue;
 
       const content = await fs.readFile(path.join(editedDir, entry.name), 'utf-8');
-      const wordCount = tag === 'representative' ? 500 : 300;
-      snippets.push(`【${entry.name}】\n${content.slice(0, wordCount)}`);
+      const wordCount = 300;
+      const snippet = `【${entry.name}】\n${content.slice(0, wordCount)}`;
+      snippets.push(snippet);
+      if (tag === 'representative') snippets.push(snippet); // x2 weight
     }
   } catch {
     // Directory doesn't exist
