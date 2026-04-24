@@ -26,6 +26,18 @@
 - 这些表达即使改写也很容易识别是来自原文
 - 二创必须完全规避这些表达，禁止以任何近义形式出现
 
+**新增维度——案例提取（caseStudies）**：
+- 识别原文中的具体案例（人物、场景、故事）
+- 每个案例提取：protagonist（人物身份）、setting（场景背景）、story（故事核心，50字内）、whyItWorks（为什么有效）
+- 即使是"朋友说"、"同事遇到"这类泛化案例也要提取，因为二创必须替换
+- 至少提取 1-3 个案例
+
+**新增维度——关键数据提取（keyDataPoints）**：
+- 识别原文中的具体数字、统计数据
+- 每个数据提取：data（原始数据如"72%"）、context（出现的上下文）、field（领域标签）
+- 注意区分：引用的统计数据（需提取）vs. 泛化的"很多人"、"一段时间"（不提取）
+- 至少提取 1-3 个数据点
+
 输出格式：JSON，严格遵循以下 Schema:
 {
   "topicStrategy": {
@@ -63,5 +75,18 @@
   "forbiddenExpressions": [{
     "text": "string（原文中最具辨识度的高光句子，5-15字）",
     "reason": "string（为什么这段必须规避，如同义复现风险极高、或原文核心金句等）"
+  }],
+  "caseStudies": [{
+    "id": "string",
+    "protagonist": "string（人物身份，如'35岁程序员'）",
+    "setting": "string（场景背景）",
+    "story": "string（50字内故事核心）",
+    "whyItWorks": "string（为什么这个案例有效）"
+  }],
+  "keyDataPoints": [{
+    "id": "string",
+    "data": "string（原始数据，如'72%'、'3小时'、'2024年'）",
+    "context": "string（出现的上下文）",
+    "field": "string（领域标签，如'就业率'）"
   }]
 }
