@@ -88,11 +88,12 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
           );
 
           const flaggedElements: Array<{
+            type: 'caseStudy' | 'keyDataPoint' | 'goldQuote';
+            id: string;
+            originalText: string;
+            matchedText: string;
+            similarity: number;
             paragraphIndex: number;
-            recreationText: string;
-            similarOriginalText: string;
-            similarityType: 'example' | 'goldQuote' | 'expression';
-            severity: 'high';
           }> = [];
 
           // Check caseStudies
@@ -104,11 +105,12 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
               const sim = cosineSimilarity(elementEmb.embedding, paragraphEmbeddings[pi].embedding);
               if (sim > SIMILARITY_THRESHOLD) {
                 flaggedElements.push({
+                  type: 'caseStudy',
+                  id: cs.id,
+                  originalText,
+                  matchedText: paragraphs[pi],
+                  similarity: sim,
                   paragraphIndex: pi,
-                  recreationText: paragraphs[pi],
-                  similarOriginalText: originalText,
-                  similarityType: 'example',
-                  severity: 'high',
                 });
                 flagged = true;
                 break; // Only flag once per element
@@ -124,11 +126,12 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
               const sim = cosineSimilarity(elementEmb.embedding, paragraphEmbeddings[pi].embedding);
               if (sim > SIMILARITY_THRESHOLD) {
                 flaggedElements.push({
+                  type: 'keyDataPoint',
+                  id: dp.id,
+                  originalText,
+                  matchedText: paragraphs[pi],
+                  similarity: sim,
                   paragraphIndex: pi,
-                  recreationText: paragraphs[pi],
-                  similarOriginalText: originalText,
-                  similarityType: 'expression',
-                  severity: 'high',
                 });
                 break;
               }
@@ -142,11 +145,12 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
               const sim = cosineSimilarity(elementEmb.embedding, paragraphEmbeddings[pi].embedding);
               if (sim > SIMILARITY_THRESHOLD) {
                 flaggedElements.push({
+                  type: 'goldQuote',
+                  id: gq.id,
+                  originalText: gq.text,
+                  matchedText: paragraphs[pi],
+                  similarity: sim,
                   paragraphIndex: pi,
-                  recreationText: paragraphs[pi],
-                  similarOriginalText: gq.text,
-                  similarityType: 'goldQuote',
-                  severity: 'high',
                 });
                 break;
               }
