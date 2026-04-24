@@ -364,6 +364,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
           批量转换
         </button>
+        <button class="btn btn-success" id="url-batch-download" style="margin-top: 16px; display: none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          下载已转换 (0)
+        </button>
       </div>
 
       <!-- 文本输入 -->
@@ -539,6 +543,14 @@
       const btn = document.getElementById('batch-download');
       if (btn) {
         btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载已选中 (${doneSelected.length})`;
+      }
+    }
+
+    function updateUrlBatchDownloadCount() {
+      const doneCount = urlQueue.filter(u => u.status === 'done' && u.result).length;
+      const btn = document.getElementById('url-batch-download');
+      if (btn) {
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载已转换 (${doneCount})`;
       }
     }
 
@@ -762,6 +774,45 @@
         const a = document.createElement('a');
         a.href = url;
         a.download = `converted_files_${Date.now()}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        showError('打包下载失败: ' + e.message);
+      }
+    });
+
+    document.getElementById('url-batch-download').addEventListener('click', async () => {
+      const done = urlQueue.filter(u => u.status === 'done' && u.result);
+      if (done.length === 0) return;
+
+      if (done.length === 1) {
+        const item = done[0];
+        const blob = new Blob([item.result.markdown], { type: 'text/markdown;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = (item.result.filename || 'url_output') + '.md';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      const zip = new JSZip();
+      for (const item of done) {
+        const filename = (item.result.filename || 'url_output') + '.md';
+        zip.file(filename, item.result.markdown);
+      }
+
+      try {
+        const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `url_converted_${Date.now()}.zip`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
