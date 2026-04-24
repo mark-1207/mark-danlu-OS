@@ -6,6 +6,7 @@ import type { LLMProvider } from '../../../llm/types.js';
 import { promptLoader } from '../../../prompts/loader.js';
 import { getCachedConfig } from '../../../config/loader.js';
 import { getFragmentLoader } from '../../../fragment-library/fragment-loader.js';
+import { computeEmbedding, cosineSimilarity } from '../../../utils/embedding.js';
 import {
   ViralGenomeSchema,
   DifferentiationDirectionSchema,
@@ -71,6 +72,36 @@ export class RecreationContentStep extends PipelineStep<z.infer<typeof InputSche
     const selectedDirection = diffOutput.selectedDirection;
     if (!selectedDirection) throw new Error('No differentiation direction selected');
 
+    // 原文要素 embedding（用于碎片过滤）
+    const originalElements: { type: string; id: string; text: string; embedding: number[] }[] = [];
+
+    // 收集 caseStudies embedding
+    if (viralGenome?.caseStudies) {
+      for (const cs of viralGenome.caseStudies) {
+        if (cs.embedding && cs.embedding.length > 0) {
+          originalElements.push({ type: 'caseStudy', id: cs.id, text: cs.protagonist + ': ' + cs.story, embedding: cs.embedding });
+        }
+      }
+    }
+
+    // 收集 keyDataPoints embedding
+    if (viralGenome?.keyDataPoints) {
+      for (const dp of viralGenome.keyDataPoints) {
+        if (dp.embedding && dp.embedding.length > 0) {
+          originalElements.push({ type: 'keyDataPoint', id: dp.id, text: dp.data + ' (' + dp.field + ')', embedding: dp.embedding });
+        }
+      }
+    }
+
+    // 收集 goldQuotes embedding
+    if (viralGenome?.goldQuotes) {
+      for (const gq of viralGenome.goldQuotes) {
+        if (gq.embedding && gq.embedding.length > 0) {
+          originalElements.push({ type: 'goldQuote', id: gq.id, text: gq.text, embedding: gq.embedding });
+        }
+      }
+    }
+
     const template = await promptLoader.load('recreate', 'recreation-content');
 
     // Load relevant fragments for prompt injection
@@ -80,10 +111,56 @@ export class RecreationContentStep extends PipelineStep<z.infer<typeof InputSche
       const outputDir = config.output?.dir ?? './output';
       const corpusDir = path.join(path.resolve(outputDir), 'corpus');
       const loader = getFragmentLoader(corpusDir);
-      const sentences = loader.getSentenceFragments(undefined, 'universal', 5);
+      const sentences = loader.getSentenceFragments(undefined, 'universal', 8);
       const paragraphs = loader.getParagraphFragments(undefined, 'universal', 3);
-      if (sentences.length > 0 || paragraphs.length > 0) {
-        fragmentSection = '\n\n' + loader.formatForPrompt(sentences, paragraphs);
+
+      // 过滤与原文相似的碎片（embedding > 0.80）
+      const filteredSentences = [];
+      for (const s of sentences) {
+        if (originalElements.length === 0) {
+          filteredSentences.push(s);
+          continue;
+        }
+        try {
+          const fragEmb = await computeEmbedding({ text: s.text });
+          let keep = true;
+          for (const el of originalElements) {
+            const sim = cosineSimilarity(fragEmb.embedding, el.embedding);
+            if (sim > 0.80) {
+              keep = false;
+              break;
+            }
+          }
+          if (keep) filteredSentences.push(s);
+        } catch {
+          filteredSentences.push(s);
+        }
+      }
+
+      const filteredParagraphs = [];
+      for (const p of paragraphs) {
+        if (originalElements.length === 0) {
+          filteredParagraphs.push(p);
+          continue;
+        }
+        try {
+          const fragEmb = await computeEmbedding({ text: p.content.slice(0, 500) });
+          let keep = true;
+          for (const el of originalElements) {
+            const sim = cosineSimilarity(fragEmb.embedding, el.embedding);
+            if (sim > 0.80) {
+              keep = false;
+              break;
+            }
+          }
+          if (keep) filteredParagraphs.push(p);
+        } catch {
+          filteredParagraphs.push(p);
+        }
+      }
+
+      if (filteredSentences.length > 0 || filteredParagraphs.length > 0) {
+        fragmentSection = '\n\n' + loader.formatForPrompt(filteredSentences, filteredParagraphs);
       }
     } catch {
       // Fragments not available yet — skip
