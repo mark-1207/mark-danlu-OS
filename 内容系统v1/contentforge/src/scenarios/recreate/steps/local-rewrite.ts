@@ -78,7 +78,7 @@ export class LocalRewriteStep extends PipelineStep<z.infer<typeof InputSchema>, 
           const { rewritten, originalText } = await this.rewriteSection(article, trigger, viralGenome);
           if (originalText) {
             article = article.replace(originalText, rewritten);
-            applied.push({ element: 'section', action: 'rewrite-section', originalText, newText: rewritten });
+            applied.push({ element: 'body', action: 'rewrite-section', originalText, newText: rewritten });
           }
           break;
         }
