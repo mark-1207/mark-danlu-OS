@@ -5,7 +5,7 @@ import type { LLMProvider } from '../../../llm/types.js';
 import { promptLoader } from '../../../prompts/loader.js';
 import { DualReviewResultSchema, type DualReviewResult } from '../types.js';
 import type { GoldQuote } from '../types.js';
-import { checkSimilarity, type SimilarityCheckItem, cosineSimilarity, computeEmbedding } from '../../../utils/embedding.js';
+import { checkSimilarity, type SimilarityCheckItem, cosineSimilarity, computeEmbedding, SIMILARITY_THRESHOLD } from '../../../utils/embedding.js';
 import { logger } from '../../../utils/logger.js';
 
 const InputSchema = z.object({
