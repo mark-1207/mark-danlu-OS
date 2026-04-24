@@ -566,12 +566,16 @@
 
     document.getElementById('reset-btn').addEventListener('click', () => {
       fileQueue = [];
+      urlQueue = [];
       isBatchMode = false;
+      urlBatchMode = false;
       currentMarkdown = '';
       document.getElementById('result').classList.remove('show');
       document.getElementById('batch-summary').style.display = 'none';
       document.getElementById('reset-btn').style.display = 'none';
+      document.getElementById('url-batch-download').style.display = 'none';
       renderFileList();
+      renderUrlList();
     });
 
     document.getElementById('file-convert').addEventListener('click', async () => {
