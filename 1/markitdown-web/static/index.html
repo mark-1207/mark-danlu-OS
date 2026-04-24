@@ -691,9 +691,9 @@
         failedItems.forEach(f => {
           html += `<div class="failed-item">
             <span class="failed-icon">!</span>
-            <span>${f.file.name}</span>
+            <span>${escapeHtml(f.file.name)}</span>
           </div>
-          <div class="batch-failed-reason">${f.errorMsg || '未知错误'}</div>`;
+          <div class="batch-failed-reason">${escapeHtml(f.errorMsg || '未知错误')}</div>`;
         });
         html += `</div>`;
       }
