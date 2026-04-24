@@ -4,6 +4,8 @@ import { PipelineContext } from '../../../core/context.js';
 import type { LLMProvider } from '../../../llm/types.js';
 import { promptLoader } from '../../../prompts/loader.js';
 import { DualReviewResultSchema, type DualReviewResult } from '../types.js';
+import { checkSimilarity, type SimilarityCheckItem } from '../../../utils/embedding.js';
+import { logger } from '../../../utils/logger.js';
 
 const InputSchema = z.object({
   originalArticle: z.string().optional(),
@@ -71,6 +73,60 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
             optimizationTriggers: triggers,
           };
         }
+
+        // P0-end: Embedding-based case/data similarity check
+        // Only runs after LLM originality check passes (needsRewrite === false)
+          if (viralGenome?.caseStudies?.length || viralGenome?.keyDataPoints?.length) {
+            const similarityItems: SimilarityCheckItem[] = [];
+
+            // Build check items from caseStudies
+            for (const cs of viralGenome.caseStudies ?? []) {
+              const originalText = `${cs.protagonist} ${cs.story}`;
+              const recreationText = extractRecreationTextForCase(article, cs.protagonist);
+              if (recreationText) {
+                similarityItems.push({ id: cs.id, originalText, recreationText });
+              }
+            }
+
+            // Build check items from keyDataPoints
+            for (const dp of viralGenome.keyDataPoints ?? []) {
+              const originalText = `${dp.data} ${dp.context}`;
+              const recreationText = extractRecreationTextForData(article, dp.data);
+              if (recreationText) {
+                similarityItems.push({ id: dp.id, originalText, recreationText });
+              }
+            }
+
+            if (similarityItems.length > 0) {
+              const similarityResults = await checkSimilarity(similarityItems);
+              const flaggedItems = similarityResults.filter(r => r.flagged);
+
+              if (flaggedItems.length > 0) {
+                logger.info(`[dual-review] embedding check flagged ${flaggedItems.length} items`);
+                const lines = article.split('\n');
+                const flaggedParagraphs = flaggedItems.map(item => ({
+                  paragraphIndex: findParagraphIndex(article, item.recreationText) ?? lines.length,
+                  recreationText: item.recreationText,
+                  similarOriginalText: item.originalText,
+                  similarityType: 'example' as const,
+                  severity: 'high' as const,
+                }));
+
+                return {
+                  ...reviewResult,
+                  finalArticle: article,
+                  needsRewrite: true,
+                  originalityReport: {
+                    ...reviewResult.originalityReport,
+                    flaggedParagraphs: [
+                      ...reviewResult.originalityReport.flaggedParagraphs,
+                      ...flaggedParagraphs,
+                    ],
+                  },
+                };
+              }
+            }
+          }
 
         // All clear
         return { ...reviewResult, finalArticle: article, needsRewrite: false, needsLocalRewrite: false };
@@ -235,4 +291,41 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
 
     return lines.join('\n');
   }
+}
+
+/**
+ * Try to extract the text in recreation article that corresponds to a case study.
+ * Uses protagonist name as anchor to find the surrounding paragraph.
+ */
+function extractRecreationTextForCase(article: string, protagonist: string): string | null {
+  const lines = article.split('\n');
+  for (const line of lines) {
+    if (line.includes(protagonist)) {
+      return line.trim();
+    }
+  }
+  return null; // Not found — means case was replaced, which is good
+}
+
+/**
+ * Try to extract the text in recreation article that corresponds to a data point.
+ * Uses the data string as anchor to find the surrounding paragraph.
+ */
+function extractRecreationTextForData(article: string, data: string): string | null {
+  const lines = article.split('\n');
+  for (const line of lines) {
+    if (line.includes(data)) {
+      return line.trim();
+    }
+  }
+  return null;
+}
+
+/**
+ * Find paragraph index for a given text within the article.
+ */
+function findParagraphIndex(article: string, text: string): number {
+  const lines = article.split('\n');
+  const index = lines.findIndex(l => l.includes(text));
+  return index;
 }
