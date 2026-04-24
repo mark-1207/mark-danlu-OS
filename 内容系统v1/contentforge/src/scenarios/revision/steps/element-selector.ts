@@ -44,9 +44,7 @@ const ELEMENTS: ElementMeta[] = [
  *
  * Returns { selections: RevisionSelection[], userInstruction: string }
  */
-export async function selectRevisionElements(
-  platformCount: number = 3,
-): Promise<ElementSelectorResult> {
+export async function selectRevisionElements(): Promise<ElementSelectorResult> {
   // Non-TTY fallback — resolve immediately with empty selections
   if (!process.stdin.isTTY) {
     return { selections: [], userInstruction: '' };
@@ -76,7 +74,7 @@ export async function selectRevisionElements(
       const nameStr = isCursor
         ? chalk.white(`${el.label} (${el.sublabel})`)
         : chalk.dim(`${el.label} (${el.sublabel})`);
-      const countStr = chalk.dim(`${platformCount}个平台`);
+      const countStr = chalk.dim('3个平台');
 
       console.log(
         chalk.bold('║') +

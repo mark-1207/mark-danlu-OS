@@ -45,7 +45,7 @@ describe('selectRevisionElements', () => {
       writable: true,
     });
 
-    const result = await selectRevisionElements(3);
+    const result = await selectRevisionElements();
     expect(result.selections).toEqual([]);
     expect(result.userInstruction).toBe('');
   });
@@ -56,7 +56,7 @@ describe('selectRevisionElements', () => {
       writable: true,
     });
 
-    const result = await selectRevisionElements(3);
+    const result = await selectRevisionElements();
     expect(result.selections).toHaveLength(0);
   });
 
@@ -66,7 +66,7 @@ describe('selectRevisionElements', () => {
       writable: true,
     });
 
-    const result = await selectRevisionElements(3);
+    const result = await selectRevisionElements();
     expect(result).toHaveProperty('selections');
     expect(result).toHaveProperty('userInstruction');
     expect(Array.isArray(result.selections)).toBe(true);
