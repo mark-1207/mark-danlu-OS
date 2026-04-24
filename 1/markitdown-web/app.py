@@ -240,9 +240,14 @@ async def convert_url(
 
     try:
         from playwright.sync_api import sync_playwright
+        from playwright_stealth import stealth
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
+            browser = p.chromium.launch(
+                headless=True,
+                args=['--disable-blink-features=AutomationControlled', '--no-sandbox']
+            )
+            page = browser.new_page(viewport={'width': 1920, 'height': 1080})
+            stealth(page)
             page.goto(url, wait_until='networkidle', timeout=30000)
             html_content = page.content()
             browser.close()
