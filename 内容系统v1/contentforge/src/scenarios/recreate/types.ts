@@ -171,11 +171,12 @@ export type NewOutline = z.infer<typeof NewOutlineSchema>;
 // ─── Step 5: Dual Review ─────────────────────────────────────────────
 
 export const FlaggedParagraphSchema = z.object({
+  type: z.enum(['caseStudy', 'keyDataPoint', 'goldQuote']),
+  id: z.string(),
+  originalText: z.string(),
+  matchedText: z.string(),
+  similarity: z.number(),
   paragraphIndex: z.number(),
-  recreationText: z.string(),
-  similarOriginalText: z.string(),
-  similarityType: z.enum(['expression', 'structure', 'example', 'metaphor']),
-  severity: z.enum(['high', 'medium', 'low']),
 });
 
 export const OriginalityReportSchema = z.object({
