@@ -219,8 +219,8 @@ export async function runRecreate(
         };
       });
 
-      context.set('optimization-triggers', targetedTriggers);
-      context.set('needsLocalRewrite', true);
+      finalContext.set('optimization-triggers', targetedTriggers);
+      finalContext.set('needsLocalRewrite', true);
     }
   }
 
