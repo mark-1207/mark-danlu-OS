@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import fs from 'fs/promises';
 import path from 'path';
 import { RevisionPipeline } from '../../scenarios/revision/index.js';
+import { RevisionStore } from '../../storage/revision-store.js';
 import { loadConfig, setCachedConfig } from '../../config/loader.js';
 import { llmFactory } from '../../llm/factory.js';
 
@@ -82,20 +83,12 @@ async function listVersions(runId: string, outputDir: string): Promise<void> {
 }
 
 async function revertVersion(runId: string, version: string, outputDir: string): Promise<void> {
-  const versionPath = path.join(outputDir, runId, 'revisions', `${version}.md`);
+  const store = new RevisionStore(outputDir);
+  const result = await store.revertToVersion(runId, version);
 
-  let content: string;
-  try {
-    content = await fs.readFile(versionPath, 'utf-8');
-  } catch {
-    console.log(chalk.red(`版本不存在: ${version}`));
-    return;
+  if (result.success) {
+    console.log(chalk.green(`\n✓ 已回退到版本 ${version}\n`));
+  } else {
+    console.log(chalk.red(`\n✗ 回退失败: ${result.error}\n`));
   }
-
-  // For now, just display the content — full revert would copy it back to the run's current content
-  console.log(chalk.bold(`\n版本 ${version} 内容:\n`));
-  console.log(chalk.dim('─'.repeat(60)));
-  console.log(content);
-  console.log(chalk.dim('─'.repeat(60)));
-  console.log(chalk.yellow('\n注意: revert 只是展示内容，完整 revert 功能待后续实现\n'));
 }
