@@ -37,7 +37,7 @@ export type RevisionChoice = 'accept' | 'revise' | 'abort';
 export async function confirmRevision(): Promise<RevisionChoice> {
   console.log('\n这版满意吗？\n');
   console.log('  [1] ✓ 满意，进入审查');
-  console.log('  [2] ↺ 修订一下（r）');
+  console.log('  [2] ↺ 修订一下');
   console.log('  [3] ✗ 不满意，退出');
   console.log('');
 

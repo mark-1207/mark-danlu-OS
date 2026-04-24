@@ -206,8 +206,11 @@ export class RevisionPipeline {
   }
 
   private async triggerReviewOptimization(_context: PipelineContext): Promise<void> {
-    // TODO: This will be implemented when we integrate with review-optimization step
-    // For now, just log that we're handing off
+    // TODO(contentforge-revision): Integrate with review-optimization step.
+    // Currently this only logs. After user confirms in revision, we should
+    // run the review step (review-optimization) on the revised content.
+    // This requires bridging from RevisionPipeline back into the create/recreate
+    // pipeline's review step, or making review a standalone step.
     console.log(chalk.cyan('\n→ 进入内容审查优化...\n'));
   }
 }

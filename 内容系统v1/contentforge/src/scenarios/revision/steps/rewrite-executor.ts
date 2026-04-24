@@ -41,13 +41,14 @@ export async function executeRevisionRewrite(
   const updatedContent: Record<string, string> = { ...contents };
   const appliedTriggers: AppliedRevision['appliedTriggers'] = [];
 
-  // Build a mock viralGenome from user instruction for now (revision may not have full genome)
+  // Build a mock viralGenome as fallback (revision may not have full genome)
   const mockViralGenome = {
     hookTechnique: { type: '判断式金句钩子', mechanism: '用极短句直接给出一个强判断', template: '' },
     emotionCurve: [],
     narrativeStructure: [],
     powerSentences: [],
   };
+  const viralGenome = _context.get<any>('viral-genome') ?? mockViralGenome;
 
   const callLLM = async (messages: Array<{ role: string; content: string }>) => {
     const response = await provider.chat({
@@ -70,14 +71,14 @@ export async function executeRevisionRewrite(
 
       switch (action) {
         case 'rewrite-title': {
-          const { newTitle } = await rewriteTitle(article, mockViralGenome, deps);
+          const { newTitle } = await rewriteTitle(article, viralGenome, deps);
           const oldTitle = article.split('\n')[0];
           updatedContent[platform] = newTitle + '\n' + article.slice(article.indexOf('\n') + 1);
           appliedTriggers.push({ element: 'title', action: 'rewrite-title', originalText: oldTitle, newText: newTitle });
           break;
         }
         case 'rewrite-hook': {
-          const { newHook } = await rewriteHook(mockViralGenome, deps);
+          const { newHook } = await rewriteHook(viralGenome, deps);
           const paragraphs = article.split('\n\n');
           const hookParagraphs = newHook.split('\n\n').slice(0, 3);
           const restStart = paragraphs.findIndex((_, i) => i >= 2 || paragraphs[i].startsWith('#'));
@@ -90,7 +91,7 @@ export async function executeRevisionRewrite(
         }
         case 'rewrite-section': {
           const trigger = { element: 'body', score: 0, suggestion: userInstruction };
-          const { rewritten, originalText } = await rewriteSection(article, trigger, mockViralGenome, deps);
+          const { rewritten, originalText } = await rewriteSection(article, trigger, viralGenome, deps);
           if (originalText) {
             updatedContent[platform] = article.replace(originalText, rewritten);
             appliedTriggers.push({ element: 'body', action: 'rewrite-section', originalText, newText: rewritten });
@@ -98,7 +99,7 @@ export async function executeRevisionRewrite(
           break;
         }
         case 'rewrite-cta': {
-          const { newCta, originalCta } = await rewriteCta(mockViralGenome, deps);
+          const { newCta, originalCta } = await rewriteCta(viralGenome, deps);
           const lastSep = article.lastIndexOf('\n\n');
           if (lastSep > 0) {
             const originalCtaText = article.slice(lastSep);
@@ -108,7 +109,7 @@ export async function executeRevisionRewrite(
           break;
         }
         case 'supplement-power-sentences': {
-          const { insertions } = await supplementPowerSentences(article, mockViralGenome, deps);
+          const { insertions } = await supplementPowerSentences(article, viralGenome, deps);
           const paras = article.split('\n\n');
           for (const ins of insertions.reverse()) {
             const idx = Math.min(ins.position, paras.length - 1);
