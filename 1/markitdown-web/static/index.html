@@ -749,7 +749,7 @@
         url = 'https://' + url;
       }
       if (!urlQueue.some(u => u.url === url)) {
-        urlQueue.push({ url, status: 'pending' });
+        urlQueue.push({ url, status: 'pending', result: null, errorMsg: null });
         renderUrlList();
       }
     }
