@@ -7,6 +7,7 @@ import { registerConfigCommand } from './commands/config.js';
 import { registerLearnCommand } from './commands/learn.js';
 import { registerSkillCommand } from './commands/skill.js';
 import { registerReviseCommand } from './commands/revise.js';
+import { registerStyleCommand } from './commands/style.js';
 
 export function buildCLI(): Command {
   const program = new Command();
@@ -24,6 +25,7 @@ export function buildCLI(): Command {
   registerLearnCommand(program);
   registerSkillCommand(program);
   registerReviseCommand(program);
+  registerStyleCommand(program);
 
   return program;
 }
