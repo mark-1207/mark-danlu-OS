@@ -57,15 +57,18 @@ export const SIMILARITY_THRESHOLD = 0.80;
 export interface SimilarityCheckItem {
   id: string;
   originalText: string;
-  recreationText: string;
+  matchedText: string;
+  elementType?: 'caseStudy' | 'keyDataPoint' | 'goldQuote';
 }
 
 export interface SimilarityResult {
   id: string;
+  elementType?: 'caseStudy' | 'keyDataPoint' | 'goldQuote';
   similarity: number;
   flagged: boolean;
   originalText: string;
-  recreationText: string;
+  matchedText: string;
+  paragraphIndex?: number;
 }
 
 /**
@@ -83,7 +86,7 @@ export async function checkSimilarity(
     try {
       const [origEmb, recrEmb] = await Promise.all([
         computeEmbedding({ text: item.originalText }),
-        computeEmbedding({ text: item.recreationText }),
+        computeEmbedding({ text: item.matchedText }),
       ]);
 
       const similarity = cosineSimilarity(origEmb.embedding, recrEmb.embedding);
@@ -92,7 +95,7 @@ export async function checkSimilarity(
         similarity,
         flagged: similarity > SIMILARITY_THRESHOLD,
         originalText: item.originalText,
-        recreationText: item.recreationText,
+        matchedText: item.matchedText,
       });
     } catch (err) {
       logger.warn(`[embedding] similarity check failed for ${item.id}:`, String(err));
@@ -101,7 +104,7 @@ export async function checkSimilarity(
         similarity: 0,
         flagged: false,
         originalText: item.originalText,
-        recreationText: item.recreationText,
+        matchedText: item.matchedText,
       });
     }
   }

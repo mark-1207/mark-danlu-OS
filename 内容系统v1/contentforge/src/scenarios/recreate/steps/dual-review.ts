@@ -4,7 +4,8 @@ import { PipelineContext } from '../../../core/context.js';
 import type { LLMProvider } from '../../../llm/types.js';
 import { promptLoader } from '../../../prompts/loader.js';
 import { DualReviewResultSchema, type DualReviewResult } from '../types.js';
-import { checkSimilarity, type SimilarityCheckItem } from '../../../utils/embedding.js';
+import type { GoldQuote } from '../types.js';
+import { checkSimilarity, type SimilarityCheckItem, cosineSimilarity, computeEmbedding } from '../../../utils/embedding.js';
 import { logger } from '../../../utils/logger.js';
 
 const InputSchema = z.object({
@@ -74,59 +75,100 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
           };
         }
 
-        // P0-end: Embedding-based case/data similarity check
+        // P0-end: Embedding-based case/data/goldQuote similarity check (per-paragraph)
         // Only runs after LLM originality check passes (needsRewrite === false)
-          if (viralGenome?.caseStudies?.length || viralGenome?.keyDataPoints?.length) {
-            const similarityItems: SimilarityCheckItem[] = [];
+        const hasCaseStudies = viralGenome?.caseStudies?.length ?? 0;
+        const hasKeyDataPoints = viralGenome?.keyDataPoints?.length ?? 0;
+        const hasGoldQuotes = viralGenome?.goldQuotes?.length ?? 0;
 
-            // Build check items from caseStudies
-            for (const cs of viralGenome.caseStudies ?? []) {
-              const originalText = `${cs.protagonist} ${cs.story}`;
-              const recreationText = extractRecreationTextForCase(article, cs.protagonist);
-              if (recreationText) {
-                similarityItems.push({ id: cs.id, originalText, recreationText });
-              }
-            }
+        if (hasCaseStudies || hasKeyDataPoints || hasGoldQuotes) {
+          const paragraphs = article.split('\n').filter(p => p.trim().length > 0);
+          const paragraphEmbeddings = await Promise.all(
+            paragraphs.map(p => computeEmbedding({ text: p }))
+          );
 
-            // Build check items from keyDataPoints
-            for (const dp of viralGenome.keyDataPoints ?? []) {
-              const originalText = `${dp.data} ${dp.context}`;
-              const recreationText = extractRecreationTextForData(article, dp.data);
-              if (recreationText) {
-                similarityItems.push({ id: dp.id, originalText, recreationText });
-              }
-            }
+          const flaggedElements: Array<{
+            paragraphIndex: number;
+            recreationText: string;
+            similarOriginalText: string;
+            similarityType: 'example' | 'goldQuote' | 'expression';
+            severity: 'high';
+          }> = [];
 
-            if (similarityItems.length > 0) {
-              const similarityResults = await checkSimilarity(similarityItems);
-              const flaggedItems = similarityResults.filter(r => r.flagged);
-
-              if (flaggedItems.length > 0) {
-                logger.info(`[dual-review] embedding check flagged ${flaggedItems.length} items`);
-                const lines = article.split('\n');
-                const flaggedParagraphs = flaggedItems.map(item => ({
-                  paragraphIndex: findParagraphIndex(article, item.recreationText) ?? lines.length,
-                  recreationText: item.recreationText,
-                  similarOriginalText: item.originalText,
-                  similarityType: 'example' as const,
-                  severity: 'high' as const,
-                }));
-
-                return {
-                  ...reviewResult,
-                  finalArticle: article,
-                  needsRewrite: true,
-                  originalityReport: {
-                    ...reviewResult.originalityReport,
-                    flaggedParagraphs: [
-                      ...reviewResult.originalityReport.flaggedParagraphs,
-                      ...flaggedParagraphs,
-                    ],
-                  },
-                };
+          // Check caseStudies
+          for (const cs of viralGenome?.caseStudies ?? []) {
+            const originalText = `${cs.protagonist} ${cs.story}`;
+            const elementEmb = await computeEmbedding({ text: originalText });
+            let flagged = false;
+            for (let pi = 0; pi < paragraphs.length; pi++) {
+              const sim = cosineSimilarity(elementEmb.embedding, paragraphEmbeddings[pi].embedding);
+              if (sim > SIMILARITY_THRESHOLD) {
+                flaggedElements.push({
+                  paragraphIndex: pi,
+                  recreationText: paragraphs[pi],
+                  similarOriginalText: originalText,
+                  similarityType: 'example',
+                  severity: 'high',
+                });
+                flagged = true;
+                break; // Only flag once per element
               }
             }
           }
+
+          // Check keyDataPoints
+          for (const dp of viralGenome?.keyDataPoints ?? []) {
+            const originalText = `${dp.data} ${dp.context}`;
+            const elementEmb = await computeEmbedding({ text: originalText });
+            for (let pi = 0; pi < paragraphs.length; pi++) {
+              const sim = cosineSimilarity(elementEmb.embedding, paragraphEmbeddings[pi].embedding);
+              if (sim > SIMILARITY_THRESHOLD) {
+                flaggedElements.push({
+                  paragraphIndex: pi,
+                  recreationText: paragraphs[pi],
+                  similarOriginalText: originalText,
+                  similarityType: 'expression',
+                  severity: 'high',
+                });
+                break;
+              }
+            }
+          }
+
+          // Check goldQuotes
+          for (const gq of viralGenome?.goldQuotes ?? []) {
+            const elementEmb = await computeEmbedding({ text: gq.text });
+            for (let pi = 0; pi < paragraphs.length; pi++) {
+              const sim = cosineSimilarity(elementEmb.embedding, paragraphEmbeddings[pi].embedding);
+              if (sim > SIMILARITY_THRESHOLD) {
+                flaggedElements.push({
+                  paragraphIndex: pi,
+                  recreationText: paragraphs[pi],
+                  similarOriginalText: gq.text,
+                  similarityType: 'goldQuote',
+                  severity: 'high',
+                });
+                break;
+              }
+            }
+          }
+
+          if (flaggedElements.length > 0) {
+            logger.info(`[dual-review] embedding check flagged ${flaggedElements.length} elements`);
+            return {
+              ...reviewResult,
+              finalArticle: article,
+              needsRewrite: true,
+              originalityReport: {
+                ...reviewResult.originalityReport,
+                flaggedParagraphs: [
+                  ...reviewResult.originalityReport.flaggedParagraphs,
+                  ...flaggedElements,
+                ],
+              },
+            };
+          }
+        }
 
         // All clear
         return { ...reviewResult, finalArticle: article, needsRewrite: false, needsLocalRewrite: false };
@@ -291,41 +333,4 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
 
     return lines.join('\n');
   }
-}
-
-/**
- * Try to extract the text in recreation article that corresponds to a case study.
- * Uses protagonist name as anchor to find the surrounding paragraph.
- */
-function extractRecreationTextForCase(article: string, protagonist: string): string | null {
-  const lines = article.split('\n');
-  for (const line of lines) {
-    if (line.includes(protagonist)) {
-      return line.trim();
-    }
-  }
-  return null; // Not found — means case was replaced, which is good
-}
-
-/**
- * Try to extract the text in recreation article that corresponds to a data point.
- * Uses the data string as anchor to find the surrounding paragraph.
- */
-function extractRecreationTextForData(article: string, data: string): string | null {
-  const lines = article.split('\n');
-  for (const line of lines) {
-    if (line.includes(data)) {
-      return line.trim();
-    }
-  }
-  return null;
-}
-
-/**
- * Find paragraph index for a given text within the article.
- */
-function findParagraphIndex(article: string, text: string): number {
-  const lines = article.split('\n');
-  const index = lines.findIndex(l => l.includes(text));
-  return index;
 }
