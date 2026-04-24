@@ -239,15 +239,15 @@ async def convert_url(
     tmp_path = Path(tempfile.gettempdir()) / f"markitdown_url_{os.urandom(8).hex()}"
 
     try:
-        req = urllib.request.Request(url, headers={
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-            'Referer': 'https://mp.weixin.qq.com/',
-        })
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            content = resp.read()
-            tmp_path.write_bytes(content)
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto(url, wait_until='networkidle', timeout=30000)
+            html_content = page.content()
+            browser.close()
+        content = html_content.encode('utf-8')
+        tmp_path.write_bytes(content)
 
         result = convert_markitdown(content, tmp_path.name, keep_data_uris)
         meta = extract_meta_from_markdown(result) if not batch else {}
