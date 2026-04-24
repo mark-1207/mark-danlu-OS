@@ -27,7 +27,7 @@ export class StyleProfileStore {
   }
 
   async list(type?: StyleProfile['type']): Promise<StyleProfile[]> {
-    const types = type ? [type] : ['personal', 'external', 'blend'];
+    const types: StyleProfile['type'][] = type ? [type] : ['personal', 'external', 'blend'];
     const profiles: StyleProfile[] = [];
     for (const t of types) {
       const dir = path.join(this.stylesDir, t);

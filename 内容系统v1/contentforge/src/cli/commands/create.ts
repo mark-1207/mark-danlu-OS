@@ -129,7 +129,7 @@ export async function runCreate(
   const { styleTUI } = await import('../../scenarios/style/cli/style-tui.js');
   const stylesDir = path.join(outputDir, 'styles');
   const corpusDir = path.join(outputDir, 'corpus');
-  const styleResult = await styleTUI({ stylesDir, corpusDir, skip: false });
+  const styleResult = await styleTUI({ stylesDir, corpusDir });
   if (styleResult.injectResult) {
     context.set('style-inject', styleResult.injectResult);
   }

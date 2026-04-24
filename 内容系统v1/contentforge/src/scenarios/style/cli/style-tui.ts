@@ -56,7 +56,7 @@ export async function styleTUI(options: {
     { key: '0', label: '跳过' },
   ];
 
-  const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
+  const rl = readline.createInterface({ input: process.stdin, escapeCodeTimeout: 50000 });
   readline.emitKeypressEvents(process.stdin);
   process.stdin.setRawMode?.(true);
 
@@ -159,7 +159,7 @@ async function handleImportExternalStyle(
   options: { stylesDir: string; corpusDir: string },
   store: StyleProfileStore,
 ): Promise<StyleSelection> {
-  const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
+  const rl = readline.createInterface({ input: process.stdin, escapeCodeTimeout: 50000 });
   readline.emitKeypressEvents(process.stdin);
   process.stdin.setRawMode?.(true);
 
@@ -198,7 +198,7 @@ async function handleBlendStyles(
     return { profile: null, injectResult: null };
   }
 
-  const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
+  const rl = readline.createInterface({ input: process.stdin, escapeCodeTimeout: 50000 });
   readline.emitKeypressEvents(process.stdin);
   process.stdin.setRawMode?.(true);
 
@@ -311,7 +311,7 @@ async function handleSelectExistingStyle(store: StyleProfileStore): Promise<Styl
     return { profile: null, injectResult: null };
   }
 
-  const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
+  const rl = readline.createInterface({ input: process.stdin, escapeCodeTimeout: 50000 });
   readline.emitKeypressEvents(process.stdin);
   process.stdin.setRawMode?.(true);
 
