@@ -50,47 +50,76 @@ function chineseToStatus(s: string): AnalysisStatus {
   return 'pending';
 }
 
+/**
+ * 读取飞书表格所有记录（分页）
+ */
 export async function readFeishuRecords(): Promise<FeishuRecord[]> {
   if (!FEISHU_TABLE_APP_TOKEN || !FEISHU_TABLE_ID) {
     throw new Error('缺少飞书配置: FEISHU_TOPIC_TABLE_APP_TOKEN / FEISHU_TOPIC_TABLE_ID');
   }
-  const output = execLarkCli([
-    'table', 'read',
-    '--app-token', FEISHU_TABLE_APP_TOKEN,
-    '--table-id', FEISHU_TABLE_ID,
-    '--page-size', '500',
-  ]);
-  try {
-    const raw = JSON.parse(output);
-    // raw 是 Chinese display values，需要转换
-    const records: FeishuRecord[] = raw.map((r: Record<string, unknown>) => ({
-      record_id: r.record_id as string,
-      fields: {
-        原文标题: r['原文标题'] as string,
-        原始链接: r['原始链接'] as string,
-        平台: r['平台'] as FeishuRecord['fields']['平台'],
-        互动数据: r['互动数据'] as string | undefined,
-        内容摘要: r['内容摘要'] as string | undefined,
-        爆款结构: r['爆款结构'] as string | undefined,
-        选题角度: r['选题角度'] as string | undefined,
-        标签: r['标签'] as string[] | undefined,
-        来源类型: chineseToSource(r['来源类型'] as string) as FeishuRecord['fields']['来源类型'],
-        收藏: (r['收藏'] as string) === '是', // boolean
-        状态: chineseToStatus(r['状态'] as string) as FeishuRecord['fields']['状态'],
-        抓取时间: r['抓取时间'] as string,
-        碎片提取时间: r['碎片提取时间'] as string | undefined,
-      },
-    }));
-    return records;
-  } catch {
-    throw new Error(`解析飞书记录失败: ${output.slice(0, 200)}`);
+
+  const records: FeishuRecord[] = [];
+  let offset = 0;
+  const limit = 200;
+
+  while (true) {
+    const output = execLarkCli([
+      'base', '+record-list',
+      '--base-token', FEISHU_TABLE_APP_TOKEN,
+      '--table-id', FEISHU_TABLE_ID,
+      '--offset', String(offset),
+      '--limit', String(limit),
+    ]);
+
+    const data = JSON.parse(output);
+    const items: unknown[][] = data?.data?.data ?? [];
+    const fieldNames: string[] = data?.data?.fields ?? [];
+    const recordIds: string[] = data?.data?.record_id_list ?? [];
+
+    if (items.length === 0) break;
+
+    for (let i = 0; i < items.length; i++) {
+      const row = items[i];
+      const recordId = recordIds[i];
+      const fields: Record<string, unknown> = {};
+      for (let j = 0; j < fieldNames.length; j++) {
+        fields[fieldNames[j]] = row[j];
+      }
+      records.push({
+        record_id: recordId,
+        fields: {
+          原文标题: (fields['原文标题'] as string) ?? '',
+          原始链接: (fields['原始链接'] as string) ?? '',
+          平台: (fields['平台'] as string) as FeishuRecord['fields']['平台'],
+          互动数据: fields['互动数据'] as string | undefined,
+          内容摘要: fields['内容摘要'] as string | undefined,
+          爆款结构: fields['爆款结构'] as string | undefined,
+          选题角度: fields['选题角度'] as string | undefined,
+          标签: typeof fields['标签'] === 'string' ? [fields['标签']] : (fields['标签'] as string[] | undefined),
+          来源类型: chineseToSource((fields['来源类型'] as string) ?? '') as FeishuRecord['fields']['来源类型'],
+          收藏: (fields['收藏'] as string) === '是',
+          状态: chineseToStatus((fields['状态'] as string) ?? '') as FeishuRecord['fields']['状态'],
+          抓取时间: (fields['抓取时间'] as string) ?? '',
+          碎片提取时间: fields['碎片提取时间'] as string | undefined,
+        },
+      });
+    }
+
+    if (items.length < limit) break;
+    offset += limit;
   }
+
+  return records;
 }
 
+/**
+ * 写入单条记录到飞书表格
+ */
 export async function writeFeishuRecord(article: CompetitorArticle): Promise<string> {
   if (!FEISHU_TABLE_APP_TOKEN || !FEISHU_TABLE_ID) {
     throw new Error('缺少飞书配置: FEISHU_TOPIC_TABLE_APP_TOKEN / FEISHU_TOPIC_TABLE_ID');
   }
+
   const fields = {
     '原文标题': article.title,
     '原始链接': article.url,
@@ -105,16 +134,21 @@ export async function writeFeishuRecord(article: CompetitorArticle): Promise<str
     '状态': statusToChinese(article.status),
     '抓取时间': article.crawledAt,
   };
+
   const output = execLarkCli([
-    'table', 'create',
-    '--app-token', FEISHU_TABLE_APP_TOKEN,
+    'base', '+record-upsert',
+    '--base-token', FEISHU_TABLE_APP_TOKEN,
     '--table-id', FEISHU_TABLE_ID,
-    '--fields', JSON.stringify(fields),
+    '--json', JSON.stringify(fields),
   ]);
-  const result = JSON.parse(output);
-  return result.record_id as string;
+
+  const data = JSON.parse(output);
+  return data.data.record_id as string;
 }
 
+/**
+ * 更新飞书表格记录状态
+ */
 export async function updateFeishuRecordStatus(
   recordId: string,
   status: AnalysisStatus,
@@ -123,17 +157,19 @@ export async function updateFeishuRecordStatus(
   if (!FEISHU_TABLE_APP_TOKEN || !FEISHU_TABLE_ID) {
     throw new Error('缺少飞书配置: FEISHU_TOPIC_TABLE_APP_TOKEN / FEISHU_TOPIC_TABLE_ID');
   }
+
   const fields: Record<string, unknown> = { '状态': statusToChinese(status) };
   if (extraFields) {
     for (const [key, value] of Object.entries(extraFields)) {
       fields[key] = value;
     }
   }
+
   execLarkCli([
-    'table', 'update',
-    '--app-token', FEISHU_TABLE_APP_TOKEN,
+    'base', '+record-upsert',
+    '--base-token', FEISHU_TABLE_APP_TOKEN,
     '--table-id', FEISHU_TABLE_ID,
     '--record-id', recordId,
-    '--fields', JSON.stringify(fields),
+    '--json', JSON.stringify(fields),
   ]);
 }
