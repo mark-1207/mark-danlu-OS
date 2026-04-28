@@ -20,7 +20,7 @@ export function registerTopicCommand(program: Command): void {
       try {
         // 1. 抓取
         const scrapeResult = await scrapeArticle(opts.url);
-        const article = buildCompetitorArticle(scrapeResult);
+        const article = buildCompetitorArticle(scrapeResult, opts.url);
         console.log(chalk.green(`抓取成功: ${article.title}`));
 
         // 2. AI 分析
