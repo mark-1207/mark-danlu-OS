@@ -9,6 +9,7 @@ import { registerSkillCommand } from './commands/skill.js';
 import { registerReviseCommand } from './commands/revise.js';
 import { registerStyleCommand } from './commands/style.js';
 import { registerComplianceCommand } from './commands/compliance.js';
+import { registerTopicCommand } from './commands/topic.js';
 
 export function buildCLI(): Command {
   const program = new Command();
@@ -28,6 +29,7 @@ export function buildCLI(): Command {
   registerReviseCommand(program);
   registerStyleCommand(program);
   registerComplianceCommand(program);
+  registerTopicCommand(program);
 
   return program;
 }
