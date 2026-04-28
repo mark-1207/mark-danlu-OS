@@ -54,12 +54,21 @@ export function registerTopicCommand(program: Command): void {
 
           const fragmentLibPath = path2.join(process.cwd(), 'output', 'corpus', 'fragment-library.json');
 
+          // 确保目录存在
+          const corpusDir = path2.dirname(fragmentLibPath);
+          await fs2.mkdir(corpusDir, { recursive: true });
+
           const sentences = await extractSentenceFragments(article, scrapeResult.content);
           const paragraphs = await extractParagraphFragments(article, scrapeResult.content);
 
-          // 追加到碎片库
-          const libContent = await fs2.readFile(fragmentLibPath, 'utf-8');
-          const lib = JSON.parse(libContent);
+          // 读取或初始化碎片库
+          let lib = { sentences: {}, paragraphs: {} };
+          try {
+            const libContent = await fs2.readFile(fragmentLibPath, 'utf-8');
+            lib = JSON.parse(libContent);
+          } catch {
+            // 文件不存在，使用空库初始化
+          }
           for (const s of sentences) {
             lib.sentences[s.id] = s;
           }
