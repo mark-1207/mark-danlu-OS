@@ -47,8 +47,32 @@ export function registerTopicCommand(program: Command): void {
         ]);
 
         if (extractFragments) {
-          // Phase 2 实现
-          console.log(chalk.yellow('碎片提取功能 Phase 2 实现'));
+          // Phase 2: 碎片提取
+          const { extractSentenceFragments, extractParagraphFragments } = await import('../../scenarios/topic/extractor.js');
+          const fs2 = await import('fs/promises');
+          const path2 = await import('path');
+
+          const fragmentLibPath = path2.join(process.cwd(), 'output', 'corpus', 'fragment-library.json');
+
+          const sentences = await extractSentenceFragments(article, scrapeResult.content);
+          const paragraphs = await extractParagraphFragments(article, scrapeResult.content);
+
+          // 追加到碎片库
+          const libContent = await fs2.readFile(fragmentLibPath, 'utf-8');
+          const lib = JSON.parse(libContent);
+          for (const s of sentences) {
+            lib.sentences[s.id] = s;
+          }
+          for (const p of paragraphs) {
+            lib.paragraphs[p.id] = p;
+          }
+          await fs2.writeFile(fragmentLibPath, JSON.stringify(lib, null, 2), 'utf-8');
+          console.log(chalk.green(`句式碎片 ${sentences.length} 条，段落碎片 ${paragraphs.length} 条`));
+
+          // 更新飞书状态为已入库
+          await updateFeishuRecordStatus(recordId, 'stored', {
+            '碎片提取时间': new Date().toISOString(),
+          });
         }
 
         console.log(chalk.bold('\n✅ 抓取分析完成\n'));
