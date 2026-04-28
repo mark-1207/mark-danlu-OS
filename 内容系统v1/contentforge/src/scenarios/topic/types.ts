@@ -42,9 +42,9 @@ export interface FeishuRecord {
     爆款结构?: string;
     选题角度?: string;
     标签?: string[];
-    来源类型: '我的创作' | '竞品抓取' | '手动录入';
-    收藏: '是' | '';
-    状态: '待分析' | '已分析' | '已入库';
+    来源类型: SourceType;
+    收藏: boolean;
+    状态: AnalysisStatus;
     抓取时间: string;
     碎片提取时间?: string;
   };
