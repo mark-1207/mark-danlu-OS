@@ -106,7 +106,20 @@ const createBuiltInPlatforms = (): Platform[] => [
 
 // 默认 AI 设置
 const createDefaultAISettings = (): AISettings => ({
-  providers: [],
+  providers: [
+    // YunWu 云雾 - 固定托底供应商（不显示在 UI 的供应商列表中）
+    {
+      id: 'yunwu',
+      name: '云雾',
+      provider: 'yunwu',
+      apiKey: 'sk-w5I1bY6ZM3gtsc1w3yP8JruBXFAKh6s4PNfzbkxMjZhmiuDw',
+      baseUrl: 'https://yunwu.ai/v1beta',
+      model: 'gemini-3-flash-preview',
+      temperature: 0.7,
+      isEnabled: true,
+      isPrimary: false,
+    },
+  ],
   failover: DEFAULT_FAILOVER_CONFIG,
 });
 
@@ -711,6 +724,7 @@ export const useSettingsStore = create<SettingsState>()(
         analysis: state.analysis,
         optimization: state.optimization,
         testMode: state.testMode,
+        preInfo: state.preInfo,
       }),
       onRehydrateStorage: () => (state) => {
         // 迁移旧数据结构

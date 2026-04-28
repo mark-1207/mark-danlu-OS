@@ -1,10 +1,76 @@
-import matter from 'gray-matter';
 import { llmManager } from './llm/manager';
 import { useSettingsStore } from '../stores/settingsStore';
 import type { Message } from './llm/types';
 
-// 使用 Vite 的 import.meta.url 方式获取 prompts 目录路径
-const PROMPTS_DIR = new URL('../prompts', import.meta.url).href.replace(/\/$/, '');
+/**
+ * 轻量级 front-matter 解析器（浏览器兼容）
+ * 替代 gray-matter，避免 Buffer 依赖问题
+ */
+function parseFrontMatter(content: string): { data: Record<string, any>; content: string } {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
+  if (!match) {
+    return { data: {}, content };
+  }
+
+  const yamlStr = match[1];
+  const body = match[2];
+  const data: Record<string, any> = {};
+
+  // 简单 YAML 解析（处理基本类型）
+  const lines = yamlStr.split(/\r?\n/);
+  let currentKey = '';
+  let inArray = false;
+  let arrayValues: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.replace(/\s+#.*$/, ''); // 去除注释
+
+    if (inArray) {
+      if (trimmed.startsWith('- ')) {
+        arrayValues.push(trimmed.slice(2).trim());
+      } else if (trimmed === '' || trimmed === '[' || trimmed === ']') {
+        // skip
+      } else if (trimmed.startsWith('[')) {
+        // inline array start
+      } else if (trimmed.endsWith(']')) {
+        data[currentKey] = arrayValues;
+        arrayValues = [];
+        inArray = false;
+      } else {
+        inArray = false;
+        data[currentKey] = arrayValues;
+        arrayValues = [];
+      }
+    } else {
+      const keyValueMatch = trimmed.match(/^(\w+(?:[-_]\w+)*):\s*(.*)$/);
+      if (keyValueMatch) {
+        const [, key, value] = keyValueMatch;
+        if (value === '' || value === '[]') {
+          currentKey = key;
+          arrayValues = [];
+          inArray = true;
+          if (value === '[]') {
+            data[key] = [];
+            inArray = false;
+          }
+        } else {
+          // 去除引号
+          const cleanValue = value.replace(/^['"]|['"]$/g, '');
+          data[key] = cleanValue === 'true' ? true : cleanValue === 'false' ? false : cleanValue;
+        }
+      }
+    }
+  }
+
+  if (arrayValues.length > 0) {
+    data[currentKey] = arrayValues;
+  }
+
+  return { data, content: body.trim() };
+}
+
+// prompts 目录位于项目根目录，从 src/services/ 需要向上两级
+const PROMPTS_DIR = new URL('../../prompts', import.meta.url).href.replace(/\/$/, '');
 
 /**
  * 流式输出片段
@@ -83,12 +149,12 @@ export class PromptRouter {
 
     // 使用 fetch 获取目录列表（Vite 静态资源方式）
     // 由于 Vite 不支持直接读取目录，我们使用动态 import 方式扫描
-    // 这里我们硬编码已知的模板路径，因为 Vite 的 import.meta.glob 可以获取文件列表
-    const templates = import.meta.glob('../prompts/**/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+    // prompts 在项目根目录，从 src/services/ 需要向上两级
+    const templates = import.meta.glob('../../prompts/**/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 
     for (const [filePath, rawContent] of Object.entries(templates)) {
       try {
-        const parsed = matter(rawContent);
+        const parsed = parseFrontMatter(rawContent);
         const relativePath = filePath.replace(/^.*\/prompts\//, 'prompts/').replace(/\.md$/, '');
 
         const template: TemplateConfig = {
@@ -115,9 +181,10 @@ export class PromptRouter {
   /**
    * 替换模板中的变量
    * 将 {xxx} 替换为 context 中的值，未找到的变量替换为空字符串
+   * 支持中文变量名（如 {赛道}、{账号人设定位}）
    */
   private replaceVariables(template: string, context: Record<string, string>): string {
-    return template.replace(/\{(\w+)\}/g, (match, key) => {
+    return template.replace(/\{([^}]+)\}/g, (match, key) => {
       return context[key] !== undefined ? context[key] : '';
     });
   }
@@ -173,10 +240,21 @@ export class PromptRouter {
       if (template.outputFormat === 'json') {
         try {
           // 去除 markdown 代码块标记
-          const jsonStr = raw.replace(/```json\s*([\s\S]*?)```/i, '$1').trim();
+          let jsonStr = raw.replace(/```json\s*([\s\S]*?)```/i, '$1').trim();
+          // 如果去掉代码块后前面还有非JSON内容（如 "## 输出"），找到第一个 { 开始
+          const jsonStart = jsonStr.indexOf('{');
+          if (jsonStart > 0) {
+            jsonStr = jsonStr.slice(jsonStart);
+          }
           parsed = JSON.parse(jsonStr);
         } catch (e) {
           parseError = e instanceof Error ? e.message : 'JSON parse failed';
+          // 尝试修复截断的 JSON
+          const repaired = repairTruncatedJSON(raw);
+          if (repaired) {
+            parsed = repaired;
+            parseError = undefined;
+          }
         }
       }
 
@@ -360,3 +438,57 @@ export class PromptRouter {
 
 // 导出单例
 export const promptRouter = new PromptRouter();
+
+/**
+ * 修复截断的 JSON 字符串
+ * 处理 AI 输出被截断的情况（缺少结尾的 }] 等闭合符号）
+ */
+function repairTruncatedJSON(content: string): any | null {
+  let jsonStr = content.trim();
+
+  // 提取 markdown 代码块中的 JSON
+  const codeBlockMatch = jsonStr.match(/```json\s*([\s\S]*?)```/i);
+  if (codeBlockMatch) {
+    jsonStr = codeBlockMatch[1];
+  }
+
+  // 尝试找到 JSON 的开始位置
+  const jsonStart = jsonStr.indexOf('{');
+  if (jsonStart === -1) {
+    return null;
+  }
+  jsonStr = jsonStr.slice(jsonStart);
+
+  // 统计括号深度
+  let braceDepth = 0;
+  let bracketDepth = 0;
+
+  for (const char of jsonStr) {
+    if (char === '{') braceDepth++;
+    else if (char === '}') braceDepth--;
+    else if (char === '[') bracketDepth++;
+    else if (char === ']') bracketDepth--;
+  }
+
+  // 补全缺失的闭合符号
+  while (bracketDepth > 0) {
+    jsonStr += ']';
+    bracketDepth--;
+  }
+  while (braceDepth > 0) {
+    jsonStr += '}';
+    braceDepth--;
+  }
+
+  // 尝试解析
+  try {
+    const parsed = JSON.parse(jsonStr);
+    if (parsed && typeof parsed === 'object') {
+      return parsed;
+    }
+  } catch {
+    // 修复失败
+  }
+
+  return null;
+}

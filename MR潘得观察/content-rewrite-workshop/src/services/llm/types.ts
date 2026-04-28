@@ -13,6 +13,7 @@ export type AIProvider =
   | 'doubao'
   | 'qwen'
   | 'ark'
+  | 'yunwu'
   | 'custom';
 
 // 单个供应商配置
@@ -274,6 +275,14 @@ export const PROVIDER_LIST: ProviderInfo[] = [
     defaultModel: '',
     baseUrl: '',
     website: '',
+  },
+  {
+    id: 'yunwu',
+    name: '云雾',
+    provider: 'yunwu',
+    defaultModel: 'gemini-3-flash-preview',
+    baseUrl: 'https://yunwu.ai/v1beta',
+    website: 'https://yunwu.ai',
   },
 ];
 

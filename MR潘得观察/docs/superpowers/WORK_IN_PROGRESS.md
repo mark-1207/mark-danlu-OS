@@ -1,447 +1,422 @@
 # 内容改写工坊 - 开发进度记录
 
-**最后更新**: 2026-03-27
-**状态**: D 流式输出已完成，待讨论 C
+**最后更新**: 2026-03-30
+**当前版本**: v2.3
+**状态**: Bug修复 + UI交互体验优化（按钮反馈、再次优化功能）
 
 ---
 
-## 📋 整体待办清单
+## 📋 项目概述
 
-### ✅ 已完成
+**内容改写工坊 (Content Rewrite Workshop)** - 音视频转录爆款文案生成器
 
-| 序号 | 任务 | 状态 | 完成日期 |
-|-----|------|------|---------|
-| A | 质检准确性优化 | ✅ 完成 | 2026-03-26 |
-| B | 内容生成质量优化 | ✅ 完成 | 2026-03-26 |
-| E | 模板格式规范化设计 | ✅ 完成 | 2026-03-26 |
-| E1 | 实施模板格式规范化 | ✅ 完成 | 2026-03-26 |
-| F | 质检报告UI展示优化 | ✅ 完成 | 2026-03-26 |
-| H | LLM调用逻辑修复 + 提示词字数检测与智能精简 | ✅ 完成 | 2026-03-26 |
-| G | 内容生成流程交互优化 | ✅ 完成 | 2026-03-26 |
-| **D** | **生成稳定性优化 - 流式输出** | ✅ **完成** | **2026-03-27** |
+将音视频转录文本一键转化为适配公众号、小红书、抖音三平台的高传播度爆款文案。
+
+### 已完成核心功能
+
+| 模块 | 状态 | 说明 |
+|------|------|------|
+| 首页 | ✅ | 导航栏、功能展示、使用流程、CTA区域 |
+| 内容编辑页 | ✅ | 文本输入、文件上传（TXT/MD/DOC/PDF）、字数统计 |
+| 洞察分析页 | ✅ | Content DNA 提取、Markdown渲染 |
+| 内容创作页 | ✅ | 快速模式/专业模式、标题选择、流式输出 |
+| 优化报告页 | ✅ | 六维质检、雷达图、一键优化、导出 |
+| 设置页面 | ✅ | AI供应商、平台模板、质检模板、优化模板（统一标签页） |
+| 多LLM供应商 | ✅ | OpenAI/Claude/MiniMax/Kimi/DeepSeek/自定义/中转站 |
+| 前置信息 | ✅ | 平台/类型/赛道/核心数据，持久化 |
+| 数据管理 | ✅ | 导出/导入/清除 localStorage |
+
+---
+
+## ✅ 版本历史
+
+### v2.3 (2026-03-30) - Bug修复 + 错误处理增强
+
+**本次更新包含多个关键 Bug修复**
+
+#### Bug修复
+
+| 文件 | 问题 | 修复内容 |
+|-----|------|---------|
+| `src/services/promptRouter.ts` | 中文变量名无法匹配 | `/\w+/` → `/[^}]+/` |
+| `prompts/quality/*.md` | 模板占位符未替换 | 末尾提示改为变量占位符 |
+| `src/services/llm/llmService.ts` | AI返回JSON截断导致解析失败 | 新增 `repairTruncatedJSON()` |
+| `src/components/OptimizationReportPage.tsx` | `dimensions.length` 报错 | 添加安全默认对象 + 可选链 |
+| `src/components/ProModePanel.tsx` | 标题生成为空 | JSON失败时 fallback 到 raw 文本解析 |
+| `src/components/ProModePanel.tsx` | 状态重置不完整 | 使用 `finally` 确保状态重置 |
+
+**根因分析**:
+1. `\w` 不匹配中文字符，导致模板变量 `{赛道}` 未被替换
+2. AI 收到未替换的变量，误认为需要用户输入，返回错误格式
+3. JSON 解析失败时没有 fallback，导致功能失效
+4. `currentReport` 可能为空，直接访问属性报错
+
+#### 经验文档
+
+| 文件 | 说明 |
+|-----|------|
+| `docs/lessons-learned.md` | 新增，记录常见错误和设计规范 |
+
+**开发前必读**: `docs/lessons-learned.md`
+
+---
+
+### v2.2 (2026-03-29) - Bug修复 + UI优化
+
+**本次更新包含 Bug修复和 UI交互体验优化**
+
+#### Bug修复
+
+| 文件 | 问题 | 修复内容 |
+|-----|------|---------|
+| `src/services/promptRouter.ts` | `Template not found: douyin-content` | 路径 `../prompts` → `../../prompts` |
+| `src/services/promptRouter.ts` | `Buffer is not defined` (gray-matter) | 替换为自定义 `parseFrontMatter()` |
+| `src/stores/settingsStore.ts` | 前置信息页面跳转后丢失 | persist 配置添加 `preInfo` |
+| `src/components/OptimizationReportPage.tsx` | CompareModal toast 不消失 | `setShowToast(true)` → `setShowToast(false)` |
+
+**效果**:
+- 模板文件能正确加载
+- 包体积 785KB → 684KB
+- 前置信息持久化正常
+
+#### 功能增强
+
+| 文件 | 功能 | 说明 |
+|-----|------|-----|
+| `src/components/OptimizationReportPage.tsx` | 再次优化 | 一键优化按钮变为"再次优化"，可基于当前内容重新优化 |
+| `src/components/OptimizationReportPage.tsx` | 还原原始版本 | 新增按钮，恢复到最初的原始内容 |
+| `src/components/ProModePanel.tsx` | 按钮交互优化 | 不可用时显示"请先选择平台和标题"，hover/active 动画反馈 |
+
+**再次优化交互流程**:
+1. 点击"一键优化" → 保存原始版本 → 生成优化版本 → 显示对比浮层
+2. 选择"使用优化后" → 按钮变为"再次优化"，显示"还原原始版本"
+3. 点击"再次优化" → 基于当前内容重新优化
+4. 点击"还原原始版本" → 恢复到最初的原始内容
+
+#### 测试模式优化支持
+
+| 文件 | 修复内容 |
+|-----|---------|
+| `src/components/OptimizationReportPage.tsx` | 测试模式下使用模拟优化结果（1秒延迟），避免调用真实 AI |
+
+---
+
+### v2.1.1 (2026-03-28) - UI交互体验优化
+
+**小幅优化，不影响现有功能**
+
+#### 设计系统增强 (`src/index.css`)
+
+**Design Tokens 规范化**:
+- 新增 CSS 变量系统：`--space-*` 间距变量、`--font-*` 字体变量
+- 统一过渡动画时长：`--transition-fast: 150ms`、`--transition-base: 200ms`、`--transition-slow: 300ms`
+
+**按钮系统优化**:
+- 统一 `focus:ring` 样式，增强键盘可访问性
+- 优化 `btn-primary`/`btn-secondary`/`btn-ghost`/`btn-danger` 样式
+- 增强 hover/focus/active 状态反馈
+
+**表单组件优化**:
+- 新增 `.input-sm` 小号输入框样式
+- 统一 `focus:ring` 效果，颜色使用 `focus:ring-blue-500/30`
+- label 增加 `font-medium` 强调
+
+**动画系统增强**:
+- 新增 `@keyframes slide-up` 动画
+- 统一 `animate-fade-in`、`animate-scale-in` 过渡时长
+- Toast 动画优化为 250ms
+
+#### 组件样式优化
+
+**App.tsx - 内容输入页**:
+- 前置信息卡片：`p-5` → `p-6`，间距 `gap-4` → `gap-5`
+- 表单 label 增加 `font-medium`
+- 输入框 `py-2` → `py-2.5`，聚焦效果增强
+- 核心数据 label `mb-1` → `mb-1.5`
+- 底部工具栏高度 `h-12` → `h-14`，`px-4` → `px-5`
+- 字数统计移至标题栏，更醒目
+- 底部操作区按钮增加 `shadow-sm hover:shadow` 效果
+
+**QuickModePanel.tsx - 快速模式**:
+- 卡片按钮：`py-2` → `py-2.5`，增加 `hover:shadow-sm`
+- 下载按钮增加图标间距 `gap-1.5`
+- 等待生成文案优化："开始生成" → "等待生成"
+- 重新生成按钮增加 RefreshCw 图标
+- 预览弹窗底部按钮：`py-2` → `py-2.5`，`px-4` → `px-5`
+- 关闭按钮增加 hover/shadow 效果
+- 下载按钮增加 `disabled:text-slate-500` 样式
+- 一键优化按钮：`mt-4` → `mt-5`
+
+**ProModePanel.tsx - 专业模式**:
+- 生成控制区：`p-4` → `p-5`，增加 `border border-slate-100`
+- label 增加 `font-medium`
+- 输入框聚焦效果增强
+- 生成按钮：`py-2` → `py-2.5`，增加 `disabled:text-slate-500`
+- 标题编辑输入框增加 `bg-white` 背景
+- 确认/取消按钮增加 `transition-colors`
+
+---
+
+### v2.1 (2026-03-27) - 流式输出 + UI优化
+
+**Git提交**: `4a804c6`
+
+#### 流式输出功能
+
+| 文件 | 改动 |
+|-----|------|
+| `src/services/llm/types.ts` | 新增 StreamingChunk, StreamError, StreamCallback 类型 |
+| `src/services/llm/adapters.ts` | 所有适配器新增 `chatStream()` 方法 (fetch + SSE) |
+| `src/services/llm/manager.ts` | 新增 `chatStream()` 方法 |
+| `src/services/llm/llmService.ts` | 新增 `callAIWithStreaming()`, `generateStreamingPlatformContent()` |
+| `src/components/QuickModePanel.tsx` | 集成流式内容生成和显示 |
+| `src/components/ProModePanel.tsx` | 集成流式内容生成 |
+
+**核心功能**:
+- 真流式输出（打字机效果）
+- 流式失败自动降级到非流式模式
+- 快速失败策略（失败立即切换供应商）
+
+#### UI优化 (Plan A + Plan B)
+
+**Plan A - 增量优化（已完成）**:
+- 统一进度条组件 `ProgressBar` + `PlatformProgressBar`
+- 骨架屏组件 `SkeletonCard`（脉冲占位动画）
+- Design Tokens (`src/index.css`)：按钮、进度条、卡片、输入框样式
+- Tab切换动画增强
+- 空状态设计、Toast通知样式
+
+**Plan B - 可选主题（已完成）**:
+- `ThemeB.ts` - 靛蓝主色调配色系统
+- `ThemeContext.tsx` - 主题切换 Provider
+- `PageTransition.tsx` - fade/slide/card 三种页面转场动画
+- 响应式布局（移动端/平板端适配）
+
+**相关文件**:
+- `src/components/ui/ProgressBar.tsx`, `SkeletonCard.tsx`, `PageTransition.tsx`
+- `src/theme/ThemeB.ts`, `ThemeContext.tsx`
+- `src/components/SettingsPage.tsx` - 主题切换器UI
+
+---
+
+### v2.0 (2026-03-27) - 内容创作分析要素展示
+
+| 文件 | 改动 |
+|-----|------|
+| `src/services/llm/llmService.ts` | context 类型扩展，传入完整分析数据 |
+| `src/components/ProModePanel.tsx` | 导入公式配置 + 气泡展示 + 进度条 |
+| `src/components/QuickModePanel.tsx` | 版本历史支持（types扩展） |
+| `src/data/titleFormulas.ts` | 新增（各平台公式详情） |
+| `src/data/*ContentPrompt.ts` | 新增变量占位 {contentStructure}/{valuePoints}/{highlightClips} |
+
+**核心功能**:
+- 内容创作页右侧卡片改为"本次生成将使用以下分析要素"
+- 展示：核心议题、情绪基调、目标受众、开篇钩子、高光片段
+- 标题公式气泡悬停显示详情
+- ProModePanel 底部平台独立进度条
+- QuickModePanel 版本历史管理
+
+---
+
+### v1.8 (2026-03-25) - 模板导入功能
+
+| 文件 | 改动 |
+|-----|------|
+| `src/data/` | 新增目录存储模板提示词 |
+| `src/stores/settingsStore.ts` | 更新内置平台使用导入提示词 |
+
+**核心功能**:
+- 标题提示词与正文提示词分离
+- 内置模板使用导入的完整提示词内容
+- 模板导入脚本: `import-templates-from-folder.cjs`, `export-prompts-to-files.cjs`
+
+---
+
+### v1.7.2 (2026-03-25) - 质检报告字段与提示词一致
+
+| 文件 | 改动 |
+|-----|------|
+| `src/services/llm/types.ts` | 新增 GzhQualityDimensions, XhsQualityDimensions, DouyinQualityDimensions |
+| `src/stores/settingsStore.ts` | 质检提示词按平台更新 |
+| `src/services/llm/llmService.ts` | 解析函数按平台分发调度 |
+| `src/components/OptimizationReportPage.tsx` | 雷达图动态渲染，Checklist支持pass/warning/fail |
+
+**质检维度**:
+- 公众号(5维): 标题/摘要传播性、人群精准度、社交货币属性、内容密度、留存引导设计
+- 小红书(5维): 标题/首图钩子、人群精准度、可收藏价值密度、SEO关键词布局、互动/传播设计
+- 抖音(5维): 3秒钩子有效性、15秒爆点达标率、节奏密度、互动/关键词设计、转发引导设计
+
+---
+
+### v1.7.1 (2026-03-25) - 快速模式优化升级
+
+| 文件 | 改动 |
+|-----|------|
+| `src/components/QuickModePanel.tsx` | 预览弹窗重设计（左右对比）、流程说明文案 |
+| `src/services/llm/llmService.ts` | 新增 `quickOptimizeContent()` 函数 |
+| `src/App.tsx` | 按钮文案统一 |
+
+**核心功能**:
+- 预览弹窗：原版/优化版左右对比布局
+- 一键优化（无需质检）
+- 下载按钮根据选择动态变化
+- 快速模式版本历史
+
+---
+
+### v1.6 (2026-03-20) - 前置信息完整集成
+
+**核心功能**:
+- 模板提示词使用前置信息变量 {platform}, {content_type}, {track}, {likes} 等
+- 快速模式/专业模式支持前置信息传递
+- 前置信息持久化到 localStorage
+
+---
+
+### v1.5 (2026-03-19) - AI调用逻辑全面重构
+
+**核心功能**:
+- 洞察分析页使用模板提示词
+- 快速模式合并调用（标题+正文一次调用）
+- 专业模式拆分为两次调用
+- 一键优化使用优化报告模板
+- ZIP导出功能
+
+---
+
+### v1.4 (2026-03-19) - 专业模式标题生成改版
+
+**核心功能**:
+- 默认选中公众号
+- 标题生成改为人工触发（填数量→点按钮）
+- 标题展示竖三列布局，动态列宽
+
+---
+
+### v1.3 (2026-03-19) - 快速/专业模式代码隔离
+
+| 文件 | 改动 |
+|-----|------|
+| `src/components/QuickModePanel.tsx` | 新建（快速模式完整组件） |
+| `src/components/ProModePanel.tsx` | 新建（专业模式完整组件） |
+| `src/App.tsx` | 精简，移除约500行代码 |
+
+---
+
+### v1.2 (2026-03-19) - InsightPage Markdown渲染
+
+**核心功能**:
+- 使用 `react-markdown` 渲染 Markdown
+- 使用 `@tailwindcss/typography` 美化样式
+- 移除6个独立卡片模块，改为统一渲染 AI 返回的 `rawContent`
+
+---
+
+### v1.1 (2026-03-18) - InsightPage新布局
+
+**核心功能**:
+- 统一大模块框架
+- 内容结构化呈现
+- 移除目录导航
+
+---
+
+### v1.0 (2026-03-13) - 基础版完成
+
+**完成内容**:
+- 首页、内容编辑、洞察分析、内容创作（快速/专业模式）、优化报告页全流程
+
+---
+
+## 📌 待办清单
 
 ### ⏳ 待讨论
 
 | 序号 | 任务 | 优先级 | 备注 |
 |-----|------|-------|------|
-| C | UI交互体验优化 | 待定 | 整体体验优化 |
+| C | UI交互体验优化 | 进行中 | v2.2 已完成部分优化，待进一步讨论 |
 
----
+### 📋 已完成
 
-## 📌 已完成任务详情
-
-### A) 质检准确性优化 ✅
-
-**完成日期**: 2026-03-26
-
-**改动文件**:
-- `src/data/gzhQualityPrompt.ts`
-- `src/data/xhsQualityPrompt.ts`
-- `src/data/douyinQualityPrompt.ts`
-
-**解决的核心问题**:
-| 问题 | 原因 | 解决方案 |
+| 序号 | 任务 | 完成日期 |
 |-----|------|---------|
-| A3 维度定义模糊 | 判定标准只有文字描述，无标杆示例 | 每个维度添加正反例标杆 |
-| A1 误判严重 | AI无法精准执行抽象标准 | 评分必须引用原文片段 |
-| A4 优化建议不实用 | 输出冗长，缺乏可操作性 | 优化建议改为原文→改后对照表 |
-| A2 评分不稳定 | 提示词复杂，AI注意力分散 | 精简输出结构 |
+| A | 质检准确性优化 | 2026-03-26 |
+| B | 内容生成质量优化 | 2026-03-26 |
+| E | 模板格式规范化设计 | 2026-03-26 |
+| E1 | 实施模板格式规范化 | 2026-03-26 |
+| F | 质检报告UI展示优化 | 2026-03-26 |
+| G | 内容生成流程交互优化 | 2026-03-26 |
+| H | LLM调用逻辑修复 + 提示词字数检测与智能精简 | 2026-03-26 |
+| D | 流式输出功能 | 2026-03-27 |
+| C1 | UI交互体验优化 - 按钮反馈 | 2026-03-29 |
+| C2 | 优化报告再次优化功能 | 2026-03-29 |
 
 ---
 
-### B) 内容生成质量优化 ✅
+## 🔧 技术架构要点
 
-**完成日期**: 2026-03-26
+### 状态管理
 
-**改动文件**:
-- `src/data/gzhContentPrompt.ts`
-- `src/data/xhsContentPrompt.ts`
-- `src/data/douyinContentPrompt.ts`
+```
+settingsStore (Zustand)
+├── ai: AI供应商配置, failover设置
+├── platforms: 平台列表, 模板
+├── analysis: 分析模板
+├── optimization: 优化模板
+├── preInfo: 前置信息
+└── testMode: 测试模式
+```
 
-**平台改动摘要**:
-| 平台 | 标题公式精简 | 正文精简 | 新增禁止事项 |
-|-----|------------|---------|------------|
-| 公众号 | 8个→5个 | 590行→170行 | ✅ |
-| 小红书 | 6个→5个 | 545行→195行 | ✅ |
-| 抖音 | 10个→5个 | 727行→176行 | ✅ |
+### LLM服务调用
 
----
+```
+llmService.ts
+├── parseContent (洞察分析) → heavy model
+├── generatePlatformContent (内容生成)
+│   ├── 标题生成 → light model
+│   └── 正文生成 → heavy model
+├── analyzeContentQuality (六维质检) → heavy model
+├── optimizeContent (优化重构) → heavy model
+└── quickOptimizeContent (快速优化) → heavy model
+```
 
-### E) 模板格式规范化设计 ✅
+### 组件结构
 
-**完成日期**: 2026-03-26
-
-**设计文档**: `docs/superpowers/specs/2026-03-26-template-format-spec-design.md`
-
----
-
-## ⏳ 进行中任务详情
-
-### E1) 实施模板格式规范化 ✅
-
-**完成日期**: 2026-03-26
-
-**实施文档**: `docs/superpowers/specs/2026-03-26-template-format-integration.md`
-
-**完成改动**:
-
-| 文件 | 操作 | 说明 |
-|-----|------|------|
-| `src/components/CompareModal.tsx` | 新增 | 格式化对比弹窗 |
-| `src/services/autoFormatService.ts` | 新增 | 格式化服务封装 |
-| `src/services/validator/TemplateValidator.ts` | 修改 | 简化为只保留 validateTemplate |
-| `src/services/validator/index.ts` | 修改 | 简化导出 |
-| `src/components/SettingsPage.tsx` | 重构 | 区分内置/自定义模板 |
-
-**核心功能**:
-- 内置模板只读展示（查看按钮）
-- 自定义模板可编辑（编辑按钮）
-- 保存时自动格式化 + 对比弹窗
-- 对比弹窗支持：确认格式化 / 使用原版 / 取消
-
-### F) 质检报告UI展示优化 ✅
-
-**完成日期**: 2026-03-26
-
-**设计文档**: `docs/superpowers/specs/2026-03-26-quality-report-ui-redesign.md`
-
-**完成改动**:
-
-| 文件 | 操作 | 说明 |
-|-----|------|------|
-| `src/types/quality.ts` | 新增 | 动态类型定义 |
-| `src/components/QualityReport/*.tsx` | 新增 | 8个新组件 |
-| `src/services/llm/llmService.ts` | 修改 | 动态维度解析 |
-| `src/components/OptimizationReportPage.tsx` | 修改 | 使用新组件，移除雷达图 |
-
-**核心功能**:
-- 维度动态渲染（无论模板返回什么都能展示）
-- 移除雷达图，使用条形维度列表
-- Checklist 支持 evidence 显示（点击定位待实现）
-- 优化建议支持展开/收起 + original/optimized 对照
-- 整体评分为独立组件
-
-### G) 内容生成流程交互优化 ✅
-
-**完成日期**: 2026-03-26
-
-**改动文件**:
-
-| 文件 | 操作 | 说明 |
-|-----|------|------|
-| `src/services/llm/llmService.ts` | 修改 | context 类型扩展，传入完整分析数据 |
-| `src/components/ProModePanel.tsx` | 修改 | 导入公式配置 + 气泡展示 + 进度条 |
-| `src/components/QuickModePanel.tsx` | 修改 | 版本历史支持（types扩展） |
-| `src/components/App.tsx` | 修改 | 分析要素卡片重设计 |
-| `src/data/titleFormulas.ts` | 新增 | 公式配置数据（各平台公式详情） |
-| `src/data/gzhContentPrompt.ts` | 修改 | 新变量占位 {contentStructure}/{valuePoints}/{highlightClips} |
-| `src/data/xhsContentPrompt.ts` | 修改 | 新变量占位 |
-| `src/data/douyinContentPrompt.ts` | 修改 | 新变量占位 |
-
-**核心功能**:
-
-#### 1. 分析结果完整传入生成函数
-- 新增 context 字段：`contentStructure`、`valuePoints`、`highlightClips`、`goldSentences`、`interactiveHook`
-- `parseMarkdownResult` 解析的结构化数据（_rawJson）正确传入
-- 提示词模板新增变量占位，AI 生成时使用完整分析上下文
-
-#### 2. 内容创作页分析要素展示
-- 原"AI洞察卡片"改为"本次生成将使用以下分析要素"
-- 展示：核心议题、情绪基调、目标受众、开篇钩子、高光片段
-- 视觉设计：渐变绿色背景，emerald 色系
-
-#### 3. 标题公式气泡展示
-- 悬停标题类型标签显示公式详情
-- 详情包含：公式名称、结构、描述、示例、适用范围
-- 支持公众号8公式、小红书6公式、抖音10公式
-
-#### 4. 生成进度可视化
-- ProModePanel 底部添加平台独立进度条
-- 生成时显示加载动画和文字提示
-
-#### 5. 快速模式版本管理
-- PlatformResult 类型扩展支持 `versions[]` 和 `currentVersionId`
-- 重新生成时创建新版本，保留历史版本
+```
+src/components/
+├── App.tsx              # 主应用
+├── HomePage.tsx         # 首页
+├── InsightPage.tsx      # 洞察分析
+├── QuickModePanel.tsx   # 快速模式
+├── ProModePanel.tsx     # 专业模式
+├── OptimizationReportPage.tsx  # 优化报告
+├── SettingsPage.tsx     # 设置页面
+├── TemplateList.tsx     # 通用模板列表（支持分组模式）
+├── PlatformSelector.tsx # 统一平台标签页选择器
+└── ui/                 # UI组件
+```
 
 ---
 
-### H) LLM调用逻辑修复 + 提示词字数检测与智能精简 ✅
+## 📎 回滚节点记录
 
----
+### 节点 #1 - v2.1 流式输出功能
 
-### H) LLM调用逻辑修复 + 提示词字数检测与智能精简 ✅
+**提交**: `00b1127`
 
-**完成日期**: 2026-03-26
-
-**改动文件**:
-
-| 文件 | 操作 | 说明 |
-|-----|------|------|
-| `src/services/llm/manager.ts` | 修改 | 修复重试逻辑Bug + 429指数退避 |
-| `src/services/llm/adapters.ts` | 修改 | 添加timeout + 修复Anthropic baseUrl |
-| `src/services/promptLengthChecker.ts` | 新增 | 提示词字数检测服务 |
-| `src/services/templateFormatter.ts` | 修改 | 添加智能精简功能 |
-| `src/components/CompareModal.tsx` | 修改 | 支持精简对比模式 |
-| `src/components/SettingsPage.tsx` | 修改 | 集成字数检测和精简功能 |
-| `src/components/QualityReport/*.tsx` | 修改 | 修复类型导入路径 |
-| `src/services/llm/llmService.ts` | 修改 | 修复测试数据类型错误 |
-
-**核心功能**:
-
-#### 1. LLM 调用逻辑修复
-- **重试逻辑 Bug 修复**: 修复 break 位置错误，可重试错误继续重试，不可重试才切换供应商
-- **429 指数退避**: 429 错误携带 retryAfterMs，避免立即重试加剧 rate limit
-- **axios 超时配置**: 所有适配器添加 `timeout: 120000`（2分钟）
-- **Anthropic baseUrl**: 修复硬编码，支持中转站配置
-
-#### 2. 提示词字数检测
-- **字数限制标准**:
-  - titlePrompt: 1500 字
-  - contentPrompt: 3000 字
-  - qualityPrompt: 2500 字
-- **风险等级**: safe (≤80%) / warning (80%-100%) / high (>100%)
-- **超限警告**: 提示可能导致的 429、耗时增加等问题
-
-#### 3. 智能精简功能
-- **触发条件**: 提示词超限时
-- **精简策略**: 移除重复解释、简化过长示例、清理冗余格式
-- **对比弹窗**: 显示原版/格式化版/精简版三列对比
-- **高亮显示**: 被删除内容高亮标注，用户决策是否接受精简
-
----
-
-## ⏳ 待讨论任务
-
-### D) 生成稳定性优化 - 流式输出 ✅
-
-**完成日期**: 2026-03-27
-**版本**: v2.1
-
-**设计文档**: `docs/superpowers/specs/2026-03-27-streaming-output-design.md`
-
-**改动文件**:
-
-| 文件 | 操作 | 说明 |
-|-----|------|------|
-| `src/services/llm/types.ts` | 修改 | 新增 StreamingChunk, StreamError, StreamCallback 类型 |
-| `src/services/llm/adapters.ts` | 修改 | 所有适配器新增 chatStream() 方法 |
-| `src/services/llm/manager.ts` | 修改 | 新增 chatStream() 方法 |
-| `src/services/llm/llmService.ts` | 修改 | 新增 callAIWithStreaming(), generateStreamingPlatformContent() |
-| `src/components/QuickModePanel.tsx` | 修改 | 集成流式内容生成和显示 |
-| `src/components/ProModePanel.tsx` | 修改 | 集成流式内容生成 |
-
-**核心功能**:
-
-#### 1. 真流式输出
-- 使用 fetch API 接收 SSE 流式响应
-- 内容逐字实时显示（打字机效果）
-- 各适配器独立实现（OpenAI、Kimi、DeepSeek 等 OpenAI 兼容格式 + Anthropic 事件格式）
-
-#### 2. 自动降级
-- 流式调用失败时自动切换到非流式模式
-- 降级时批量回调（50字符/批，20ms延迟）
-- 用户无感知
-
-#### 3. 供应商快速切换
-- 失败立即切换到下一个供应商（快速失败策略）
-- 不在当前供应商重试
-
-#### 4. UI 集成
-- QuickModePanel 预览弹窗优先显示流式内容
-- ProModePanel 内容生成使用流式
-
-**Git 提交**:
-- `00b1127` - feat: 实现流式输出功能
-- `3868061` - docs: 更新项目进度记录 - 添加v2.1流式输出功能
-
-**回滚方法**:
 ```bash
 cd content-rewrite-workshop
 git checkout 00b1127 -- .
 ```
 
----
+### 节点 #2 - v1.8 模板导入
 
-### C) UI交互体验优化
-
-**用户原话**: "四个依次进行"（A→B→C→D）
-
-**待确认优先级**:
-- C1) 质检报告页面的展示优化
-- C2) 内容生成流程的交互优化
-- C3) 其他UI问题
-
----
-
-### D) 生成稳定性优化
-
-**用户原话**: "四个依次进行"（A→B→C→D）
-
-**待确认方向**:
-- 减少同一内容多次生成的结果差异
-- 可能方案：温度参数控制、多次采样取优、添加稳定性约束等
-
----
-
-## 🔧 git 提交记录
-
-| 提交 | 内容 |
-|-----|------|
-| `a7d7a38` | fix: 修复项目断裂问题 |
-| `a1d0b44` | docs: 重组待办清单结构 |
-| `fae72d6` | feat: 实施模板格式规范化 - 基础建设 |
-| `45d8c48` | docs: 添加模板格式规范化设计文档 |
-| `3ff2522` | feat: 质检准确性优化 - 重构提示词和解析器 |
-| `6b0d3bb` | feat: 内容生成质量优化 - 精简三平台提示词 |
-| `ddf103f` | docs: 更新工作进度记录 |
-| `9b1462d` | docs: 添加质检准确性优化设计文档 |
-
----
-
-## 📎 项目背景
-
-**当前版本**: v2.1
-**最后更新**: 2026-03-27
-
-### 已完成核心功能
-- 首页、内容编辑、洞察分析、内容创作（快速/专业模式）
-- 多LLM供应商支持（OpenAI/Claude/MiniMax/Kimi/DeepSeek/自定义）
-- 分平台模板配置（公众号/小红书/抖音）
-- 前置信息模块（平台/类型/赛道/核心数据）
-- 六维质检系统（通过平台模板的 qualityPrompt 配置）
-- 数据管理（导出/导入/清除）
-- 快速模式预览弹窗优化
-- 模板导入功能
-
-### 当前状态
-- ✅ 项目可正常运行（`npm run dev`）
-- ✅ LLM 调用逻辑已修复（重试、429、超时）
-- ✅ 提示词字数检测和智能精简功能已完成
-- ✅ 内容创作页分析要素展示已完成
-- ✅ **流式输出功能已完成**（v2.1）
-- ✅ 构建通过（`npm run build` 成功）
-- ⏳ 进行中：C)UI交互体验优化（Plan A + Plan B 双轨方案）
-
----
-
-## 📝 UI交互体验优化讨论记录 (2026-03-27)
-
-### 用户需求确认
-
-**页面范围**：全部页面（内容创作页、优化报告页、设置页面）
-
-**痛点**：
-- ✅ 加载/等待体验
-- ✅ 内容展示可读性
-- ✅ 操作便捷性
-- ✅ 视觉一致性
-
-**核心目标**：专业感 + 易用性 + 愉悦感 三者平衡
-
-### 确认方案：Plan A + Plan B 双轨
-
-```
-当前设计 ──(Plan A 增量优化)──> 默认主题
-              │
-              └──(Plan B 全面重构)──> 可选主题 B
-
-设置 → 外观 → [默认主题] / [主题 B]
+```bash
+cd content-rewrite-workshop
+git checkout HEAD -- src/data/
+git checkout HEAD -- src/stores/settingsStore.ts
 ```
 
-**好处**：
-1. Plan A 先上线验证，核心功能优化先让用户体验
-2. Plan B 可对比，用户能直观看到两种风格
-3. 风险可控，Plan B 不影响主流程
-4. 根据反馈决定是否切换
-
 ---
 
-## 📋 Plan A 设计方向（默认主题 - 增量优化）
-
-### 1. 加载/等待体验
-- 统一进度条样式
-- 添加加载动画（骨架屏或脉冲效果）
-- 流式输出时显示实时状态
-
-### 2. 内容展示可读性
-- 优化卡片间距和层级
-- Markdown 内容增加更好的排版样式
-- 对比弹窗增强视觉区分
-
-### 3. 操作便捷性
-- 按钮位置和尺寸优化
-- 关键操作增加快捷提示
-- 优化报告页一键优化按钮突出
-
-### 4. 视觉一致性
-- 定义统一的设计 token（颜色、间距、圆角）
-- 各页面组件样式对齐
-
----
-
-## 📋 Plan B 设计方向（可选主题 - 全面重构）
-
-### 1. 全新设计语言
-- 引入更现代的视觉风格
-- 重新设计配色系统
-- 新增微交互动效
-
-### 2. 组件重构
-- 全新卡片、按钮、输入框设计
-- 更好的暗色模式支持
-- 响应式布局优化
-
-### 3. 体验增强
-- 页面转场动画
-- 数据更新动画
-- 更好的空状态设计
-
----
-
-## 🔄 工作流程
-
-1. **Plan A 开发** → 测试通过 → 用户验收
-2. **Plan B 开发** → 作为可选主题 → 用户可对比
-3. **根据反馈** → 决定默认主题是否切换到 B
-
----
-
-## 📎 继续工作的指令
-
-在新终端中告诉我：
-
-> **"继续之前的工作，请读取 `docs/superpowers/WORK_IN_PROGRESS.md`"**
-
-我会加载此文件并继续 Plan A 的开发。
-
----
-
-## 🔄 如何在新终端继续
-
-在新终端中告诉我：
-
-> **"继续之前的工作，请读取 `docs/superpowers/WORK_IN_PROGRESS.md`"**
-
-我会加载此文件并继续待完成的任务。
-
----
-
-## 📝 设计讨论关键结论（2026-03-26）
-
-### 模板格式规范化核心需求
-
-**用户原话**:
-> "当我自定义新模版时，只需要将内容粘贴进去，系统自动修正我的内容格式使之符合要求，不需要我去微调格式"
-
-**关键决策**：
-1. ✅ 自动格式化，不需要用户手动调整
-2. ✅ 混合模式：智能提取 + 整体重写
-3. ✅ 分级判断：关键词快速判断 + AI辅助
-4. ✅ 按平台定制规范
-5. ✅ 保存时格式化
-6. ✅ 对比确认后再保存
-
-### 平台格式规范
-- **titlePrompt 规范**：5个公式 + 禁止事项 + JSON输出格式
-- **contentPrompt 规范**：4种内容类型差异化 + 开篇/主体/结尾公式 + 金句 + 禁止 + 排版 + 互动
-- **qualityPrompt 规范**：维度判定标准 + 评分规则 + 输出格式
+*此文档为项目唯一进度记录来源，后续更新只在此文件中记录*

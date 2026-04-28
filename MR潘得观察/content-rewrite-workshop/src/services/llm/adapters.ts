@@ -888,6 +888,208 @@ export class DeepSeekAdapter implements LLMAdapter {
 }
 
 /**
+ * YunWu (云雾) 适配器 - Gemini 原生格式
+ */
+export class YunWuAdapter implements LLMAdapter {
+  name = 'YunWu';
+
+  async chat(config: LLMRequestConfig, providerConfig: ProviderConfig): Promise<LLMResponse> {
+    const baseUrl = providerConfig.baseUrl || 'https://yunwu.ai/v1beta';
+    const model = providerConfig.model; // e.g. gemini-3-flash-preview
+
+    // 将 messages 转换为 Gemini 格式
+    const contents = this.buildContents(config.messages);
+
+    const response = await axios.post(
+      `${baseUrl}/models/${model}:generateContent`,
+      {
+        contents,
+        generationConfig: {
+          maxOutputTokens: config.maxTokens || 2048,
+          temperature: config.temperature ?? 0.7,
+        },
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${providerConfig.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 120000,
+      }
+    );
+
+    const candidate = response.data?.candidates?.[0];
+    const content = candidate?.content;
+    const parts = content?.parts;
+
+    // 尝试获取文本内容
+    let text = '';
+    if (Array.isArray(parts) && parts.length > 0) {
+      text = parts.find(p => p?.text)?.text || '';
+    } else if (content?.parts === null && candidate?.finishReason) {
+      // parts 为 null 但有 finishReason，可能是空内容
+      console.warn('[YunWuAdapter] parts is null, finishReason:', candidate.finishReason);
+    }
+
+    if (!text) {
+      console.error('[YunWuAdapter] No text in response:', JSON.stringify(response.data).slice(0, 200));
+      throw new Error('API返回内容为空');
+    }
+
+    return {
+      content: text,
+      usage: {
+        promptTokens: response.data.usageMetadata?.promptTokenCount || 0,
+        completionTokens: response.data.usageMetadata?.candidatesTokenCount || 0,
+        totalTokens: response.data.usageMetadata?.totalTokenCount || 0,
+      },
+      model: response.data.modelVersion || model,
+    };
+  }
+
+  async chatStream(
+    config: LLMRequestConfig,
+    providerConfig: ProviderConfig,
+    callback: StreamCallback
+  ): Promise<void> {
+    const baseUrl = providerConfig.baseUrl || 'https://yunwu.ai/v1beta';
+    const model = providerConfig.model;
+    const contents = this.buildContents(config.messages);
+
+    const response = await fetch(`${baseUrl}/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${providerConfig.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents,
+        generationConfig: {
+          maxOutputTokens: config.maxTokens || 2048,
+          temperature: config.temperature ?? 0.7,
+        },
+        stream: true,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            try {
+              const parsed = JSON.parse(data);
+              const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (text) {
+                callback({ content: text, done: false });
+              }
+              // 反作弊：检测 stream 结束
+              if (parsed.candidates?.[0]?.finishReason) {
+                callback({
+                  content: '',
+                  done: true,
+                  usage: parsed.usageMetadata ? {
+                    promptTokens: parsed.usageMetadata.promptTokenCount || 0,
+                    completionTokens: parsed.usageMetadata.candidatesTokenCount || 0,
+                    totalTokens: parsed.usageMetadata.totalTokenCount || 0,
+                  } : undefined,
+                  model: parsed.modelVersion,
+                });
+                return;
+              }
+            } catch {}
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    callback({ content: '', done: true });
+  }
+
+  async testConnection(providerConfig: ProviderConfig): Promise<boolean> {
+    try {
+      const baseUrl = providerConfig.baseUrl || 'https://yunwu.ai/v1beta';
+      const model = providerConfig.model || 'gemini-3-flash-preview';
+      const response = await axios.post(
+        `${baseUrl}/models/${model}:generateContent`,
+        {
+          contents: [{ role: 'user', parts: [{ text: 'Hi' }] }],
+          generationConfig: { maxOutputTokens: 10 },
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${providerConfig.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 30000,
+          // 强制所有状态码都抛出，方便调试
+          validateStatus: () => true,
+        }
+      );
+      // 只要 HTTP 状态码是 2xx 就认为连接成功
+      const ok = response.status >= 200 && response.status < 300;
+      if (!ok) {
+        console.warn(`[YunWuAdapter] testConnection HTTP ${response.status}:`, JSON.stringify(response.data).slice(0, 100));
+      }
+      return ok;
+    } catch (e: any) {
+      console.error('[YunWuAdapter] testConnection error:', e.message);
+      return false;
+    }
+  }
+
+  /**
+   * 将 OpenAI 格式 messages 转换为 Gemini contents 格式
+   */
+  private buildContents(messages: any[]): any[] {
+    const contents: any[] = [];
+    let systemText = '';
+
+    for (const msg of messages) {
+      if (msg.role === 'system') {
+        systemText += (systemText ? '\n' : '') + msg.content;
+      } else if (msg.role === 'user') {
+        const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+        if (systemText) {
+          // system 消息合并到第一个 user 消息
+          contents.push({
+            role: 'user',
+            parts: [{ text: `[系统提示]\n${systemText}\n\n[用户输入]\n${content}` }],
+          });
+          systemText = '';
+        } else {
+          contents.push({ role: 'user', parts: [{ text: content }] });
+        }
+      } else if (msg.role === 'assistant') {
+        const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+        contents.push({ role: 'model', parts: [{ text: content }] });
+      }
+    }
+
+    return contents;
+  }
+}
+
+/**
  * 自定义/中转站适配器
  */
 export class CustomAdapter implements LLMAdapter {
@@ -1046,6 +1248,8 @@ export function createAdapter(provider: string): LLMAdapter {
       return new DeepSeekAdapter();
     case 'ark':
       return new ArkAdapter();
+    case 'yunwu':
+      return new YunWuAdapter();
     case 'custom':
       return new CustomAdapter();
     default:
