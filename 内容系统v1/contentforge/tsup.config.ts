@@ -40,5 +40,13 @@ export default defineConfig({
       copyDir(srcStrategies, distStrategies);
       console.log('✓ Copied strategies to dist');
     }
+
+    // Copy compliance data
+    const srcCompliance = path.join(process.cwd(), 'data/compliance');
+    const distCompliance = path.join(process.cwd(), 'dist/data/compliance');
+    if (existsSync(srcCompliance)) {
+      copyDir(srcCompliance, distCompliance);
+      console.log('✓ Copied compliance data to dist');
+    }
   },
 });
