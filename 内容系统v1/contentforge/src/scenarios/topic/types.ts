@@ -30,6 +30,14 @@ export interface TopicAnalysisResult {
   tags: string[];
 }
 
+export interface CompetitorInsight {
+  summary: string;
+  viralStructure: string;
+  topicAngle: string;
+  tags: string[];
+  topArticles: CompetitorArticle[];
+}
+
 // 飞书表格字段映射
 export interface FeishuRecord {
   record_id: string;
