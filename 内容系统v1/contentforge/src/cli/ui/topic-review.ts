@@ -1,7 +1,6 @@
 import chalk from 'chalk';
 import readline from 'readline';
-import { type TopicAnalysisReview } from '../../scenarios/create/types.js';
-import type { PlatformSelectionConfirmed } from '../../scenarios/create/types.js';
+import type { TopicAnalysisReview, CompetitorInsight, PlatformSelectionConfirmed } from '../../scenarios/create/types.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -10,6 +9,9 @@ export interface TopicAssignmentDisplay {
   xiaohongshu: { angle: string; titles: string[]; selectedIndex: number };
   douyin: { angle: string; titles: string[]; selectedIndex: number };
 }
+
+// Extended type for reviewData that may contain competitorInsights
+type ReviewDataWithInsights = TopicAnalysisReview & { competitorInsights?: CompetitorInsight };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -172,7 +174,7 @@ const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout
     console.log(chalk.dim('─'.repeat(60)));
 
     // 竞品洞察展示
-    const insights = (reviewData as any).competitorInsights;
+    const insights = (reviewData as ReviewDataWithInsights).competitorInsights;
     if (insights) {
       console.log(chalk.bold('\n=== 竞品洞察 ==='));
       console.log(chalk.yellow('⚠️ 以下角度已被竞品覆盖，建议差异化切入：'));
@@ -273,7 +275,7 @@ const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout
           render();
           return;
         }
-        if (isSelected) {
+        if (selected.has(cursorInGroup)) {
           selected.delete(cursorInGroup);
         } else {
           selected.add(cursorInGroup);
