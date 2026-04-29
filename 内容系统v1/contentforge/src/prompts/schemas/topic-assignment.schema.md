@@ -12,7 +12,27 @@
     "contentType": "string",
     "emotionalGoal": "string"
   },
-  "xiaohongshu": { /* 同上结构 */ },
-  "douyin": { /* 同上结构 */ },
+  "xiaohongshu": {
+    "platform": "xiaohongshu",
+    "angle": "string",
+    "titleDrafts": ["string", "string", "string"],
+    "coreArgument": "string",
+    "targetAudience": "string",
+    "tone": "string",
+    "wordCountRange": [500, 800],
+    "contentType": "string",
+    "emotionalGoal": "string"
+  },
+  "douyin": {
+    "platform": "douyin",
+    "angle": "string",
+    "titleDrafts": ["string", "string", "string"],
+    "coreArgument": "string",
+    "targetAudience": "string",
+    "tone": "string",
+    "wordCountRange": [150, 300],
+    "contentType": "string",
+    "emotionalGoal": "string"
+  },
   "overlapAnalysis": "string"
 }
