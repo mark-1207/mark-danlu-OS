@@ -32,16 +32,16 @@
 
 输出格式：JSON，严格遵循以下 Schema:
 {
-  "topicStrategy": { "painPoint": "string", "emotionalTrigger": "string", "targetAudience": "string", "whyItWorks": "string" },
-  "narrativeStructure": [{ "sectionIndex": "number", "purpose": "string", "wordRatio": "number", "emotionMark": "string", "technique": "string", "argumentativePath": "string" }],
-  "hookTechnique": { "type": "string", "mechanism": "string", "template": "string" },
-  "emotionCurve": [{ "position": "number", "emotion": "string", "intensity": "number" }],
-  "powerSentences": [{ "original": "string", "structure": "string", "whyPowerful": "string" }],
-  "viralFactors": ["string"],
-  "contentDensityScore": "number",
-  "estimatedReadTime": "string",
-  "forbiddenExpressions": [{ "text": "string", "reason": "string" }],
-  "caseStudies": [{ "id": "string", "protagonist": "string", "setting": "string", "story": "string", "whyItWorks": "string" }],
-  "keyDataPoints": [{ "id": "string", "data": "string", "context": "string", "field": "string" }],
-  "goldQuotes": [{ "id": "string", "text": "string", "position": "string" }]
+  "topicStrategy": { "painPoint": string, "emotionalTrigger": string, "targetAudience": string, "whyItWorks": string },
+  "narrativeStructure": [{ "sectionIndex": number, "purpose": string, "wordRatio": number, "emotionMark": string, "technique": string, "argumentativePath": string }],
+  "hookTechnique": { "type": string, "mechanism": string, "template": string },
+  "emotionCurve": [{ "position": number, "emotion": string, "intensity": number }],
+  "powerSentences": [{ "original": string, "structure": string, "whyPowerful": string }],
+  "viralFactors": [string],
+  "contentDensityScore": number,
+  "estimatedReadTime": string,
+  "forbiddenExpressions": [{ "text": string, "reason": string }],
+  "caseStudies": [{ "id": string, "protagonist": string, "setting": string, "story": string, "whyItWorks": string }],
+  "keyDataPoints": [{ "id": string, "data": string, "context": string, "field": string }],
+  "goldQuotes": [{ "id": string, "text": string, "position": string }]
 }
