@@ -69,12 +69,12 @@ ${formatted}
 
           // 写入缓存（静默失败不阻断）
           const { writeCache } = await import('../../topic/competitor-cache.js');
-          writeCache(input.keyword, result, records.length).catch(() => {});
+          writeCache(input.keyword, result, records.length);
         }
       }
     } catch (err) {
       // 竞品读取失败：警告提示，跳过，流程继续
-      console.warn('⚠️ 竞品洞察生成失败，跳过注入。流程继续。');
+      console.warn('⚠️ 竞品洞察生成失败，跳过注入。', err);
     }
 
     const systemPrompt = promptLoader.render(template.system, {
@@ -100,7 +100,6 @@ ${formatted}
     ]);
 
     // 注入竞品洞察到输出（即使为 undefined 也写入，Schema 支持 optional）
-    result.competitorInsights = competitorInsights;
-    return result;
+    return { ...result, competitorInsights };
   }
 }
