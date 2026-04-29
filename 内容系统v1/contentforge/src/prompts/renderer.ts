@@ -1,6 +1,7 @@
 /**
  * Prompt template variable renderer.
- * Supports {{variableName}} and {{#if variableName}}...{{/if}} conditional blocks.
+ * Supports {{variableName}}, {{#if variableName}}...{{/if}} conditional blocks,
+ * and {{#each arrayVar}}...{{/each}} iteration blocks.
  */
 
 export interface PromptTemplate {
@@ -14,9 +15,40 @@ export interface PromptTemplate {
  */
 export function renderPrompt(
   template: string,
-  variables: Record<string, string | boolean | number | undefined>,
+  variables: Record<string, string | boolean | number | object | undefined>,
 ): string {
   let rendered = template;
+
+  // Process each blocks: {{#each arrayVar}}...{{/each}}
+  rendered = rendered.replace(
+    /\{\{#each\s+(\w+)\}\}([\s\S]*?)\{\{\/each\}\}/g,
+    (_, arrayVar, blockContent) => {
+      const array = variables[arrayVar];
+      if (!Array.isArray(array) || array.length === 0) {
+        return '';
+      }
+      return array.map(item => {
+        let block = blockContent;
+        // Replace {{this.property}} first (e.g., {{this.name}})
+        block = block.replace(/\{\{this\.(\w+)\}\}/g, (_, propName) => {
+          if (item && typeof item === 'object' && propName in item) {
+            return String((item as Record<string, unknown>)[propName]);
+          }
+          return '';
+        });
+        // Replace {{this}} with the current item
+        block = block.replace(/\{\{this\}\}/g, String(item));
+        // Replace {{property}} with item.property (for current item context)
+        block = block.replace(/\{\{(\w+)\}\}/g, (_, propName) => {
+          if (item && typeof item === 'object' && propName in item) {
+            return String((item as Record<string, unknown>)[propName]);
+          }
+          return '';
+        });
+        return block;
+      }).join('');
+    },
+  );
 
   // Process conditional blocks: {{#if var}}...{{/if}} and {{#if var}}...{{else}}...{{/if}}
   rendered = rendered.replace(
