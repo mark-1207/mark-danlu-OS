@@ -2,7 +2,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 import { readFeishuRecords } from './feishu-sync.js';
-import type { CompetitorInsight, FeishuRecord } from './types.js';
+import type { CompetitorInsight } from '../create/types.js';
+import type { FeishuRecord } from './types.js';
 
 const CACHE_DIR = path.join(process.cwd(), 'output', 'corpus', 'competitor-insights');
 
@@ -44,8 +45,12 @@ export async function writeCache(keyword: string, insights: CompetitorInsight, r
     recordCount,
   };
   const filePath = path.join(CACHE_DIR, `${cacheKey(keyword)}.json`);
-  await fs.mkdir(CACHE_DIR, { recursive: true });
-  await fs.writeFile(filePath, JSON.stringify(entry, null, 2), 'utf-8');
+  try {
+    await fs.mkdir(CACHE_DIR, { recursive: true });
+    await fs.writeFile(filePath, JSON.stringify(entry, null, 2), 'utf-8');
+  } catch {
+    // graceful failure - cache writes are non-fatal
+  }
 }
 
 /**
