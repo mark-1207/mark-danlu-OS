@@ -32,6 +32,21 @@ export const TargetDemographicSchema = z.object({
   contentPreferences: z.array(z.string()),
 });
 
+export const CompetitorInsightSchema = z.object({
+  coveredAngles: z.array(z.object({
+    angle: z.string(),
+    sourceTitle: z.string(),
+    platform: z.string(),
+  })),
+  opportunityAngles: z.array(z.object({
+    angle: z.string(),
+    whyOpportunity: z.string(),
+  })),
+  warning: z.string(),
+});
+
+export type CompetitorInsight = z.infer<typeof CompetitorInsightSchema>;
+
 export const TopicAnalysisSchema = z.object({
   keyword: z.string(),
   subTopics: z.array(SubTopicSchema).min(10).max(15),
@@ -39,6 +54,7 @@ export const TopicAnalysisSchema = z.object({
   trendingAngles: z.array(TrendingAngleSchema).min(5).max(8),
   controversies: z.array(ControversySchema).min(3).max(5),
   targetDemographics: z.array(TargetDemographicSchema).min(3).max(5),
+  competitorInsights: CompetitorInsightSchema.optional(),
 });
 
 export type TopicAnalysis = z.infer<typeof TopicAnalysisSchema>;
