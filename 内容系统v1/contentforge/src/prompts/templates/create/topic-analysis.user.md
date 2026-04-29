@@ -19,3 +19,24 @@
   "controversies": [{ "topic": "string", "sideA": "string", "sideB": "string" }],
   "targetDemographics": [{ "group": "string", "interests": ["string"], "contentPreferences": ["string"] }]
 }
+
+{{#if competitorInsights}}
+---
+## 竞品参考素材
+
+以下是系统中已有的竞品分析数据，供你参考差异化方向：
+
+**竞品已覆盖角度**：
+{{#each competitorInsights.coveredAngles}}
+- [{{platform}}] {{angle}}（来源：{{sourceTitle}}）
+{{/each}}
+
+{{#if competitorInsights.opportunityAngles}}
+**空白机会角度**：
+{{#each competitorInsights.opportunityAngles}}
+- {{angle}}：{{whyOpportunity}}
+{{/each}}
+{{/if}}
+
+**差异化建议**：{{competitorInsights.warning}}
+{{/if}}
