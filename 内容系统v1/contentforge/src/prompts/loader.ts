@@ -41,7 +41,7 @@ export class PromptLoader {
   /**
    * Render a template with variables.
    */
-  render(template: string, variables: Record<string, string | boolean | number | undefined>): string {
+  render(template: string, variables: Record<string, string | boolean | number | object | undefined>): string {
     return renderPrompt(template, variables);
   }
 
