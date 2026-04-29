@@ -170,6 +170,29 @@ const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout
     }
 
     console.log(chalk.dim('─'.repeat(60)));
+
+    // 竞品洞察展示
+    const insights = (reviewData as any).competitorInsights;
+    if (insights) {
+      console.log(chalk.bold('\n=== 竞品洞察 ==='));
+      console.log(chalk.yellow('⚠️ 以下角度已被竞品覆盖，建议差异化切入：'));
+      for (const a of insights.coveredAngles ?? []) {
+        console.log(`  - [${a.platform}] ${a.angle}（来源：${a.sourceTitle}）`);
+      }
+      if (insights.opportunityAngles?.length) {
+        console.log(chalk.green('\n✨ 空白机会：'));
+        for (const o of insights.opportunityAngles) {
+          console.log(`  - ${o.angle}：${o.whyOpportunity}`);
+        }
+      }
+      if (insights.warning) {
+        console.log(chalk.cyan(`\n建议：${insights.warning}`));
+      }
+      console.log('');
+    } else {
+      console.log(chalk.dim('\n⚠️ 竞品库暂无数据，跳过竞品洞察注入。\n'));
+    }
+
     console.log(chalk.dim('  ↑↓ 选择   空格 选中/取消   Tab 切换分组   r 重新分析   a 增加排除方向   回车 确认\n'));
   }
 
