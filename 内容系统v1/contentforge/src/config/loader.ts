@@ -9,6 +9,27 @@ import { deepMerge } from '../utils/deep-merge.js';
 const moduleName = 'contentforge';
 
 /**
+ * Substitute $ENV_VAR or ${ENV_VAR} placeholders in config with environment variable values.
+ * Supports string values only.
+ */
+function substituteEnvVars(obj: unknown): unknown {
+  if (typeof obj === 'string') {
+    return obj.replace(/\$ \{?(\w+)\}?/g, (_, key) => process.env[key] ?? obj);
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(substituteEnvVars);
+  }
+  if (obj !== null && typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+      result[k] = substituteEnvVars(v);
+    }
+    return result;
+  }
+  return obj;
+}
+
+/**
  * Load and validate configuration from:
  * 1. `config/contentforge.yaml` (project root config/ subdirectory) — preferred
  * 2. `contentforge.config.yaml` in current directory (root-level fallback)
@@ -48,7 +69,8 @@ export async function loadConfig(): Promise<Config> {
     }
 
     if (raw) {
-      const merged = deepMerge(DEFAULT_CONFIG, raw);
+      const substituted = substituteEnvVars(raw) as Record<string, unknown>;
+      const merged = deepMerge(DEFAULT_CONFIG, substituted);
       const validated = ConfigSchema.parse(merged);
       logger.info(`Loaded config from ${filepath}`);
       return validated;

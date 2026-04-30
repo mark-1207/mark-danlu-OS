@@ -1,18 +1,20 @@
 # contentforge.config.yaml
 
 providers:
+  openai:
+    type: openai
+    defaultModel: mimo-v2-flash
+  xiaomi:
+    type: openai
+    defaultModel: mimo-v2-pro
   kimi:
     type: kimi
-    defaultModel: claude-sonnet-4-6
-    baseUrl: https://yunwu.ai/v1  # 可选，默认使用 KIMI_BASE_URL 环境变量
+    defaultModel: moonshot-v1-128k
   anthropic:
     type: anthropic
     defaultModel: claude-sonnet-4-20250514
-  openai:
-    type: openai
-    defaultModel: gpt-4o
 
-defaultProvider: kimi
+defaultProvider: openai
 
 scenarios:
   create:

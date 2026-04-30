@@ -1,20 +1,52 @@
 // src/scenarios/topic/feishu-sync.ts
+import 'dotenv/config';
 import { execSync } from 'child_process';
+import { writeFile, unlink } from 'fs/promises';
+import { randomUUID } from 'crypto';
 import type { CompetitorArticle, FeishuRecord, SourceType, AnalysisStatus } from './types.js';
 
 const FEISHU_TABLE_APP_TOKEN = process.env.FEISHU_TOPIC_TABLE_APP_TOKEN ?? '';
 const FEISHU_TABLE_ID = process.env.FEISHU_TOPIC_TABLE_ID ?? '';
 
-function execLarkCli(args: string[]): string {
+async function writeJsonTemp(jsonValue: string): Promise<string> {
+  const tempFile = `lark-temp-${randomUUID()}.json`;
+  await writeFile(tempFile, jsonValue, 'utf-8');
+  return tempFile;
+}
+
+async function removeTempFile(path: string): Promise<void> {
+  try { await unlink(path); } catch { /* ignore */ }
+}
+
+async function execLarkCli(args: string[]): Promise<string> {
+  const jsonArgIndex = args.indexOf('--json');
+  let tempFile: string | null = null;
+  let finalArgs = args;
+
+  if (jsonArgIndex !== -1 && args[jsonArgIndex + 1] && !args[jsonArgIndex + 1].startsWith('@')) {
+    const jsonValue = args[jsonArgIndex + 1];
+    tempFile = await writeJsonTemp(jsonValue);
+    finalArgs = [...args.slice(0, jsonArgIndex + 1), `@${tempFile}`, ...args.slice(jsonArgIndex + 2)];
+  }
+
   try {
-    return execSync(`npx lark-cli ${args.join(' ')}`, {
+    return execSync(`npx lark-cli ${finalArgs.join(' ')}`, {
       encoding: 'utf-8',
       maxBuffer: 10 * 1024 * 1024,
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     throw new Error(`lark-cli 执行失败: ${msg}`);
+  } finally {
+    if (tempFile) await removeTempFile(tempFile);
   }
+}
+
+function execLarkCliSync(args: string[]): string {
+  return execSync(`npx lark-cli ${args.join(' ')}`, {
+    encoding: 'utf-8',
+    maxBuffer: 10 * 1024 * 1024,
+  });
 }
 
 // 来源类型转换（内部 → 中文）
@@ -63,7 +95,7 @@ export async function readFeishuRecords(): Promise<FeishuRecord[]> {
   const limit = 200;
 
   while (true) {
-    const output = execLarkCli([
+    const output = await execLarkCli([
       'base', '+record-list',
       '--base-token', FEISHU_TABLE_APP_TOKEN,
       '--table-id', FEISHU_TABLE_ID,
@@ -128,14 +160,14 @@ export async function writeFeishuRecord(article: CompetitorArticle): Promise<str
     '内容摘要': article.summary ?? '',
     '爆款结构': article.viralStructure ?? '',
     '选题角度': article.topicAngle ?? '',
-    '标签': article.tags,
+    '标签': article.tags.join(','),
     '来源类型': sourceToChinese(article.source),
     '收藏': article.isFavorite ? '是' : '',
     '状态': statusToChinese(article.status),
     '抓取时间': article.crawledAt,
   };
 
-  const output = execLarkCli([
+  const output = await execLarkCli([
     'base', '+record-upsert',
     '--base-token', FEISHU_TABLE_APP_TOKEN,
     '--table-id', FEISHU_TABLE_ID,
@@ -143,7 +175,7 @@ export async function writeFeishuRecord(article: CompetitorArticle): Promise<str
   ]);
 
   const data = JSON.parse(output);
-  return data.data.record_id as string;
+  return data.data.record.record_id_list?.[0] as string ?? data.data.record_id as string;
 }
 
 /**
@@ -165,7 +197,7 @@ export async function updateFeishuRecordStatus(
     }
   }
 
-  execLarkCli([
+  await execLarkCli([
     'base', '+record-upsert',
     '--base-token', FEISHU_TABLE_APP_TOKEN,
     '--table-id', FEISHU_TABLE_ID,

@@ -16,8 +16,11 @@ export function registerTopicCommand(program: Command): void {
     .command('scrape')
     .description('抓取单篇文章并分析')
     .requiredOption('-u, --url <url>', '文章 URL')
+    .option('--no-interactive', '跳过碎片提取确认')
     .action(async (opts) => {
       try {
+        const interactive = opts.interactive !== false;
+
         // 1. 抓取
         const scrapeResult = await scrapeArticle(opts.url);
         const article = buildCompetitorArticle(scrapeResult, opts.url);
@@ -36,15 +39,19 @@ export function registerTopicCommand(program: Command): void {
         const recordId = await writeFeishuRecord(article);
         console.log(chalk.green(`已写入飞书表格，记录ID: ${recordId}`));
 
-        // 5. 询问是否提取碎片
-        const { extractFragments } = await inquirer.prompt([
-          {
-            type: 'confirm',
-            name: 'extractFragments',
-            message: '是否提取碎片入库？',
-            default: false,
-          },
-        ]);
+        // 5. 询问是否提取碎片（非交互模式跳过）
+        let extractFragments = false;
+        if (interactive) {
+          const { extractFragments: confirmed } = await inquirer.prompt([
+            {
+              type: 'confirm',
+              name: 'extractFragments',
+              message: '是否提取碎片入库？',
+              default: false,
+            },
+          ]);
+          extractFragments = confirmed;
+        }
 
         if (extractFragments) {
           // Phase 2: 碎片提取

@@ -1,9 +1,7 @@
 import { randomUUID } from 'crypto';
 import chalk from 'chalk';
+import { callWithFallback } from '../../utils/llm-call.js';
 import type { CompetitorArticle } from './types.js';
-
-const KIMI_API_KEY = process.env.KIMI_API_KEY ?? '';
-const KIMI_BASE_URL = process.env.KIMI_BASE_URL ?? 'https://yunwu.ai/v1';
 
 type SentenceFragmentType = 'hook' | 'transition' | 'cta' | 'power-line' | 'rhetorical-question' | 'data-opener';
 type ParagraphFragmentType = 'opening' | 'argument' | 'emotional-peak' | 'closing' | 'case-study';
@@ -38,27 +36,6 @@ interface ParagraphFragment {
   decayLevel: 'active' | 'dormant' | 'expired';
 }
 
-async function callKimi(prompt: string): Promise<string> {
-  if (!KIMI_API_KEY) throw new Error('KIMI_API_KEY 未设置');
-
-  const response = await fetch(`${KIMI_BASE_URL}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${KIMI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'moonshot-v1-32k',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3,
-    }),
-  });
-
-  if (!response.ok) throw new Error(`Kimi API 失败: ${response.status}`);
-  const data = await response.json() as { choices: { message: { content: string } }[] };
-  return data.choices[0]?.message?.content ?? '';
-}
-
 const SENTENCE_EXTRACTION_PROMPT = `你是一个内容拆解专家。从给定文章中提取以下类型的句式碎片（每种 2-4 条）：
 
 1. hook（开头钩子）：用于开头吸引注意力的句式
@@ -77,9 +54,7 @@ const SENTENCE_EXTRACTION_PROMPT = `你是一个内容拆解专家。从给定�
 要求：
 - text 必须是原文中的完整句式，不超过 50 字
 - structure 描述该句式的叙事结构特征
-- 优先提取有高度复用价值的句式
-- 文章平台：{platform}
-- 文章标签：{tags}`;
+- 优先提取有高度复用价值的句式`;
 
 const PARAGRAPH_EXTRACTION_PROMPT = `你是一个内容拆解专家。从给定文章中提取以下类型的段落碎片（每种 1-2 条）：
 
@@ -106,11 +81,9 @@ export async function extractSentenceFragments(
 ): Promise<SentenceFragment[]> {
   console.log(chalk.cyan(`提取句式碎片: ${article.title}`));
 
-  const prompt = SENTENCE_EXTRACTION_PROMPT
-    .replace('{platform}', article.platform)
-    .replace('{tags}', article.tags.join('、'));
+  const prompt = `${SENTENCE_EXTRACTION_PROMPT}\n\n# 文章平台: ${article.platform}\n# 文章标签: ${article.tags.join('、')}\n\n# 文章内容\n${content.slice(0, 8000)}`;
 
-  const raw = await callKimi(`${prompt}\n\n# 文章内容\n${content.slice(0, 8000)}`);
+  const raw = await callWithFallback([{ role: 'user', content: prompt }], { temperature: 0.3, maxTokens: 4096, jsonMode: true });
 
   const jsonMatch = raw.match(/\[[\s\S]*?\]\]/);
   if (!jsonMatch) return [];
@@ -141,9 +114,9 @@ export async function extractParagraphFragments(
 ): Promise<ParagraphFragment[]> {
   console.log(chalk.cyan(`提取段落碎片: ${article.title}`));
 
-  const prompt = PARAGRAPH_EXTRACTION_PROMPT;
+  const prompt = `${PARAGRAPH_EXTRACTION_PROMPT}\n\n# 文章内容\n${content.slice(0, 8000)}`;
 
-  const raw = await callKimi(`${prompt}\n\n# 文章内容\n${content.slice(0, 8000)}`);
+  const raw = await callWithFallback([{ role: 'user', content: prompt }], { temperature: 0.3, maxTokens: 4096, jsonMode: true });
 
   const jsonMatch = raw.match(/\[[\s\S]*?\]\]/);
   if (!jsonMatch) return [];

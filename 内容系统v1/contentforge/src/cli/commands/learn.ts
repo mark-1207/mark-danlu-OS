@@ -16,6 +16,7 @@ export async function runLearn(options: {
   clearType?: string;
   inspect?: string;
   decay?: boolean;
+  includeCompetitor?: boolean;  // 新增
 }): Promise<void> {
   const config = await loadConfig();
   const baseDir = path.resolve(options.corpusDir ?? config.output?.dir ?? './output');
@@ -62,23 +63,15 @@ export async function runLearn(options: {
 
   // ── --decay ─────────────────────────────────────────────────────────
   if (options.decay) {
+    const { buildDecayReportData, renderDecayReport } = await import('../../fragment-library/decay-report.js');
     const before = store.getDecayStats();
     const { dormant, expired } = store.decayFragments();
     await store.save();
-    console.log(chalk.bold('\n🔄 碎片 decay 扫描完成\n'));
-    console.log(`扫描前状态:`);
-    console.log(`  active: ${before.active} 个`);
-    console.log(`  dormant: ${before.dormant} 个`);
-    console.log(`  expired: ${before.expired} 个`);
-    console.log(`\n本次更新:`);
-    console.log(`  新增 dormant: ${dormant} 个`);
-    console.log(`  新增 expired: ${expired} 个`);
     const after = store.getDecayStats();
-    console.log(`\n扫描后状态:`);
-    console.log(`  active: ${after.active} 个`);
-    console.log(`  dormant: ${after.dormant} 个`);
-    console.log(`  expired: ${after.expired} 个`);
-    console.log('');
+    const allSentences = store.getAllSentences();
+    const allParagraphs = store.getAllParagraphs();
+    const reportData = buildDecayReportData(after, allSentences, allParagraphs);
+    renderDecayReport(reportData, before);
     return;
   }
 
@@ -222,6 +215,15 @@ export async function runLearn(options: {
     return;
   }
 
+  // ── --include-competitor ────────────────────────────────────────
+  if (options.includeCompetitor) {
+    const { generateCompetitorStyleReport } = await import('../../scenarios/topic/competitor-style-report.js');
+    console.log(chalk.bold('\n📊 竞品风格报告生成中...\n'));
+    await generateCompetitorStyleReport();
+    console.log(chalk.green('\n✅ 竞品风格报告已生成\n'));
+    return;
+  }
+
   // ── Default: run analysis ────────────────────────────────────────────
   const profile = store.getStyleProfile();
   const sentences = store.getAllSentences();
@@ -262,6 +264,7 @@ export function registerLearnCommand(program: Command): void {
     .option('--clear-type <type>', '清空指定类型的所有碎片（句式: hook/transition/cta/power-line/rhetorical-question/data-opener，段落: opening/argument/emotional-peak/closing/case-study）')
     .option('--inspect <runId>', '查看某个 runId 或文件的碎片来源详情')
     .option('--decay', '对碎片库执行 decay 扫描，更新老旧碎片状态')
+    .option('--include-competitor', '生成竞品风格报告（基于飞书竞品素材库 analyzed/stored 记录）')
     .action(async (opts) => {
       try {
         await runLearn({
@@ -273,6 +276,7 @@ export function registerLearnCommand(program: Command): void {
           clearType: opts.clearType,
           inspect: opts.inspect,
           decay: opts.decay,
+          includeCompetitor: opts.includeCompetitor,
         });
       } catch (error) {
         logger.error('learn command failed', { error: String(error) });
