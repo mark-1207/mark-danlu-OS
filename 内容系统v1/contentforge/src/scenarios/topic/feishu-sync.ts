@@ -8,6 +8,13 @@ import type { CompetitorArticle, FeishuRecord, SourceType, AnalysisStatus } from
 const FEISHU_TABLE_APP_TOKEN = process.env.FEISHU_TOPIC_TABLE_APP_TOKEN ?? '';
 const FEISHU_TABLE_ID = process.env.FEISHU_TOPIC_TABLE_ID ?? '';
 
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 async function writeJsonTemp(jsonValue: string): Promise<string> {
   const tempFile = `lark-temp-${randomUUID()}.json`;
   await writeFile(tempFile, jsonValue, 'utf-8');
@@ -158,7 +165,7 @@ export async function writeFeishuRecord(article: CompetitorArticle): Promise<str
 
   const fields = {
     '原文标题': article.title,
-    '原文': article.content ?? '',
+    '原文': stripHtml(article.content ?? ''),
     '原始链接': article.url,
     '平台': article.platform,
     '互动数据': article.interactionData ?? '',
