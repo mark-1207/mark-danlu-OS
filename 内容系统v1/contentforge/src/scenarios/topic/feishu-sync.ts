@@ -59,9 +59,10 @@ function sourceToChinese(source: SourceType): '我的创作' | '竞品抓取' | 
 }
 
 // 来源类型转换（中文 → 内部）
-function chineseToSource(s: string): SourceType {
-  if (s === '竞品抓取') return 'crawled';
-  if (s === '手动录入') return 'manual';
+function chineseToSource(s: string | string[]): SourceType {
+  const v = Array.isArray(s) ? s[0] : s;
+  if (v === '竞品抓取') return 'crawled';
+  if (v === '手动录入') return 'manual';
   return 'external';
 }
 
@@ -121,17 +122,20 @@ export async function readFeishuRecords(): Promise<FeishuRecord[]> {
         record_id: recordId,
         fields: {
           原文标题: (fields['原文标题'] as string) ?? '',
+          原文: fields['原文'] as string | undefined,
           原始链接: (fields['原始链接'] as string) ?? '',
           平台: (fields['平台'] as string) as FeishuRecord['fields']['平台'],
           互动数据: fields['互动数据'] as string | undefined,
           内容摘要: fields['内容摘要'] as string | undefined,
           爆款结构: fields['爆款结构'] as string | undefined,
           选题角度: fields['选题角度'] as string | undefined,
-          标签: typeof fields['标签'] === 'string' ? [fields['标签']] : (fields['标签'] as string[] | undefined),
-          来源类型: chineseToSource((fields['来源类型'] as string) ?? '') as FeishuRecord['fields']['来源类型'],
-          收藏: (fields['收藏'] as string) === '是',
+          标签: Array.isArray(fields['标签']) ? (fields['标签'] as string[]) : typeof fields['标签'] === 'string' ? (fields['标签'] as string).split(',').filter(Boolean) : [],
+          来源类型: chineseToSource(fields['来源类型'] as string | string[]) as FeishuRecord['fields']['来源类型'],
+          收藏: Array.isArray(fields['收藏']) ? (fields['收藏'] as string[]).includes('是') : (fields['收藏'] as string) === '是',
           状态: chineseToStatus((fields['状态'] as string) ?? '') as FeishuRecord['fields']['状态'],
           抓取时间: (fields['抓取时间'] as string) ?? '',
+          创建时间: fields['创建时间'] as string | undefined,
+          发布时间: fields['发布计划时间'] as string | undefined,
           碎片提取时间: fields['碎片提取时间'] as string | undefined,
         },
       });
@@ -154,17 +158,19 @@ export async function writeFeishuRecord(article: CompetitorArticle): Promise<str
 
   const fields = {
     '原文标题': article.title,
+    '原文': article.content ?? '',
     '原始链接': article.url,
     '平台': article.platform,
     '互动数据': article.interactionData ?? '',
     '内容摘要': article.summary ?? '',
     '爆款结构': article.viralStructure ?? '',
     '选题角度': article.topicAngle ?? '',
-    '标签': article.tags.join(','),
+    '标签': article.tags,
     '来源类型': sourceToChinese(article.source),
-    '收藏': article.isFavorite ? '是' : '',
+    '收藏': article.isFavorite ? ['是'] : [],
     '状态': statusToChinese(article.status),
     '抓取时间': article.crawledAt,
+    '创建时间': article.crawledAt,
   };
 
   const output = await execLarkCli([

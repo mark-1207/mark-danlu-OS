@@ -76,6 +76,7 @@ export function buildCompetitorArticle(
     title: result.title,
     url,
     platform: result.platform,
+    content: result.content,
     tags: [],
     source,
     isFavorite: false,

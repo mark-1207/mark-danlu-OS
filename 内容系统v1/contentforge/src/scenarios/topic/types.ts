@@ -21,6 +21,7 @@ export interface CompetitorArticle {
   status: AnalysisStatus;
   crawledAt: string;
   storedAt?: string;         // 碎片入库时间
+  content?: string;           // 原文全文
 }
 
 export interface TopicAnalysisResult {
@@ -43,6 +44,7 @@ export interface FeishuRecord {
   record_id: string;
   fields: {
     原文标题: string;
+    原文?: string;
     原始链接: string;
     平台: Platform;
     互动数据?: string;
@@ -54,6 +56,8 @@ export interface FeishuRecord {
     收藏: boolean;
     状态: AnalysisStatus;
     抓取时间: string;
+    创建时间?: string;
+    发布时间?: string;
     碎片提取时间?: string;
   };
 }
