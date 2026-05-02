@@ -2,6 +2,7 @@ import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { readFile, rm } from 'fs/promises';
 import chalk from 'chalk';
 import type { CompetitorArticle, Platform } from './types.js';
 
@@ -37,27 +38,55 @@ function inferPlatform(url: string): Platform {
 }
 
 /**
- * 抓取单篇文章
+ * 抓取单篇文章 — 微信用 weixin download（绕过验证码），其他用 read
  */
 export async function scrapeArticle(url: string): Promise<ScrapeResult> {
   console.log(chalk.cyan(`正在抓取: ${url}`));
 
-  const output = execAutocli(['read', url, '--format', 'json']);
+  const isWechat = /mp\.weixin\.qq\.com/i.test(url);
+  let title: string;
+  let content: string;
 
-  let parsed: { title: string; byline?: string; content: string };
-  try {
-    parsed = JSON.parse(output);
-  } catch {
-    throw new Error(`autocli 解析失败，原始输出: ${output.slice(0, 200)}`);
-  }
-
-  if (!parsed.title || !parsed.content) {
-    throw new Error(`抓取结果缺少 title 或 content: ${output.slice(0, 200)}`);
+  if (isWechat) {
+    // weixin download 写入文件，输出到临时目录
+    const output = execAutocli(['weixin', 'download', url, '--format', 'json']);
+    let parsed: { title: string; path: string; status: string };
+    try {
+      const arr = JSON.parse(output);
+      parsed = Array.isArray(arr) ? arr[0] : arr;
+    } catch {
+      throw new Error(`weixin download 解析失败: ${output.slice(0, 200)}`);
+    }
+    if (parsed.status !== 'ok') {
+      throw new Error(`weixin download 失败: ${output}`);
+    }
+    title = parsed.title;
+    const mdPath = parsed.path;
+    const raw = await readFile(mdPath, 'utf-8');
+    // 去掉 frontmatter（---...---之间的元数据）
+    content = raw.replace(/^---[\s\S]*?---\n/, '').trim();
+    // 清理下载临时目录
+    try {
+      await rm(dirname(mdPath), { recursive: true, force: true });
+    } catch { /* ignore */ }
+  } else {
+    const output = execAutocli(['read', url, '--format', 'json']);
+    let parsed: { title: string; byline?: string; content: string };
+    try {
+      parsed = JSON.parse(output);
+    } catch {
+      throw new Error(`autocli 解析失败: ${output.slice(0, 200)}`);
+    }
+    if (!parsed.title || !parsed.content) {
+      throw new Error(`抓取结果缺少 title 或 content: ${output.slice(0, 200)}`);
+    }
+    title = parsed.title;
+    content = parsed.content;
   }
 
   return {
-    title: parsed.title,
-    content: parsed.content,
+    title,
+    content,
     platform: inferPlatform(url),
     url,
   };
