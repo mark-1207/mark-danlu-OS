@@ -666,7 +666,138 @@ monitored_sources:
 
 ---
 
-## 13. 分阶段实施计划
+## 13.5 完整最小粒度开发清单
+
+> 每个编号是一个独立开发单元，不可拆分，不可合并。
+
+### 阶段 0：基础设施（记忆层 + 诊断）
+
+| # | 粒度单元 | 类型 | 依赖 | 优先级 |
+|---|---------|------|------|--------|
+| 0.1 | 创建 `.claude/memory/` 目录结构 | 目录创建 | 无 | P0 |
+| 0.2 | 创建 `memory/index.md` 模板文件 | 文件 | 0.1 | P0 |
+| 0.3 | 创建 `memory/project_context.md` 模板文件 | 文件 | 0.1 | P0 |
+| 0.4 | 创建 `memory/decisions.md` 模板文件 | 文件 | 0.1 | P0 |
+| 0.5 | 创建 `memory/preferences.md` 模板文件 | 文件 | 0.1 | P0 |
+| 0.6 | 创建 `memory/reasoning_chains.md` 模板文件 | 文件 | 0.1 | P0 |
+| 0.7 | `memory_writer.py` — 写入记忆索引（update_index） | 函数 | 0.2 | P0 |
+| 0.8 | `memory_writer.py` — 写入项目上下文（update_context） | 函数 | 0.3 | P0 |
+| 0.9 | `memory_writer.py` — 写入决策记录（append_decision） | 函数 | 0.4 | P0 |
+| 0.10 | `memory_writer.py` — 写入用户偏好（update_preference） | 函数 | 0.5 | P0 |
+| 0.11 | `memory_writer.py` — 写入推理链（append_reasoning_chain） | 函数 | 0.6 | P0 |
+| 0.12 | `memory_reader.py` — 读取 index.md（load_index） | 函数 | 0.2 | P0 |
+| 0.13 | `memory_reader.py` — 读取 project_context.md（load_context） | 函数 | 0.3 | P0 |
+| 0.14 | `memory_reader.py` — 读取 decisions.md（load_decisions） | 函数 | 0.4 | P0 |
+| 0.15 | `memory_reader.py` — 读取 preferences.md（load_preferences） | 函数 | 0.5 | P0 |
+| 0.16 | `memory_reader.py` — 读取 reasoning_chains.md（load_reasoning_chains） | 函数 | 0.6 | P0 |
+| 0.17 | `memory_reader.py` — 自动加载 index 到上下文的 Hook | Hook | 0.12 | P0 |
+| 0.18 | `reasoning_chain.py` — 记录单次 Socratic 决策（record_decision） | 函数 | 0.6 | P0 |
+| 0.19 | `reasoning_chain.py` — 读取最近一次推理链（get_latest_chain） | 函数 | 0.6 | P0 |
+| 0.20 | `/prism-diagnostic` 命令 — 输出推理链 | 命令 | 0.19 | P1 |
+| 0.21 | `/prism-diagnostic` 命令 — 支持用户反馈回写 | 命令 | 0.19, 0.10 | P1 |
+| 0.22 | 创建 `.claude/logs/` 目录结构 | 目录创建 | 0.1 | P0 |
+| 0.23 | 创建 `logs/llm_call_log.json` 日志模板 | 文件 | 0.22 | P0 |
+
+### 阶段 1：偏好学习 + Gateway 验证
+
+| # | 粒度单元 | 类型 | 依赖 | 优先级 |
+|---|---------|------|------|--------|
+| 1.1 | `preference_weight.py` — 初始化权重（init_weights） | 函数 | 无 | P0 |
+| 1.2 | `preference_weight.py` — 读取当前权重（get_weights） | 函数 | 1.1 | P0 |
+| 1.3 | `preference_weight.py` — 增量更新单维权重（increment_weight） | 函数 | 1.2 | P0 |
+| 1.4 | `preference_weight.py` — 应用权重上限 1.5（cap_upper） | 函数 | 1.3 | P0 |
+| 1.5 | `preference_weight.py` — 应用权重下限 0.5（cap_lower） | 函数 | 1.4 | P0 |
+| 1.6 | `preference_weight.py` — 连续选择检测 N>=3（detect_consecutive） | 函数 | 1.5 | P0 |
+| 1.7 | `call_llm.py` — 记录每次调用到 llm_call_log.json | 函数 | 0.23 | P0 |
+| 1.8 | `call_llm.py` — 验证响应格式（choices[0].message.content） | 函数 | 1.7 | P0 |
+| 1.9 | `call_llm.py` — 超时检测（30s）（check_timeout） | 函数 | 1.8 | P0 |
+| 1.10 | `call_llm.py` — 超时重试指数退避 1s/2s（retry_with_backoff） | 函数 | 1.9 | P0 |
+| 1.11 | `call_llm.py` — 失败后返回结构化错误（return_structured_error） | 函数 | 1.10 | P0 |
+| 1.12 | `health_check.py` — 检查 Gateway /health 端点（check_gateway_health） | 函数 | 无 | P0 |
+| 1.13 | `health_check.py` — 连续 3 次失败输出诊断报告（report_failure） | 函数 | 1.12 | P0 |
+| 1.14 | `/prism-check` 命令 — 手动触发健康检查 | 命令 | 1.13 | P1 |
+
+### 阶段 2：数字分身 + 校准
+
+| # | 粒度单元 | 类型 | 依赖 | 优先级 |
+|---|---------|------|------|--------|
+| 2.1 | `digital_twin.py` — 记录单次选择事件（record_selection） | 函数 | 无 | P0 |
+| 2.2 | `digital_twin.py` — 读取累计交互次数（get_interaction_count） | 函数 | 2.1 | P0 |
+| 2.3 | `digital_twin.py` — 判断是否触发 30 次校准（should_calibrate） | 函数 | 2.2 | P0 |
+| 2.4 | `digital_twin.py` — 生成校准 prompt（generate_calibration_prompt） | 函数 | 2.3 | P0 |
+| 2.5 | `digital_twin.py` — 解析用户校准反馈（parse_calibration_feedback） | 函数 | 2.4 | P0 |
+| 2.6 | `digital_twin.py` — 应用校准后的权重调整（apply_calibration） | 函数 | 2.5 | P0 |
+| 2.7 | `digital_twin.py` — 重置计数器（reset_counter） | 函数 | 2.6 | P0 |
+| 2.8 | `digital_twin.py` — 写入 calibration_log.json（log_calibration） | 函数 | 2.6 | P0 |
+| 2.9 | `digital_twin.py` — 数字分身初筛（filter_candidates） | 函数 | 1.2 | P0 |
+| 2.10 | `digital_twin.py` — 输出 digital_twin_confidence（get_confidence） | 函数 | 2.9 | P0 |
+| 2.11 | `preference_weight.py` — 整合 preference 更新逻辑 | 函数 | 1.6 | P0 |
+| 2.12 | `preference_weight.py` — 检测用户拒绝模式（reject_pattern） | 函数 | 2.11 | P0 |
+
+### 阶段 3：信息源监控 + 主动推送
+
+| # | 粒度单元 | 类型 | 依赖 | 优先级 |
+|---|---------|------|------|--------|
+| 3.1 | 创建 `.claude/config/info_sources.yaml` 配置文件 | 文件 | 无 | P0 |
+| 3.2 | `feed_parser.py` — 解析 RSS XML（parse_xml） | 函数 | 无 | P0 |
+| 3.3 | `feed_parser.py` — 提取标题/摘要/发布时间（extract_fields） | 函数 | 3.2 | P0 |
+| 3.4 | `feed_parser.py` — bloom filter 去重（is_duplicate） | 函数 | 3.3 | P0 |
+| 3.5 | `rss_monitor.py` — APScheduler 定时调度框架（start_scheduler） | 函数 | 无 | P0 |
+| 3.6 | `rss_monitor.py` — 按 source 独立计时控制（per_source_timer） | 函数 | 3.5 | P0 |
+| 3.7 | `rss_monitor.py` — 读取 info_sources.yaml 配置（load_config） | 函数 | 3.1, 3.6 | P0 |
+| 3.8 | `crack_hunter_wrapper.py` — 封装 Phase 8 prompt（build_prompt） | 函数 | 无 | P0 |
+| 3.9 | `crack_hunter_wrapper.py` — 解析裂缝分析结果（parse_result） | 函数 | 3.8 | P0 |
+| 3.10 | `rss_monitor.py` — 置信度阈值判断 >0.75（check_threshold） | 函数 | 3.9 | P0 |
+| 3.11 | `rss_monitor.py` — Cooldown 机制 30天（check_cooldown） | 函数 | 3.10 | P0 |
+| 3.12 | `rss_monitor.py` — 生成主动推送消息（build_push_message） | 函数 | 3.11 | P0 |
+| 3.13 | `rss_monitor.py` — 写入推送历史记录（log_push） | 函数 | 3.12 | P0 |
+| 3.14 | 主动推送触发流程（PRISM-OS 空闲时检测并推送） | 流程 | 3.12 | P2 |
+
+### 阶段 4：刺客机制 + 知识拓扑
+
+| # | 粒度单元 | 类型 | 依赖 | 优先级 |
+|---|---------|------|------|--------|
+| 4.1 | `assassin.py` — 从飞书多维表格读取历史爆款（read_viral_library） | 函数 | 无 | P0 |
+| 4.2 | `assassin.py` — 检查是否 ≥20 篇发布数据（check_data_threshold） | 函数 | 4.1 | P0 |
+| 4.3 | `assassin.py` — 检查距上次提醒是否 >30 天（check_cooldown） | 函数 | 4.2 | P0 |
+| 4.4 | `assassin.py` — 封装刺客 prompt（build_assassin_prompt） | 函数 | 4.3 | P0 |
+| 4.5 | `assassin.py` — 解析反转结果（parse_reversal） | 函数 | 4.4 | P0 |
+| 4.6 | `assassin.py` — 写入是否已反转/反转策略到飞书（update_feishu） | 函数 | 4.5 | P0 |
+| 4.7 | `assassin.py` — 生成刺客提醒消息（build_reminder_message） | 函数 | 4.6 | P0 |
+| 4.8 | `knowledge_topology.py` — 统计实体出现频率（count_entities） | 函数 | 无 | P1 |
+| 4.9 | `knowledge_topology.py` — 识别过度开发区（detect_over_explored） | 函数 | 4.8 | P1 |
+| 4.10 | `knowledge_topology.py` — 识别未触及区（detect_under_explored） | 函数 | 4.8 | P1 |
+| 4.11 | `knowledge_topology.py` — 生成认知地图输出（build_cognition_map） | 函数 | 4.9, 4.10 | P1 |
+| 4.12 | `prompt_evolution.py` — 检测维度选择偏差 >30%（detect_dimension_bias） | 函数 | 无 | P2 |
+| 4.13 | `prompt_evolution.py` — 检测改词重复率 >40%（detect_word_repetition） | 函数 | 4.12 | P2 |
+| 4.14 | `prompt_evolution.py` — 检测采纳率 <50%（detect_adoption_rate） | 函数 | 4.13 | P2 |
+| 4.15 | `prompt_evolution.py` — 触发变异后写入日志（log_mutation） | 函数 | 4.14 | P2 |
+| 4.16 | 刺客机制触发流程（Phase 7 入口集成） | 流程 | 4.7 | P1 |
+
+### PRISM-OS 核心改造（横跨所有阶段）
+
+| # | 粒度单元 | 类型 | 依赖 | 优先级 |
+|---|---------|------|------|--------|
+| C.1 | SKILL.md — Phase 1 集成推理链记录 | Prompt | 0.18 | P0 |
+| C.2 | SKILL.md — Phase 2 集成偏好权重 | Prompt | 2.9 | P0 |
+| C.3 | SKILL.md — Phase 6 集成飞书写入 | Prompt | 4.1, 4.6 | P0 |
+| C.4 | SKILL.md — Phase 7 集成刺客机制触发 | Prompt | 4.16 | P1 |
+| C.5 | SKILL.md — Phase 8 集成裂缝主动推送 | Prompt | 3.14 | P1 |
+| C.6 | `call_llm.py` — 支持 scene 动态切换 | 函数 | 无 | P0 |
+
+### 优先级汇总
+
+| 优先级 | 说明 | 包含单元 |
+|--------|------|---------|
+| **P0** | 基础设施，必做 | 0.1~0.23, 1.1~1.13, 2.1~2.12, 3.1~3.13, 4.1~4.7, C.1~C.6 |
+| **P1** | 核心功能，必做 | 0.20~0.21, 1.14, 4.8~4.11, 4.16, C.4~C.5 |
+| **P2** | 增强功能，可选 | 3.14, 4.12~4.15 |
+
+**P0 共 53 个单元，P1 共 8 个单元，P2 共 4 个单元，合计 65 个独立开发单元。**
+
+---
+
+## 14. 技术依赖
 
 ```
 阶段 0：基础设施（记忆层 + 诊断）
