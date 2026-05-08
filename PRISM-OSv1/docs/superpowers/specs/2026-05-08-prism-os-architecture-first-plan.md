@@ -734,6 +734,22 @@ monitored_sources:
 | 2.11 | `preference_weight.py` — 整合 preference 更新逻辑 | 函数 | 1.6 | P0 |
 | 2.12 | `preference_weight.py` — 检测用户拒绝模式（reject_pattern） | 函数 | 2.11 | P0 |
 
+### 阶段 2.5：知识网关（Obsidian 接入）
+
+| # | 粒度单元 | 类型 | 依赖 | 优先级 |
+|---|---------|------|------|--------|
+| 2.13 | `obsidian_knowledge.py` — 扫描 40_知识库/ 目录结构（scan_vault） | 函数 | 无 | P0 |
+| 2.14 | `obsidian_knowledge.py` — 解析 frontmatter YAML（parse_frontmatter） | 函数 | 2.13 | P0 |
+| 2.15 | `obsidian_knowledge.py` — 提取正文文本（extract_body） | 函数 | 2.13 | P0 |
+| 2.16 | `obsidian_knowledge.py` — 全文搜索匹配（full_text_search） | 函数 | 2.15 | P0 |
+| 2.17 | `obsidian_knowledge.py` — 按 quality_score >= 7 过滤（filter_quality） | 函数 | 2.16 | P0 |
+| 2.18 | `obsidian_knowledge.py` — 按 topics 标签匹配（match_topics） | 函数 | 2.17 | P0 |
+| 2.19 | `gap_analysis.py` — 整合 Obsidian 检索到 Phase 4（integrate_knowledge） | 函数 | 2.18 | P0 |
+| 2.20 | `gap_analysis.py` — 计算真实素材就绪度（calculate_readiness） | 函数 | 2.19 | P0 |
+| 2.21 | `gap_analysis.py` — 输出可用素材列表（output_materials） | 函数 | 2.20 | P0 |
+| 2.22 | `obsidian_knowledge.py` — 构建 wiki-link 关联图谱（build_link_graph） | 函数 | 2.15 | P1 |
+| 2.23 | `assassin.py` — 写入素材来源到飞书备注（log_material_source） | 函数 | 4.6 | P1 |
+
 ### 阶段 3：信息源监控 + 主动推送
 
 | # | 粒度单元 | 类型 | 依赖 | 优先级 |
@@ -789,11 +805,37 @@ monitored_sources:
 
 | 优先级 | 说明 | 包含单元 |
 |--------|------|---------|
-| **P0** | 基础设施，必做 | 0.1~0.23, 1.1~1.13, 2.1~2.12, 3.1~3.13, 4.1~4.7, C.1~C.6 |
-| **P1** | 核心功能，必做 | 0.20~0.21, 1.14, 4.8~4.11, 4.16, C.4~C.5 |
+| **P0** | 基础设施，必做 | 0.1~0.23, 1.1~1.13, 2.1~2.21, 3.1~3.13, 4.1~4.7, C.1~C.6 |
+| **P1** | 核心功能，必做 | 0.20~0.21, 1.14, 2.22~2.23, 4.8~4.11, 4.16, C.4~C.5 |
 | **P2** | 增强功能，可选 | 3.14, 4.12~4.15 |
 
-**P0 共 53 个单元，P1 共 8 个单元，P2 共 4 个单元，合计 65 个独立开发单元。**
+**P0 共 60 个单元，P1 共 10 个单元，P2 共 4 个单元，合计 74 个独立开发单元。**
+
+---
+
+### 知识网关配置
+
+**Obsidian Vault 路径**：`D:\软件\obsidian笔记\内容素材库`
+
+**核心目录**：`40_知识库/`
+
+| 子目录 | 内容类型 | 对应 PRISM-OS 素材 |
+|--------|---------|-------------------|
+| `洞察库/` | 洞察/观点 | 论点支撑 |
+| `金句库/` | 金句/引用 | 情绪钩子 |
+| `原子库/` | 原子思考 | 核心论点 |
+| `思维模型/` | 思维框架 | 逻辑结构 |
+| `人生哲学/` | 哲学观点 | 深度思考 |
+
+**检索流程**：
+1. 全文搜索匹配命题关键词
+2. 过滤 quality_score >= 7
+3. 匹配 topics 标签
+4. 输出可用素材列表 + 真实就绪度
+
+**素材写入**：
+- 用户选择标题后，写入选题到飞书爆款选题库"备注"字段
+- 内容格式：`素材来源：Obsidian/40_知识库/洞察库/金字塔原理洞察.md`
 
 ---
 
@@ -897,9 +939,9 @@ scripts/
 
 | 依赖 | 用途 |
 |------|------|
-| Python 3.8+ | 记忆工具、偏好学习、RSS 监控 |
+| Python 3.8+ | 记忆工具、偏好学习、RSS 监控、Obsidian 知识库 |
 | Node.js 16+ | Gateway HTTP 服务 |
-| PyYAML | YAML 文件读写 |
+| PyYAML | YAML frontmatter 解析 |
 | feedparser | RSS 解析 |
 | requests | HTTP 调用 |
 | APScheduler | 定时任务（RSS 监控） |
