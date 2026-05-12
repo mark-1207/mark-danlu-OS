@@ -237,8 +237,7 @@ def update_feishu_viral(viral_title: str, reversal_info: Dict = None) -> bool:
     for r in records_after:
         if r.get("title") == viral_title:
             # 检查是否包含策略信息（简单验证）
-            fields = r
-            if strategy and strategy in str(fields.get("反转策略", "")):
+            if strategy and strategy in str(r.get("反转策略", "")):
                 return True
             # 如果字段名不同，至少检查记录存在
             if r.get("record_id") == record_id:
