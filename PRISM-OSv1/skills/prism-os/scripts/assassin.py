@@ -43,7 +43,6 @@ def _run_lark_cli(args: list, timeout: int = 30) -> tuple:
 
 def _parse_lark_text_output(text: str) -> List[Dict]:
     """从 lark-cli 纯文本输出中提取记录（备用）"""
-    import re
     records = []
     for line in text.split("\n"):
         line = line.strip()
@@ -75,7 +74,6 @@ def read_viral_library() -> List[Dict]:
     Returns:
         [{"title": str, "date": str, "views": int, "likes": int, "direction": str, "record_id": str}, ...]
     """
-    import urllib.parse
     try:
         # lark-cli api GET /open-apis/bitable/v1/apps/{app_token}/tables/{table_id}/records
         path = f"/open-apis/bitable/v1/apps/{FEISHU_APP_TOKEN}/tables/{FEISHU_TABLE_ID}/records"
@@ -86,11 +84,11 @@ def read_viral_library() -> List[Dict]:
             "--format", "json"
         ])
     except Exception as e:
-        print(f"[Warning] lark-cli 调用失败: {e}")
+        print(f"[Warning] lark-cli 调用失败: {e}", file=sys.stderr)
         return []
 
     if returncode != 0:
-        print(f"[Warning] lark-cli 返回错误: {stderr}")
+        print(f"[Warning] lark-cli 返回错误: {stderr}", file=sys.stderr)
         return []
 
     # 尝试 JSON 解析
@@ -198,8 +196,8 @@ def update_feishu_viral(viral_title: str, reversal_info: Dict = None) -> bool:
         bool: 是否成功
     """
     # TODO: 实现飞书 API 写入
-    print(f"[Warning] 飞书写入需要配置 lark-oapi credentials")
-    print(f"  标题: {viral_title}")
+    print(f"[Warning] 飞书写入需要配置 lark-oapi credentials", file=sys.stderr)
+    print(f"  标题: {viral_title}", file=sys.stderr)
     if reversal_info:
         print(f"  反转: {reversal_info.get('reversal_thesis', '')}")
         print(f"  策略: {reversal_info.get('reversal_strategy', '')}")
@@ -544,7 +542,7 @@ def main():
 
     elif command == "read":
         records = read_viral_library()
-        print(json.dumps(records, ensure_ascii=False, indent=2))
+        _safe_print(records)
 
     else:
         _safe_print({"error": f"未知命令: {command}"})
