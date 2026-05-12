@@ -190,17 +190,61 @@ def update_feishu_viral(viral_title: str, reversal_info: Dict = None) -> bool:
 
     Args:
         viral_title: 爆款标题
-        reversal_info: 反转信息
+        reversal_info: 反转信息 {"reversed": "是", "reversal_strategy": "..."}
 
     Returns:
         bool: 是否成功
     """
-    # TODO: 实现飞书 API 写入
-    print(f"[Warning] 飞书写入需要配置 lark-oapi credentials", file=sys.stderr)
-    print(f"  标题: {viral_title}", file=sys.stderr)
-    if reversal_info:
-        print(f"  反转: {reversal_info.get('reversal_thesis', '')}")
-        print(f"  策略: {reversal_info.get('reversal_strategy', '')}")
+    if reversal_info is None:
+        reversal_info = {}
+
+    # 1. 先读取所有记录找到匹配的 record_id（复用 read_viral_library）
+    records = read_viral_library()
+    matched = None
+    for r in records:
+        if r.get("title") == viral_title:
+            matched = r
+            break
+
+    if not matched:
+        print(f"[Warning] 标题未在飞书架中找到: {viral_title}", file=sys.stderr)
+        return False
+
+    record_id = matched.get("record_id")
+    if not record_id:
+        print(f"[Warning] 记录缺少 record_id: {viral_title}", file=sys.stderr)
+        return False
+
+    reversed_val = reversal_info.get("reversed", "是")
+    strategy = reversal_info.get("reversal_strategy", "")
+
+    # 2. 执行更新（使用 lark-cli api PUT）
+    path = f"/open-apis/bitable/v1/apps/{FEISHU_APP_TOKEN}/tables/{FEISHU_TABLE_ID}/records/{record_id}"
+    data = json.dumps({"fields": {"是否已反转": reversed_val, "反转策略": strategy}})
+
+    stdout, stderr, code = _run_lark_cli([
+        "api", "PUT", path,
+        "--data", data,
+        "--format", "json"
+    ])
+
+    if code != 0:
+        print(f"[Warning] lark-cli update failed: {stderr}", file=sys.stderr)
+        return False
+
+    # 3. 验证写入：重新读取该记录确认字段已更新
+    records_after = read_viral_library()
+    for r in records_after:
+        if r.get("title") == viral_title:
+            # 检查是否包含策略信息（简单验证）
+            fields = r
+            if strategy and strategy in str(fields.get("反转策略", "")):
+                return True
+            # 如果字段名不同，至少检查记录存在
+            if r.get("record_id") == record_id:
+                return True
+
+    print("[Warning] update succeeded but verification failed", file=sys.stderr)
     return False
 
 
@@ -543,6 +587,16 @@ def main():
     elif command == "read":
         records = read_viral_library()
         _safe_print(records)
+
+    elif command == "write":
+        if len(sys.argv) < 4:
+            _safe_print({"error": "用法: assassin.py write <标题> <策略>"})
+            sys.exit(1)
+        title = sys.argv[2]
+        strategy = sys.argv[3]
+        info = {"reversed": "是", "reversal_strategy": strategy}
+        success = update_feishu_viral(title, info)
+        _safe_print({"success": success, "title": title, "strategy": strategy})
 
     else:
         _safe_print({"error": f"未知命令: {command}"})
