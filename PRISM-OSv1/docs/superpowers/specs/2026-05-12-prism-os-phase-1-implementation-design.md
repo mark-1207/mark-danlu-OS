@@ -12,10 +12,12 @@
 
 ### 环境变量
 
-| 变量 | 值 | 用途 |
-|------|-----|------|
-| `ZHIPU_API_KEY` | `ce7cd28bb1c44fcb9840636b21d.g5S1gVMDIzxW6Pgn` | 智谱 Embedding API Key |
+| 变量 | 来源 | 用途 |
+|------|------|------|
+| `ZHIPU_API_KEY` | 已在全局环境变量中设置 | 智谱 Embedding API Key |
 | `ZHIPU_EMBEDDING_MODEL` | `embedding-2`（默认） | 模型名 |
+
+> **注意**：API Key 通过 `os.getenv("ZHIPU_API_KEY")` 读取，代码中不硬编码。
 
 ### 核心接口
 
@@ -42,6 +44,7 @@ def clear_cache():
 - **存储位置：** `data/embedding_cache.json`
 - **索引方式：** `md5(text)` → 向量列表
 - **更新策略：** 只增不减（永不失效）
+- **损坏恢复：** JSON 解析失败时，自动备份损坏文件（`embedding_cache.json.bak`）并重建空缓存
 - **格式：**
   ```json
   {
@@ -76,6 +79,10 @@ def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
 
 ### 目标
 实现 `assassin.py` 中的 `read_viral_library()` 和 `update_feishu_viral()`，基于 lark-cli subprocess 调用，解析结构化输出。
+
+### 前置验证
+
+首次运行时，通过 `subprocess.run(["lark-cli", "--version"])` 验证 lark-cli 是否在 PATH 中。验证失败时打印明确错误信息并退出（`sys.exit(1)`）。
 
 ### 表 ID 常量
 
@@ -124,7 +131,10 @@ lark-cli feishu bitable record update \
 1. 先读出所有记录，按标题匹配 `viral_title`
 2. 找到对应 `record_id`
 3. 执行 update 命令
-4. 超时/失败时打印警告，**不抛异常**
+4. **验证写入**：读取更新后的记录，确认字段已更新
+5. 超时/失败时打印警告，**不抛异常**，返回 `False`
+
+**写入确认：** 写入后返回成功/失败状态，调用方打印明确提示。
 
 ---
 
@@ -145,9 +155,9 @@ python prism_os.py confirm "<用户选择的标题>"
 |------|------|------|
 | 标题 | 用户传入 | text |
 | 发布日期 | confirm 执行时时间 | datetime |
-| 命题逻辑 | 从 `topic_log.yaml` 最后一条读取 `thesis` | text |
-| 核心论点 | 从 `topic_log.yaml` 最后一条读取 `gateway.thesis` | text |
-| 内容方向 | 从 PRISM-OS 输出推断（dimension） | select |
+| 命题逻辑 | 从 `topic_log.yaml` 最后一条读取 `thesis`，文件不存在时写入"（未记录）" | text |
+| 核心论点 | 从 `topic_log.yaml` 最后一条读取 `gateway.thesis`，文件不存在或格式异常时写入"（未记录）" | text |
+| 内容方向 | 从 dimension 映射（见下表） | select |
 | 备注 | 空 | text |
 
 **不写入的字段（用户在飞书界面手动补充）：**
@@ -156,6 +166,22 @@ python prism_os.py confirm "<用户选择的标题>"
 
 ### 实现位置
 `prism_os.py` 新增 `confirm_title()` 函数，调用 lark-cli 写入。
+
+### 内容方向映射
+
+| dimension | 飞书 select 选项 |
+|-----------|------------------|
+| `reversal` | 逆向拆解 |
+| `micro_scene` | 微观切片 |
+| `systemic_flaw` | 系统归因 |
+| `bridge` | 认知脚手架 |
+
+### 输入校验
+
+用户传入标题时：
+- 去除首尾空白字符
+- 限制最大长度 200 字符，超长截断
+- 标题不能为空，否则打印错误提示并退出
 
 ---
 
@@ -211,8 +237,8 @@ python prism_os.py confirm "<用户选择的标题>"
 |------|------|------|
 | 1 | Embedding 独立模块 (`embedding.py`) | 无 |
 | 2 | 飞书读取实现 (`read_viral_library`) | lark-cli 路径验证 |
-| 3 | PRISM-OS confirm 命令 | 飞书写入 lark-cli |
-| 4 | 飞书写入实现 (`update_feishu_viral`) | lark-cli 路径验证 |
+| 3 | 飞书写入实现 (`update_feishu_viral`) | lark-cli 路径验证 |
+| 4 | PRISM-OS confirm 命令 | 步骤 3 飞书写入完成后才能开发 |
 | 5 | 定时触发 cron 配置 | 1-4 完成 |
 | 6 | 集成测试（完整流程） | 1-5 |
 
@@ -226,6 +252,6 @@ python prism_os.py confirm "<用户选择的标题>"
 |------|---------|---------|
 | Embedding 模块 | `python embedding.py embed "测试标题"` | 返回 1024 维向量 |
 | 飞书读取 | `python assassin.py read` | 返回历史记录列表 |
-| Confirm 命令 | `python prism_os.py confirm "测试标题"` | 飞书架新增一条记录 |
 | 飞书写入 | `python assassin.py write "<title>" <strategy>` | 记录是否已反转字段更新 |
+| Confirm 命令 | `python prism_os.py confirm "测试标题"` | 飞书架新增一条记录 |
 | 定时触发 | 手动 `python assassin.py cron_check` | 输出通知 JSON |
