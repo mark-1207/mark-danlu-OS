@@ -498,8 +498,12 @@ def _load_yaml_simple(path: str) -> list:
     """简单 YAML 加载"""
     if not os.path.exists(path):
         return []
-    with open(path, "r", encoding="utf-8") as f:
-        content = f.read()
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except Exception as e:
+        print(f"[Warning] 读取 {path} 失败: {e}", file=sys.stderr)
+        return []
     if not content.strip():
         return []
     result = []
@@ -554,7 +558,7 @@ def _parse_llm_json(text: str) -> Optional[Dict]:
         end = text.rfind("}") + 1
         if start >= 0 and end > start:
             return json.loads(text[start:end])
-    except:
+    except Exception as e:
         pass
 
     return None
@@ -618,9 +622,12 @@ def cron_check():
             "date": date_str,
             "triggers": triggers
         }
-        with open(notif_path, "w", encoding="utf-8") as f:
-            json.dump(notification, f, ensure_ascii=False, indent=2)
-        print(f"[Info] 刺客通知已写入: {notif_path}")
+        try:
+            with open(notif_path, "w", encoding="utf-8") as f:
+                json.dump(notification, f, ensure_ascii=False, indent=2)
+            print(f"[Info] 刺客通知已写入: {notif_path}")
+        except Exception as e:
+            print(f"[Warning] 写入通知文件失败: {e}", file=sys.stderr)
 
     # 5. 输出到 stdout
     print(json.dumps({"count": count, "triggers": triggers}, ensure_ascii=False))
