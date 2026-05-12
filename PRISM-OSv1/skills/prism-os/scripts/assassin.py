@@ -66,6 +66,8 @@ def _parse_lark_text_output(text: str) -> List[Dict]:
 FEISHU_TABLE_ID = "tblOoR71Q3DSa33t"
 FEISHU_APP_TOKEN = "QVz9byNH0auzRis9KeDcUoe3nZf"  # 示例 token
 
+NOTIFICATIONS_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "notifications")
+
 
 def read_viral_library() -> List[Dict]:
     """
@@ -492,6 +494,30 @@ def assassin_mechanism(historical_topics: List[str] = None, entities: List[Dict]
 
 # ============ 辅助函数 ============
 
+def _load_yaml_simple(path: str) -> list:
+    """简单 YAML 加载"""
+    if not os.path.exists(path):
+        return []
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+    if not content.strip():
+        return []
+    result = []
+    current = {}
+    for line in content.split("\n"):
+        line = line.strip()
+        if line.startswith("- "):
+            if current:
+                result.append(current)
+            current = {}
+        elif ": " in line and not line.startswith("#"):
+            key, val = line.split(": ", 1)
+            current[key.strip()] = val.strip().strip('"').strip("'")
+    if current:
+        result.append(current)
+    return result
+
+
 def _call_llm_raw(prompt: str) -> Optional[str]:
     """调用 LLM，返回原始文本"""
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -534,6 +560,79 @@ def _parse_llm_json(text: str) -> Optional[Dict]:
     return None
 
 
+# ============ Phase 7: 定时刺客检查 ============
+
+def cron_check():
+    """
+    定时刺客检查
+    1. 读取飞书架，验证 >= 20 条数据
+    2. 读取 topic_log.yaml 最近命题
+    3. 对每条命题调用刺客反转逻辑
+    4. 输出到 notification 文件 + stdout
+    5. 更新飞书架「是否已反转」状态
+    """
+    os.makedirs(NOTIFICATIONS_DIR, exist_ok=True)
+
+    # 1. 读取飞书架
+    records = read_viral_library()
+    count = len(records)
+
+    if count < 20:
+        print(f"[Info] 数据不足（{count}/20），跳过刺客检查")
+        return
+
+    print(f"[Info] 开始刺客检查，共 {count} 条历史数据")
+
+    # 2. 读取最近命题（从 topic_log.yaml）
+    log_path = os.path.join(os.path.dirname(__file__), "..", "data", "topic_log.yaml")
+    logs = _load_yaml_simple(log_path) if os.path.exists(log_path) else []
+    recent_theses = [log.get("thesis", "") for log in logs[-5:] if log.get("thesis")]
+
+    if not recent_theses:
+        print("[Info] 未找到近期命题，跳过刺客检查")
+        return
+
+    triggers = []
+
+    # 3. 对每条命题生成反转（调用现有的 reverse_topic）
+    for thesis in recent_theses:
+        try:
+            # reverse_topic(historical_topic, publish_date="") 已存在于 assassin.py
+            reversal_result = reverse_topic(thesis, "")
+            reversal_title = reversal_result.get("reversal_thesis", "")
+            strategy = reversal_result.get("reversal_strategy", "")
+            if reversal_title:
+                triggers.append({
+                    "original_title": thesis,
+                    "reversal_title": reversal_title,
+                    "strategy": strategy
+                })
+        except Exception as e:
+            print(f"[Warning] 反转失败: {thesis}, {e}", file=sys.stderr)
+
+    # 4. 写入 notification 文件
+    if triggers:
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        notif_path = os.path.join(NOTIFICATIONS_DIR, f"{date_str}_assassin.json")
+        notification = {
+            "date": date_str,
+            "triggers": triggers
+        }
+        with open(notif_path, "w", encoding="utf-8") as f:
+            json.dump(notification, f, ensure_ascii=False, indent=2)
+        print(f"[Info] 刺客通知已写入: {notif_path}")
+
+    # 5. 输出到 stdout
+    print(json.dumps({"count": count, "triggers": triggers}, ensure_ascii=False))
+
+    # 6. 更新飞书架（标记已反转）
+    for t in triggers:
+        update_feishu_viral(t["original_title"], {
+            "reversed": "是",
+            "reversal_strategy": t["strategy"]
+        })
+
+
 # ============ CLI 入口 ============
 
 def _safe_print(obj):
@@ -549,6 +648,7 @@ def main():
                 "reverse": "assassin.py reverse \"<历史爆款标题>\" - 逻辑反转",
                 "topology": "assassin.py topology '<[{\"entity\":...}]' '<[{\"relation\":...}]' - 知识拓扑",
                 "evolve": "assassin.py evolve \"<触发类型>\" '<old_config>' - Prompt 变异",
+                "cron_check": "assassin.py cron_check - 定时刺客检查（每日 22:00）",
                 "read": "assassin.py read - 读取飞书爆款选题库"
             }
         })
@@ -586,6 +686,9 @@ def main():
     elif command == "read":
         records = read_viral_library()
         _safe_print(records)
+
+    elif command == "cron_check":
+        cron_check()
 
     elif command == "write":
         if len(sys.argv) < 4:
