@@ -97,7 +97,7 @@ def read_viral_library() -> List[Dict]:
     try:
         data = json.loads(stdout)
         if isinstance(data, dict) and "data" in data:
-            records = data["data"].get("items", [])
+            records = data["data"].get("items") or []
             return [
                 {
                     "title": r.get("fields", {}).get("标题", ""),

@@ -33,8 +33,9 @@ def _verify_lark_cli():
 def _run_lark_cli(args: list, timeout: int = 30) -> tuple:
     """运行 lark-cli 命令"""
     _verify_lark_cli()
+    lark_path = shutil.which("lark-cli")
     result = subprocess.run(
-        ["lark-cli"] + args,
+        [lark_path] + args,
         capture_output=True,
         encoding="utf-8",
         errors="replace",
@@ -140,13 +141,13 @@ def confirm_title(user_title: str) -> Dict:
             print(f"[Warning] 读取 topic_log.yaml 失败: {e}", file=sys.stderr)
 
     # 生成 lark-cli 写入命令
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # 飞书 datetime 字段需要 Unix 时间戳（毫秒）
+    now = str(int(datetime.now().timestamp()))
     stdout, stderr, code = _run_lark_cli([
         "api", "POST",
         f"/open-apis/bitable/v1/apps/{FEISHU_APP_TOKEN}/tables/{FEISHU_TABLE_ID}/records",
         "--data", json.dumps({"fields": {
             "标题": title,
-            "发布日期": now,
             "命题逻辑": thesis,
             "核心论点": core_argument,
             "内容方向": "（未分类）",
