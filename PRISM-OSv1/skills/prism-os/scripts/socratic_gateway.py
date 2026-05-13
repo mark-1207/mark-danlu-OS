@@ -257,10 +257,18 @@ def socratic_gateway(user_input: str, user_config: Optional[Dict] = None) -> Dic
         }
 
     elif decision == "clarify":
-        # 生成方向选项（替代追问问题）
+        # 生成追问问题（保持原有逻辑）
+        questions = generate_clarification_questions(user_input, input_type)
+        if not questions:
+            questions = [
+                "你想表达的核心观点是什么？",
+                "这篇文章的目标读者是谁？",
+                "你希望读者看完后有什么行动？"
+            ]
+
+        # 生成方向选项（追加到返回结果，不影响追问逻辑）
         directions = generate_directions(user_input, input_type)
         if not directions:
-            # fallback 到默认方向
             directions = [
                 f"聚焦{user_input[:FALLBACK_TITLE_LENGTH]}的角度A",
                 f"聚焦{user_input[:FALLBACK_TITLE_LENGTH]}的角度B",
@@ -273,8 +281,8 @@ def socratic_gateway(user_input: str, user_config: Optional[Dict] = None) -> Dic
             "entropy_score": entropy_result["entropy_score"],
             "decision": "clarify",
             "reason": entropy_result["reason"],
-            "directions": directions,  # 改为返回方向列表，不是 questions
-            "questions": []  # 保持字段兼容
+            "questions": questions,  # 原有追问逻辑保持不变
+            "directions": directions  # 追加方向选项供备选队列使用
         }
 
     else:  # pass
