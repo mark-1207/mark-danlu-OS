@@ -302,11 +302,14 @@ def run_prism_os(
             from gap_analysis import gap_analysis
 
             result["phase"] = "gap"
+            # 获取第一个候选标题的维度
+            first_candidate = final_candidates[0] if final_candidates else {}
             gap_result = gap_analysis(
                 thesis=thesis,
                 materials=materials,
-                title=final_candidates[0].get("title", "") if final_candidates else "",
-                audience=audience
+                title=first_candidate.get("title", ""),
+                audience=audience,
+                dimension=first_candidate.get("dimension", "")
             )
             result["gap"] = gap_result.get("gap")
             result["outlines"] = gap_result.get("outlines")
