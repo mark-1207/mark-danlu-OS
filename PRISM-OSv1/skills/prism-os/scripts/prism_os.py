@@ -231,38 +231,34 @@ def run_prism_os(
             result["status"] = "need_clarification"
             result["message"] = "需要澄清"
             result["questions"] = gateway_result.get("questions", [])
+            result["directions"] = gateway_result.get("directions", [])
 
             # ============ Phase 1.5: 备选检查（新增） ============
             try:
-                from assassin import check_related_backups, update_backup_status
+                from assassin import check_related_backups
 
                 result["phase"] = "backup_check"
                 matched_backups = check_related_backups(user_input)
-
-                if matched_backups:
-                    result["backup_matches"] = matched_backups
-                else:
-                    result["backup_matches"] = []
+                result["backup_matches"] = matched_backups if matched_backups else []
             except Exception as e:
                 print(f"[Warning] Phase 1.5 失败: {e}", file=sys.stderr)
                 result["backup_matches"] = []
 
             return result
+
+        # gateway_result["status"] == "pass": 继续到 Phase 2
+        result["status"] = "ready_for_generation"
     else:
         result["phase"] = "gateway_skipped"
 
-    # ============ Phase 1.5: 备选检查（用于 skip_gateway 或 ready_for_generation） ============
-    if result["status"] in ["ready_for_generation"]:
+    # ============ Phase 1.5: 备选检查（用于 skip_gateway 或 pass） ============
+    if result["status"] in ["ready_for_generation", "running"]:
         try:
-            from assassin import check_related_backups, update_backup_status
+            from assassin import check_related_backups
 
             result["phase"] = "backup_check"
             matched_backups = check_related_backups(user_input)
-
-            if matched_backups:
-                result["backup_matches"] = matched_backups
-            else:
-                result["backup_matches"] = []
+            result["backup_matches"] = matched_backups if matched_backups else []
         except Exception as e:
             print(f"[Warning] Phase 1.5 失败: {e}", file=sys.stderr)
             result["backup_matches"] = []
