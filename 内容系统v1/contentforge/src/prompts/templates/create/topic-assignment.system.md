@@ -21,3 +21,41 @@
 - 必须以 JSON 格式输出
 - 为每个平台生成 3 个候选标题
 - 包含一段 overlapAnalysis 说明三个选题的差异化程度
+- 严格遵循以下 JSON Schema：
+
+{
+  "wechat": {
+    "platform": "wechat",
+    "angle": "string — 选题切入角度",
+    "titleDrafts": ["string", "string", "string"],
+    "coreArgument": "string — 核心论点",
+    "targetAudience": "string — 目标受众",
+    "tone": "string — 语气风格",
+    "wordCountRange": [2000, 3000],
+    "contentType": "string — 内容类型",
+    "emotionalGoal": "string — 情绪目标"
+  },
+  "xiaohongshu": {
+    "platform": "xiaohongshu",
+    "angle": "string",
+    "titleDrafts": ["string", "string", "string"],
+    "coreArgument": "string",
+    "targetAudience": "string",
+    "tone": "string",
+    "wordCountRange": [500, 800],
+    "contentType": "string",
+    "emotionalGoal": "string"
+  },
+  "douyin": {
+    "platform": "douyin",
+    "angle": "string",
+    "titleDrafts": ["string", "string", "string"],
+    "coreArgument": "string",
+    "targetAudience": "string",
+    "tone": "string",
+    "wordCountRange": [150, 300],
+    "contentType": "string",
+    "emotionalGoal": "string"
+  },
+  "overlapAnalysis": "string — 三个选题的差异化分析"
+}

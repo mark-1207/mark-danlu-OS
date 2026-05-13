@@ -1,38 +1,16 @@
-import { getCachedConfig } from '../config/loader.js';
+export type { EmbeddingOptions, EmbeddingResult } from '../providers/embedding/types.js';
+import { getEmbeddingRouter } from '../providers/embedding/factory.js';
 import { logger } from './logger.js';
 
-export interface EmbeddingOptions {
-  text: string;
-}
-
-export interface EmbeddingResult {
-  embedding: number[];
-  tokens: number;
-}
-
 /**
- * Compute embedding using Tavily API (same API key as search)
- * API: POST https://api.tavily.com/embeddings
- * Body: { texts: string[] }
- * Response: { data: [{ embedding: number[], tokens: number }] }
+ * Compute embedding with automatic primary → fallback routing.
+ * Primary: Tavily
+ * Fallback: Google (text-embedding-004)
+ * Results are cached in-memory to avoid recomputing the same text.
  */
 export async function computeEmbedding(options: EmbeddingOptions): Promise<EmbeddingResult> {
-  const config = getCachedConfig();
-  const apiKey = config.search?.apiKey ?? process.env.TAVILY_API_KEY ?? '';
-  if (!apiKey) throw new Error('TAVILY_API_KEY not configured');
-
-  const response = await fetch('https://api.tavily.com/embeddings', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ texts: [options.text] }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Tavily embeddings API error: ${response.status}`);
-  }
-
-  const data = await response.json() as { data: Array<{ embedding: number[]; tokens: number }> };
-  return { embedding: data.data[0].embedding, tokens: data.data[0].tokens };
+  const router = getEmbeddingRouter();
+  return router.embed(options);
 }
 
 /**

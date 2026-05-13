@@ -15,6 +15,7 @@ import { interactiveSelect } from '../ui/prompts.js';
 import { estimateCost } from '../../utils/token-counter.js';
 import { acquireRunLock, releaseRunLock } from '../../utils/run-lock.js';
 import { sanitizeFilename } from '../../utils/sanitize.js';
+import { cleanupIntermediateFiles } from './create.js';
 import type { DifferentiationOutput, DifferentiationDirection, DualReviewResult } from '../../scenarios/recreate/types.js';
 import { askPostGen } from '../../scenarios/revision/cli/post-gen-prompt.js';
 import { RevisionPipeline } from '../../scenarios/revision/index.js';
@@ -320,9 +321,7 @@ export async function runRecreate(
   const files = await fs.readdir(runDir);
   console.log('生成文件:');
   for (const file of files) {
-    if (file !== 'run.log') {
-      console.log(`  - ${file}`);
-    }
+    console.log(`  - ${file}`);
   }
 
   // Ask post-gen and handle revision (interactive only to avoid hanging CI)
@@ -417,6 +416,9 @@ ${localRewriteSuccess && localRewriteResult?.appliedTriggers?.length ? localRewr
 `;
 
   await fs.writeFile(path.join(runDir, `${sanitizeFilename(title)}.md`), md, 'utf-8');
+
+  // Cleanup: keep only final outputs
+  await cleanupIntermediateFiles(runDir);
 }
 
 export function registerRecreateCommand(program: Command): void {

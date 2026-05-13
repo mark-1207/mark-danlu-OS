@@ -46,6 +46,7 @@ export abstract class PipelineStep<TInput = unknown, TOutput = unknown> {
     const startTime = Date.now();
     const retries = this.config.retries ?? 1;
     let lastError: unknown;
+    let rawResult: TOutput | undefined;
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
@@ -54,6 +55,7 @@ export abstract class PipelineStep<TInput = unknown, TOutput = unknown> {
 
         // Execute
         const result = await this.doExecute(validatedInput, context);
+        rawResult = result;
 
         // Validate output
         const validatedOutput = this.outputSchema.parse(result);
@@ -85,9 +87,10 @@ export abstract class PipelineStep<TInput = unknown, TOutput = unknown> {
             logger.warn(`[Step:${this.config.name}] output validation failed after all retries, using raw output`, {
               errors: error.errors.slice(0, 3),
             });
-            // Return partial success with raw data
+            // Return partial success with raw data so downstream steps can use it
             return {
               success: true,
+              data: rawResult,
               warning: 'Partial validation failure',
               tokenUsage: { input: 0, output: 0 },
               durationMs: Date.now() - startTime,

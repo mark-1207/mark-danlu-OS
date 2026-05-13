@@ -7,4 +7,4 @@
 {{excludeDirections}}
 {{/if}}
 
-请按照要求输出 JSON 格式的选题分配结果。必须严格遵循 TopicAssignmentSchema（见 schemas/topic-assignment.schema.md）。
+请按照要求输出 JSON 格式的选题分配结果，严格按照系统 prompt 中的 JSON Schema 输出。注意：顶层 key 必须是 wechat、xiaohongshu、douyin（英文），不要用中文平台名。

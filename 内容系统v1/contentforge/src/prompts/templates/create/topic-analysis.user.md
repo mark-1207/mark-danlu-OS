@@ -10,7 +10,7 @@
 请排除以下方向：{{excludeDirections}}
 {{/if}}
 
-请按照要求输出 JSON 格式的分析结果。必须严格遵循 TopicAnalysisSchema（见 schemas/topic-analysis.schema.md）。
+请按照要求输出 JSON 格式的分析结果，严格按照系统 prompt 中的 JSON Schema 输出。
 
 {{#if competitorInsights}}
 ---

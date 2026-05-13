@@ -52,4 +52,17 @@ export const DEFAULT_CONFIG: Config = {
   search: {
     enabled: false,
   },
+  embedding: {
+    primary: 'tavily',
+    fallback: 'google',
+  },
+  image: {
+    primary: 'pollinations',
+    width: 1024,
+    height: 1024,
+    model: 'flux',
+  },
+  textProviders: {
+    rotationOrder: ['openai', 'kimi', 'gemini'],
+  },
 };

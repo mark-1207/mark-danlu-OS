@@ -48,6 +48,24 @@ const PLATFORM_LABELS: Record<string, string> = {
   douyin: '抖音',
 };
 
+// ─── Cleanup: keep only final outputs ─────────────────────────────────────────
+
+/**
+ * Remove intermediate pipeline artifacts, keeping only:
+ * - Final .md content files
+ * - run-meta.json (required for resume)
+ * - run.log (useful for debugging)
+ */
+export async function cleanupIntermediateFiles(runDir: string): Promise<void> {
+  const KEEP = new Set(['run-meta.json', 'run.log']);
+  const files = await fs.readdir(runDir);
+  await Promise.all(
+    files
+      .filter((f) => !KEEP.has(f) && !f.endsWith('.md'))
+      .map((f) => fs.unlink(path.join(runDir, f))),
+  );
+}
+
 // ─── Helper: buildTopicAnalysisReview ─────────────────────────────────────────
 
 function buildTopicAnalysisReview(ta: TopicAnalysis): TopicAnalysisReview {
@@ -363,6 +381,9 @@ export async function runCreate(
         await fs.writeFile(path.join(runDir, `${safeTitle}.${ext}`), revisedContent, 'utf-8');
       }
 
+      // Cleanup: keep only final .md files and run-meta.json
+      await cleanupIntermediateFiles(runDir);
+
       // Summarize
       const tokenUsage = context.getTotalTokenUsage();
       const cost = estimateCost(tokenUsage.input, tokenUsage.output);
@@ -373,9 +394,7 @@ export async function runCreate(
       const files = await fs.readdir(runDir);
       console.log('生成文件:');
       for (const file of files) {
-        if (file !== 'run.log') {
-          console.log(`  - ${file}`);
-        }
+        console.log(`  - ${file}`);
       }
 
       // Ask post-gen and handle revision
@@ -433,6 +452,9 @@ export async function runCreate(
       await fs.writeFile(path.join(runDir, `${safeTitle}.${ext}`), revisedContent, 'utf-8');
     }
 
+    // Cleanup: keep only final .md files and run-meta.json
+    await cleanupIntermediateFiles(runDir);
+
     // Summarize
     const tokenUsage = finalContext.getTotalTokenUsage();
     const cost = estimateCost(tokenUsage.input, tokenUsage.output);
@@ -443,9 +465,7 @@ export async function runCreate(
     const files = await fs.readdir(runDir);
     console.log('生成文件:');
     for (const file of files) {
-      if (file !== 'run.log') {
-        console.log(`  - ${file}`);
-      }
+      console.log(`  - ${file}`);
     }
 
     // Ask post-gen and handle revision (interactive only to avoid hanging CI)

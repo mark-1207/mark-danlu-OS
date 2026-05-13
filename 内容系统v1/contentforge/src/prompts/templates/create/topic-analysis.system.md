@@ -13,3 +13,13 @@
 - 必须以 JSON 格式输出
 - 不要输出任何 JSON 之外的内容
 - 严格遵循下方的 JSON Schema
+
+JSON Schema:
+{
+  "keyword": "string — 与输入关键词一致",
+  "subTopics": [{ "name": "string", "description": "string", "heatLevel": "high|medium|low" }],
+  "painPoints": [{ "description": "string", "targetAudience": "string", "emotionalTrigger": "string" }],
+  "trendingAngles": [{ "angle": "string", "whyTrending": "string", "suitablePlatforms": ["string"] }],
+  "controversies": [{ "topic": "string", "sideA": "string", "sideB": "string" }],
+  "targetDemographics": [{ "group": "string", "interests": ["string"], "contentPreferences": ["string"] }]
+}

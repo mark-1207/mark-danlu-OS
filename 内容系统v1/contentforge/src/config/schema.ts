@@ -63,6 +63,25 @@ const ConfigSchema = z.object({
       apiKey: z.string().optional(),
     })
     .optional(),
+  embedding: z
+    .object({
+      primary: z.enum(['tavily', 'google']).default('tavily'),
+      fallback: z.enum(['tavily', 'google']).default('google'),
+    })
+    .optional(),
+  image: z
+    .object({
+      primary: z.enum(['pollinations']).default('pollinations'),
+      width: z.number().default(1024),
+      height: z.number().default(1024),
+      model: z.string().default('flux'),
+    })
+    .optional(),
+  textProviders: z
+    .object({
+      rotationOrder: z.array(z.string()).default(['openai', 'kimi', 'gemini']),
+    })
+    .optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
