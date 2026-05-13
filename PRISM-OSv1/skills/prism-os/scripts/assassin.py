@@ -408,7 +408,7 @@ def check_related_backups(topic: str, threshold: float = 0.7) -> List[Dict]:
             continue
 
         similarity = get_similarity(topic, title)
-        if similarity > threshold:
+        if similarity is not None and similarity > threshold:
             results.append({
                 "title": title,
                 "similarity": similarity,
