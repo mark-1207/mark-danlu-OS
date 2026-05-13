@@ -378,13 +378,44 @@ def run_prism_os(
 
         # Phase 8: 数字分身筛选（自动应用）
         try:
-            from cognitive_crack import digital_twin_filter
+            from cognitive_crack import digital_twin_filter, learn_thinking_pattern
+            from storage import load_config
 
             result["phase"] = "digital_twin"
-            # 使用默认思维特征进行筛选
-            twin_result = digital_twin_filter(final_candidates, "理性、克制、反常识")
-            result["digital_twin"] = twin_result
-            result["twin_selected"] = twin_result.get("selected_topics", [])
+
+            # 加载数字分身配置
+            config = load_config()
+            twin_config = config.get("digital_twin", {})
+            twin_enabled = twin_config.get("enabled", "true").lower() == "true"
+            thinking_pattern = twin_config.get("thinking_pattern", "理性、克制、反常识")
+            auto_learn = twin_config.get("auto_learn", "true").lower() == "true"
+
+            if not twin_enabled:
+                result["digital_twin"] = {"disabled": True}
+                result["twin_selected"] = []
+            else:
+                # 学习思维特征（如果启用）
+                dimension_weights = None
+                style_keywords = None
+                if auto_learn:
+                    try:
+                        learn_result = learn_thinking_pattern()
+                        thinking_pattern = learn_result.get("thinking_pattern", thinking_pattern)
+                        dimension_weights = learn_result.get("dimension_weights")
+                        style_keywords = learn_result.get("style_keywords")
+                        result["twin_learn"] = learn_result
+                    except Exception as e:
+                        print(f"[Warning] 思维特征学习失败: {e}", file=sys.stderr)
+
+                # 执行数字分身筛选
+                twin_result = digital_twin_filter(
+                    final_candidates,
+                    thinking_pattern,
+                    dimension_weights=dimension_weights,
+                    style_keywords=style_keywords
+                )
+                result["digital_twin"] = twin_result
+                result["twin_selected"] = twin_result.get("selected_topics", [])
         except Exception as e:
             print(f"[Warning] Phase 8 失败: {e}", file=sys.stderr)
             result["digital_twin"] = {}
@@ -534,8 +565,16 @@ def format_prism_os_output(result: Dict) -> str:
 
     # 数字分身推荐（Phase 8）
     twin_selected = result.get("twin_selected", [])
+    twin_learn = result.get("twin_learn", {})
     if twin_selected:
         lines.append("■ 数字分身推荐")
+        # 显示学习到的思维特征
+        if twin_learn:
+            pattern = twin_learn.get("thinking_pattern", "")
+            confidence = twin_learn.get("confidence", 0)
+            if pattern:
+                lines.append(f"  学习到的思维特征: {pattern}")
+                lines.append(f"  学习置信度: {int(confidence * 100)}%")
         for t in twin_selected[:3]:
             topic = t.get("topic", "")[:40]
             reason = t.get("selection_reason", "")[:30]
