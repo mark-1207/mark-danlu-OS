@@ -231,9 +231,41 @@ def run_prism_os(
             result["status"] = "need_clarification"
             result["message"] = "需要澄清"
             result["questions"] = gateway_result.get("questions", [])
+
+            # ============ Phase 1.5: 备选检查（新增） ============
+            try:
+                from assassin import check_related_backups, update_backup_status
+
+                result["phase"] = "backup_check"
+                matched_backups = check_related_backups(user_input)
+
+                if matched_backups:
+                    result["backup_matches"] = matched_backups
+                else:
+                    result["backup_matches"] = []
+            except Exception as e:
+                print(f"[Warning] Phase 1.5 失败: {e}", file=sys.stderr)
+                result["backup_matches"] = []
+
             return result
     else:
         result["phase"] = "gateway_skipped"
+
+    # ============ Phase 1.5: 备选检查（用于 skip_gateway 或 ready_for_generation） ============
+    if result["status"] in ["ready_for_generation"]:
+        try:
+            from assassin import check_related_backups, update_backup_status
+
+            result["phase"] = "backup_check"
+            matched_backups = check_related_backups(user_input)
+
+            if matched_backups:
+                result["backup_matches"] = matched_backups
+            else:
+                result["backup_matches"] = []
+        except Exception as e:
+            print(f"[Warning] Phase 1.5 失败: {e}", file=sys.stderr)
+            result["backup_matches"] = []
 
     # ============ Phase 2: 棱镜引擎 ============
     from prism_engine import prism_engine as generate_titles
@@ -402,6 +434,15 @@ def format_prism_os_output(result: Dict) -> str:
             lines.append(f"  {i} [{dim_name}] {logic_mark} {title}")
             lines.append(f"     {comp} | 新颖度 {novelty_pct}%")
 
+        lines.append("")
+
+    # 备选匹配显示
+    backup_matches = result.get("backup_matches", [])
+    if backup_matches:
+        lines.append("■ 相关备选方向")
+        for m in backup_matches[:3]:
+            sim = int(m.get("similarity", 0) * 100)
+            lines.append(f"  📌 {m.get('title', '')}（相似度 {sim}%）")
         lines.append("")
 
     # 素材缺口
