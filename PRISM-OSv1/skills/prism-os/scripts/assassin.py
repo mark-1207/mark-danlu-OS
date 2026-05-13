@@ -378,6 +378,48 @@ def check_expired_backups(days: int = 30) -> int:
     return expired_count
 
 
+def check_related_backups(topic: str, threshold: float = 0.7) -> List[Dict]:
+    """
+    检查与 topic 相似的备选方向
+
+    1. 调用 check_expired_backups() 清理过期记录
+    2. 读取备选队列
+    3. 计算 topic 与每条备选的 Embedding 相似度
+    4. 返回相似度 > threshold 的记录
+
+    Returns: [{"title": str, "similarity": float, "record_id": str}, ...]
+    """
+    # 清理过期
+    check_expired_backups(BACKUP_EXPIRY_DAYS)
+
+    # 读取队列
+    queue = read_backup_queue()
+    if not queue:
+        return []
+
+    # 引入 embedding
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from embedding import get_similarity
+
+    results = []
+    for rec in queue:
+        title = rec.get("title", "")
+        if not title:
+            continue
+
+        similarity = get_similarity(topic, title)
+        if similarity > threshold:
+            results.append({
+                "title": title,
+                "similarity": similarity,
+                "record_id": rec.get("record_id", "")
+            })
+
+    # 按相似度降序
+    results.sort(key=lambda x: x["similarity"], reverse=True)
+    return results
+
+
 def log_material_source(title: str, material_source: str) -> bool:
     """
     2.23 写入素材来源到飞书备注
