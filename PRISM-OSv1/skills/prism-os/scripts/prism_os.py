@@ -233,6 +233,14 @@ def run_prism_os(
             result["questions"] = gateway_result.get("questions", [])
             result["directions"] = gateway_result.get("directions", [])
 
+            # 保存方向到备选队列
+            try:
+                from assassin import save_backup
+                for direction in result["directions"]:
+                    save_backup(direction, f"socratic-{datetime.now().strftime('%Y-%m-%d')}")
+            except Exception as e:
+                print(f"[Warning] 保存备选方向失败: {e}", file=sys.stderr)
+
             # ============ Phase 1.5: 备选检查（新增） ============
             try:
                 from assassin import check_related_backups
