@@ -58,17 +58,26 @@
     "标题": "AI让某些职业消失",
     "类型": "备选",
     "状态": "备选",
-    "来源": "socratic-2026-05-13-AI对职业的影响",
+    "创建日期": 1747152000000,
+    "来源": "socratic-2026-05-13-AI对职业",
     "备注": "用户输入：AI对职业的影响"
   }
 }
 ```
 
+- `创建日期`：Unix 时间戳（毫秒），用于过期判断
+- `来源`：格式 `socratic-{YYYY-MM-DD}-{用户输入前10字符}`
+
 ### 与现有代码的兼容
 
 `read_viral_library()` 需要过滤 `类型` 字段：
-- 只读取 `类型=爆款` 或 `类型` 字段不存在的记录（兼容旧数据）
-- 备选记录（`类型=备选`）不会混入刺客机制
+- **过滤方式**：Python 侧过滤（不修改 lark-cli API 调用）
+- 读取全部记录后，过滤掉 `类型=备选` 的记录
+- 保留 `类型=爆款` 或 `类型` 字段不存在的记录（兼容旧数据）
+- 备选记录不会混入刺客机制
+
+`read_backup_queue()` 同样使用 Python 侧过滤：
+- 读取全部记录后，只保留 `类型=备选 AND 状态=备选` 的记录
 
 ## 相似度匹配
 
@@ -119,6 +128,19 @@ def generate_directions(user_input: str, input_type: str) -> List[str]:
     Returns: ["方向1", "方向2", "方向3"]
     """
 
+DIRECTION_PROMPT = """你是选题方向生成器。根据用户输入，生成 2-3 个具体的选题方向。
+
+用户输入: "{user_input}"
+输入类型: {input_type}
+
+方向要求：
+- 每个方向是一个完整的选题角度，不是追问
+- 方向之间正交（覆盖不同角度）
+- 包含具体对象和冲突张力
+
+返回 JSON:
+{{"directions": ["方向1", "方向2", "方向3"]}}"""
+
 # assassin.py
 def save_backup(direction: str, source: str = "") -> bool:
     """
@@ -140,10 +162,22 @@ def update_backup_status(record_id: str, status: str) -> bool:
     - 失败时静默返回 False
     """
 
+def check_related_backups(topic: str, threshold: float = 0.7) -> List[Dict]:
+    """
+    检查与 topic 相似的备选方向
+    1. 调用 check_expired_backups() 清理过期记录
+    2. 读取备选队列
+    3. 计算 topic 与每条备选的 Embedding 相似度
+    4. 返回相似度 > threshold 的记录
+    Returns: [{"title": str, "similarity": float, "record_id": str}, ...]
+    """
+
 def check_expired_backups(days: int = 30) -> int:
     """
-    检查并标记过期备选（创建时间 > days 天）
-    - 每次 check_related_backups() 调用时自动执行
+    检查并标记过期备选（创建日期 > days 天）
+    - 读取所有 类型=备选 AND 状态=备选 的记录
+    - 比较 创建日期 字段与当前时间
+    - 超期记录标记 状态=已过期
     - Returns: 标记为过期的数量
     """
 ```
@@ -163,6 +197,22 @@ Phase 1.5: 备选检查（新增）
 Phase 2: 棱镜引擎（使用合并后的候选列表）
 Phase 3+: 后续流程
 ```
+
+## 错误处理
+
+Phase 1.5（备选检查）遵循 `prism_os.py` 现有模式：
+- 使用 `try/except` 包裹
+- 失败时 `print(f"[Warning] Phase 1.5 失败: {e}", file=sys.stderr)`
+- 继续执行 Phase 2，不中断流程
+
+`save_backup()` 和 `read_backup_queue()` 静默失败（返回 `False` / `[]`），与 `read_viral_library()` 一致。
+
+## 记录上限
+
+`MAX_BACKUP_RECORDS = 100` 是有意限制：
+- 飞书 API 单页返回 100 条，不实现分页
+- 超过 100 条时，只处理最新的 100 条
+- 实际使用中备选队列不太可能超过此限制
 
 ## 验证标准
 
