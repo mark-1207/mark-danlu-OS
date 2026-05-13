@@ -68,6 +68,9 @@ FEISHU_APP_TOKEN = "QVz9byNH0auzRis9KeDcUoe3nZf"  # 示例 token
 
 NOTIFICATIONS_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "notifications")
 
+BACKUP_EXPIRY_DAYS = 30
+SIMILARITY_THRESHOLD = 0.7
+
 
 def read_viral_library() -> List[Dict]:
     """
@@ -98,6 +101,8 @@ def read_viral_library() -> List[Dict]:
         data = json.loads(stdout)
         if isinstance(data, dict) and "data" in data:
             records = data["data"].get("items") or []
+            # 过滤掉 类型=备选 的记录
+            records = [r for r in records if r.get("fields", {}).get("类型") != "备选"]
             return [
                 {
                     "title": r.get("fields", {}).get("标题", ""),
@@ -247,6 +252,130 @@ def update_feishu_viral(viral_title: str, reversal_info: Dict = None) -> bool:
 
     print("[Warning] update succeeded but verification failed", file=sys.stderr)
     return False
+
+
+def save_backup(direction: str, source: str = "") -> bool:
+    """
+    将方向保存到飞书备选队列
+    - 先检查是否已存在相同标题的备选记录（去重）
+    - 写入类型=备选，状态=备选
+    - 失败时静默返回 False
+    """
+    direction = direction.strip()
+    if not direction:
+        return False
+
+    # 检查是否已存在
+    existing = read_backup_queue()
+    for rec in existing:
+        if rec.get("title") == direction:
+            return True  # 已存在，跳过
+
+    # 生成来源字符串
+    if not source:
+        source = f"socratic-{datetime.now().strftime('%Y-%m-%d')}"
+
+    # 写入飞书
+    now_ms = str(int(datetime.now().timestamp() * 1000))
+    data = json.dumps({"fields": {
+        "标题": direction,
+        "类型": "备选",
+        "状态": "备选",
+        "创建日期": now_ms,
+        "来源": source,
+        "备注": ""
+    }})
+
+    stdout, stderr, code = _run_lark_cli([
+        "api", "POST",
+        f"/open-apis/bitable/v1/apps/{FEISHU_APP_TOKEN}/tables/{FEISHU_TABLE_ID}/records",
+        "--data", data,
+        "--format", "json"
+    ])
+
+    return code == 0
+
+
+def read_backup_queue() -> List[Dict]:
+    """
+    读取所有 类型=备选 AND 状态=备选 的记录
+    Returns: [{"title": str, "source": str, "record_id": str, "created_at": int}, ...]
+    """
+    path = f"/open-apis/bitable/v1/apps/{FEISHU_APP_TOKEN}/tables/{FEISHU_TABLE_ID}/records"
+    params = '{"page_size": 100}'
+    stdout, stderr, code = _run_lark_cli([
+        "api", "GET", path,
+        "--params", params,
+        "--format", "json"
+    ])
+
+    if code != 0:
+        return []
+
+    try:
+        data = json.loads(stdout)
+        records = data.get("data", {}).get("items") or []
+    except:
+        return []
+
+    result = []
+    for r in records:
+        fields = r.get("fields", {})
+        record_type = fields.get("类型", "")
+        status = fields.get("状态", "")
+        if record_type == "备选" and status == "备选":
+            created_str = fields.get("创建日期", "")
+            created_at = 0
+            if isinstance(created_str, (int, float)):
+                created_at = int(created_str)
+            elif isinstance(created_str, str) and created_str.isdigit():
+                created_at = int(created_str)
+            result.append({
+                "title": fields.get("标题", ""),
+                "source": fields.get("来源", ""),
+                "record_id": r.get("record_id", ""),
+                "created_at": created_at
+            })
+    return result
+
+
+def update_backup_status(record_id: str, status: str) -> bool:
+    """
+    更新备选记录状态（已使用/已过期）
+    - 失败时静默返回 False
+    """
+    path = f"/open-apis/bitable/v1/apps/{FEISHU_APP_TOKEN}/tables/{FEISHU_TABLE_ID}/records/{record_id}"
+    data = json.dumps({"fields": {"状态": status}})
+
+    stdout, stderr, code = _run_lark_cli([
+        "api", "PUT", path,
+        "--data", data,
+        "--format", "json"
+    ])
+
+    return code == 0
+
+
+def check_expired_backups(days: int = 30) -> int:
+    """
+    检查并标记过期备选（创建日期 > days 天）
+    - 读取所有 类型=备选 AND 状态=备选 的记录
+    - 比较 创建日期 字段与当前时间
+    - 超期记录标记 状态=已过期
+    - Returns: 标记为过期的数量
+    """
+    records = read_backup_queue()
+    now_ms = int(datetime.now().timestamp() * 1000)
+    expiry_ms = days * 24 * 60 * 60 * 1000
+
+    expired_count = 0
+    for rec in records:
+        created_at = rec.get("created_at", 0)
+        if created_at > 0 and (now_ms - created_at) > expiry_ms:
+            if update_backup_status(rec["record_id"], "已过期"):
+                expired_count += 1
+
+    return expired_count
 
 
 def log_material_source(title: str, material_source: str) -> bool:
