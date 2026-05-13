@@ -13,7 +13,10 @@ import sys
 import json
 import os
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
+
+# ============ 常量 ============
+FALLBACK_TITLE_LENGTH = 10
 
 # ============ Phase 1: 输入分类 ============
 
@@ -86,7 +89,6 @@ def generate_clarification_questions(user_input: str, input_type: str) -> List[s
 
     # 解析 JSON
     try:
-        import json
         data = json.loads(raw_result)
         questions = data.get("questions", [])
         if isinstance(questions, list) and len(questions) > 0:
@@ -96,10 +98,8 @@ def generate_clarification_questions(user_input: str, input_type: str) -> List[s
 
     # fallback: 尝试从字符串中提取
     try:
-        import re
         match = re.search(r'\[.*\]', raw_result, re.DOTALL)
         if match:
-            import json
             questions = json.loads(match.group(0))
             if isinstance(questions, list):
                 return questions
@@ -223,7 +223,8 @@ def socratic_gateway(user_input: str, user_config: Optional[Dict] = None) -> Dic
             "entropy_score": float,
             "decision": "blocked" | "clarify" | "pass",
             "reason": str,
-            "questions": [str, ...]  # 仅当 decision=clarify 时
+            "directions": [str, ...]  # 仅当 decision=clarify 时
+            "questions": []           # 保持字段兼容
         }
     """
     # Step 1: 输入分类
@@ -261,9 +262,9 @@ def socratic_gateway(user_input: str, user_config: Optional[Dict] = None) -> Dic
         if not directions:
             # fallback 到默认方向
             directions = [
-                f"聚焦{user_input[:10]}的角度A",
-                f"聚焦{user_input[:10]}的角度B",
-                f"聚焦{user_input[:10]}的角度C"
+                f"聚焦{user_input[:FALLBACK_TITLE_LENGTH]}的角度A",
+                f"聚焦{user_input[:FALLBACK_TITLE_LENGTH]}的角度B",
+                f"聚焦{user_input[:FALLBACK_TITLE_LENGTH]}的角度C"
             ]
 
         return {
@@ -285,28 +286,6 @@ def socratic_gateway(user_input: str, user_config: Optional[Dict] = None) -> Dic
             "reason": entropy_result["reason"],
             "questions": []
         }
-
-
-def _default_clarification_questions(user_input: str, input_type: str) -> List[str]:
-    """生成默认追问选项"""
-    defaults = {
-        "keyword": [
-            "你想表达的核心观点是什么？",
-            "这篇文章的目标读者是谁？",
-            "你希望读者看完后有什么行动？"
-        ],
-        "sentence": [
-            "这个观点背后有什么隐含假设？",
-            "有没有与之相反的观点？",
-            "你能举一个具体的例子吗？"
-        ],
-        "question": [
-            "你认为这个问题的标准答案是什么？",
-            "有没有打破常识的答案？",
-            "你希望从哪个差异化角度回答？"
-        ]
-    }
-    return defaults.get(input_type, defaults["keyword"])
 
 
 # ============ 辅助函数 ============
