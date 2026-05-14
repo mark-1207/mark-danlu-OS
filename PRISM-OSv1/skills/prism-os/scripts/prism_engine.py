@@ -170,14 +170,49 @@ def calculate_jaccard_similarity(title_a: str, title_b: str) -> float:
     return intersection / union if union > 0 else 0.0
 
 
+def _precompute_embeddings(titles: List[str]) -> Dict[str, Optional[List[float]]]:
+    """预计算所有标题的向量（有缓存，失败返回 None）"""
+    try:
+        from embedding import embed
+    except ImportError:
+        return {}
+
+    vectors = {}
+    for title in titles:
+        vec = embed(title)
+        if vec is not None:
+            vectors[title] = vec
+    return vectors
+
+
+def _calculate_similarity(title_a: str, title_b: str, vectors: Dict[str, List[float]]) -> float:
+    """综合相似度：Jaccard×0.4 + Cosine×0.6（无向量时降级到纯 Jaccard）"""
+    jaccard = calculate_jaccard_similarity(title_a, title_b)
+
+    vec_a = vectors.get(title_a)
+    vec_b = vectors.get(title_b)
+    if vec_a and vec_b:
+        try:
+            from embedding import cosine_similarity
+            cosine = cosine_similarity(vec_a, vec_b)
+            return 0.4 * jaccard + 0.6 * cosine
+        except ImportError:
+            pass
+
+    return jaccard
+
+
 def check_orthogonality(candidates: List[Dict]) -> List[Dict]:
     """
     检查候选标题的正交性（相似度 < 0.75）
-    标记高相似度标题
+    使用 Embedding Cosine + Jaccard 综合相似度，Embedding 不可用时降级到纯 Jaccard
 
     Returns:
         带相似度标记的候选列表
     """
+    titles = [c["title"] for c in candidates]
+    vectors = _precompute_embeddings(titles)
+
     marked = []
     for i, candidate in enumerate(candidates):
         max_similarity = 0.0
@@ -186,7 +221,7 @@ def check_orthogonality(candidates: List[Dict]) -> List[Dict]:
         for j, other in enumerate(candidates):
             if i == j:
                 continue
-            sim = calculate_jaccard_similarity(candidate["title"], other["title"])
+            sim = _calculate_similarity(candidate["title"], other["title"], vectors)
             if sim > max_similarity:
                 max_similarity = sim
             if sim > 0.5:
