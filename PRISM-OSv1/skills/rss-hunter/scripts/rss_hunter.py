@@ -153,6 +153,49 @@ def cmd_fetch(source_filter: Optional[str] = None):
     _safe_print(f"\n[完成] 总计新条目: {total_new}, 跳过: {total_skipped}")
 
 
+# ============ prism-os 桥接 ============
+
+def _ask_launch_prism_os(crack_info: Dict, article_title: str, source_name: str):
+    """裂缝推送后，询问用户是否调用 prism-os 生成标题"""
+    try:
+        answer = input("\n是否基于这个裂缝生成标题？(yes/no): ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return
+
+    if answer not in ("yes", "y", "是"):
+        return
+
+    # 构建 prism-os 输入
+    consensus = crack_info.get("consensus", "")
+    reality = crack_info.get("reality", "")
+    crack_type = crack_info.get("crack_type", "")
+    suggestions = crack_info.get("title_suggestions", [])
+
+    # 拼接用户输入：裂缝内容 + 建议方向
+    user_input = f"{article_title}。共识是{consensus}，但现实是{reality}（{crack_type}）"
+    if suggestions:
+        user_input += f"。建议方向：{'、'.join(suggestions[:3])}"
+
+    _safe_print(f"\n[启动] PRISM-OS 选题生成...")
+    _safe_print(f"[输入] {user_input}\n")
+
+    # 调用 prism_os.py run --format
+    prism_script = str(PROJECT_ROOT / "skills" / "prism-os" / "scripts" / "prism_os.py")
+    try:
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, prism_script, "run", user_input, "--format"],
+            cwd=str(PROJECT_ROOT),
+            timeout=300,
+        )
+        if result.returncode != 0:
+            _safe_print(f"[Error] PRISM-OS 退出码: {result.returncode}")
+    except subprocess.TimeoutExpired:
+        _safe_print("[Error] PRISM-OS 执行超时（5分钟）")
+    except Exception as e:
+        _safe_print(f"[Error] 调用 PRISM-OS 失败: {e}")
+
+
 # ============ hunt 命令 ============
 
 def cmd_hunt(source_filter: Optional[str] = None):
@@ -229,12 +272,15 @@ def cmd_hunt(source_filter: Optional[str] = None):
                     reality=crack_info.get("reality", ""),
                 )
 
-                # 终端推送
+                # 终端推送 + 交互确认
                 push_msg = _build_push_message(
                     crack_info, name, fields["title"], fields["link"]
                 )
                 _safe_print(push_msg)
                 total_cracks += 1
+
+                # 问用户是否要基于裂缝生成标题
+                _ask_launch_prism_os(crack_info, fields["title"], name)
             else:
                 # 写入原子库
                 write_item(
