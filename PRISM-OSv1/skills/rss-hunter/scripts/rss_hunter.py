@@ -10,7 +10,6 @@ RSS 抓取 + 认知裂缝检测 + Obsidian 写入
 """
 
 import sys
-import os
 import argparse
 from pathlib import Path
 from datetime import datetime
@@ -21,7 +20,6 @@ from typing import Dict, List, Optional, Tuple
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent  # PRISM-OSv1/
 sys.path.insert(0, str(PROJECT_ROOT / ".claude"))
-sys.path.insert(0, str(PROJECT_ROOT / "skills" / "prism-os" / "scripts"))
 
 # 导入现有模块
 from feed_parser import parse_xml, extract_items, extract_fields, is_duplicate
@@ -97,25 +95,25 @@ def _get_source_tags(source: Dict) -> Tuple[str, List[str]]:
     return category, tags
 
 
-# ============ fetch 命令 ============
+# ============ 共享抓取逻辑 ============
 
-def cmd_fetch(source_filter: Optional[str] = None):
-    """抓取所有信源，更新去重记录"""
+def _load_sources(source_filter: Optional[str] = None) -> List[Dict]:
+    """加载并过滤信源列表"""
     config = _load_config()
     sources = config.get("monitored_sources", [])
-
     if source_filter:
         sources = [s for s in sources if s.get("name") == source_filter]
         if not sources:
             _safe_print(f"[Error] 未找到信源: {source_filter}")
-            return
+    return sources
 
-    total_new = 0
-    total_skipped = 0
 
+def _iter_new_items(sources: List[Dict]):
+    """抓取所有信源，yield 新条目 (fields, source_name, category, tags)"""
     for source in sources:
         name = source.get("name", "未知")
         url = source.get("url", "")
+        category, tags = _get_source_tags(source)
 
         if not url:
             _safe_print(f"[跳过] {name} — 无 URL")
@@ -145,12 +143,24 @@ def cmd_fetch(source_filter: Optional[str] = None):
                 skip_count += 1
             else:
                 new_count += 1
+                yield fields, name, category, tags
 
-        total_new += new_count
-        total_skipped += skip_count
         _safe_print(f"  ✓ 新条目: {new_count}, 跳过: {skip_count}")
 
-    _safe_print(f"\n[完成] 总计新条目: {total_new}, 跳过: {total_skipped}")
+
+# ============ fetch 命令 ============
+
+def cmd_fetch(source_filter: Optional[str] = None):
+    """抓取所有信源，更新去重记录"""
+    sources = _load_sources(source_filter)
+    if not sources:
+        return
+
+    total_new = 0
+    for _fields, _name, _cat, _tags in _iter_new_items(sources):
+        total_new += 1
+
+    _safe_print(f"\n[完成] 总计新条目: {total_new}")
 
 
 # ============ prism-os 桥接 ============
@@ -200,98 +210,56 @@ def _ask_launch_prism_os(crack_info: Dict, article_title: str, source_name: str)
 
 def cmd_hunt(source_filter: Optional[str] = None):
     """抓取 + 裂缝检测 + 写入 Obsidian"""
-    config = _load_config()
-    sources = config.get("monitored_sources", [])
-
-    if source_filter:
-        sources = [s for s in sources if s.get("name") == source_filter]
-        if not sources:
-            _safe_print(f"[Error] 未找到信源: {source_filter}")
-            return
+    sources = _load_sources(source_filter)
+    if not sources:
+        return
 
     total_cracks = 0
     total_items = 0
     total_errors = 0
 
-    for source in sources:
-        name = source.get("name", "未知")
-        url = source.get("url", "")
-        category, tags = _get_source_tags(source)
-
-        if not url:
-            _safe_print(f"[跳过] {name} — 无 URL")
+    for fields, name, category, tags in _iter_new_items(sources):
+        # 裂缝检测
+        try:
+            has_crack, crack_info = analyze_content(
+                fields["title"],
+                fields["summary"],
+                name
+            )
+        except Exception as e:
+            _safe_print(f"  [Error] 裂缝检测失败: {fields['title'][:30]}... — {e}")
+            total_errors += 1
             continue
 
-        _safe_print(f"\n[检查] {name}...")
-        xml_content = _fetch_feed(url)
-        if not xml_content:
-            _safe_print(f"  ✗ 抓取失败")
-            continue
-
-        root = parse_xml(xml_content)
-        if not root:
-            _safe_print(f"  ✗ XML 解析失败")
-            continue
-
-        items = extract_items(root)
-        if not items:
-            _safe_print(f"  ⚠ 无条目")
-            continue
-
-        for item in items:
-            fields = extract_fields(item, url)
-
-            # 去重检查（有副作用：写入指纹）
-            if is_duplicate(fields["title"], fields["pub_date"]):
-                continue
-
-            # 裂缝检测
-            try:
-                has_crack, crack_info = analyze_content(
-                    fields["title"],
-                    fields["summary"],
-                    name
-                )
-            except Exception as e:
-                _safe_print(f"  [Error] 裂缝检测失败: {fields['title'][:30]}... — {e}")
-                total_errors += 1
-                continue
-
-            if has_crack:
-                # 写入洞察库
-                write_crack(
-                    title=fields["title"],
-                    summary=fields["summary"],
-                    source=name,
-                    category=category,
-                    tags=tags,
-                    url=fields["link"],
-                    crack_type=crack_info.get("crack_type", "未知"),
-                    confidence=crack_info.get("confidence", 0),
-                    consensus=crack_info.get("consensus", ""),
-                    reality=crack_info.get("reality", ""),
-                )
-
-                # 终端推送 + 交互确认
-                push_msg = _build_push_message(
-                    crack_info, name, fields["title"], fields["link"]
-                )
-                _safe_print(push_msg)
-                total_cracks += 1
-
-                # 问用户是否要基于裂缝生成标题
-                _ask_launch_prism_os(crack_info, fields["title"], name)
-            else:
-                # 写入原子库
-                write_item(
-                    title=fields["title"],
-                    summary=fields["summary"],
-                    source=name,
-                    category=category,
-                    tags=tags,
-                    url=fields["link"],
-                )
-                total_items += 1
+        if has_crack:
+            write_crack(
+                title=fields["title"],
+                summary=fields["summary"],
+                source=name,
+                category=category,
+                tags=tags,
+                url=fields["link"],
+                crack_type=crack_info.get("crack_type", "未知"),
+                confidence=crack_info.get("confidence", 0),
+                consensus=crack_info.get("consensus", ""),
+                reality=crack_info.get("reality", ""),
+            )
+            push_msg = _build_push_message(
+                crack_info, name, fields["title"], fields["link"]
+            )
+            _safe_print(push_msg)
+            total_cracks += 1
+            _ask_launch_prism_os(crack_info, fields["title"], name)
+        else:
+            write_item(
+                title=fields["title"],
+                summary=fields["summary"],
+                source=name,
+                category=category,
+                tags=tags,
+                url=fields["link"],
+            )
+            total_items += 1
 
     _safe_print(f"\n{'=' * 40}")
     _safe_print(f"[完成] 裂缝: {total_cracks}, 普通: {total_items}, 错误: {total_errors}")
