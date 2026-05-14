@@ -7,10 +7,20 @@ import { scrapeArticle, buildCompetitorArticle } from '../../scenarios/topic/scr
 import { analyzeArticle } from '../../scenarios/topic/analyzer.js';
 import { writeFeishuRecord, updateFeishuRecordStatus, readFeishuRecords } from '../../scenarios/topic/feishu-sync.js';
 
+interface ScrapeResult {
+  recordId: string;
+  title: string;
+  platform: string;
+  summary: string;
+  viralStructure: string;
+  topicAngle: string;
+  tags: string[];
+}
+
 /**
- * Scrape + analyze a single URL and write to Feishu. Returns recordId on success.
+ * Scrape + analyze a single URL and write to Feishu. Returns analysis data.
  */
-async function scrapeOne(url: string): Promise<string> {
+async function scrapeOne(url: string): Promise<ScrapeResult> {
   const scrapeResult = await scrapeArticle(url);
   const article = buildCompetitorArticle(scrapeResult, url);
   console.log(chalk.green(`抓取成功: ${article.title}`));
@@ -23,7 +33,16 @@ async function scrapeOne(url: string): Promise<string> {
 
   const recordId = await writeFeishuRecord(article);
   console.log(chalk.green(`已写入飞书，记录ID: ${recordId}`));
-  return recordId;
+
+  return {
+    recordId,
+    title: article.title,
+    platform: article.platform,
+    summary: analysis.summary,
+    viralStructure: analysis.viralStructure,
+    topicAngle: analysis.topicAngle,
+    tags: analysis.tags,
+  };
 }
 
 export function registerTopicCommand(program: Command): void {
@@ -63,7 +82,7 @@ export function registerTopicCommand(program: Command): void {
           console.log(chalk.bold(`\n📦 批量抓取: ${urls.length} 个 URL\n`));
         }
 
-        const succeeded: string[] = [];
+        const succeeded: ScrapeResult[] = [];
         const failed: { url: string; error: string }[] = [];
 
         for (let i = 0; i < urls.length; i++) {
@@ -73,8 +92,18 @@ export function registerTopicCommand(program: Command): void {
           }
 
           try {
-            const recordId = await scrapeOne(url);
-            succeeded.push(recordId);
+            const result = await scrapeOne(url);
+            succeeded.push(result);
+
+            // Output analysis data for Claude/PRISM-OS consumption
+            console.log(chalk.cyan('\n--- 竞品分析 ---'));
+            console.log(`标题: ${result.title}`);
+            console.log(`平台: ${result.platform}`);
+            console.log(`摘要: ${result.summary}`);
+            console.log(`爆款结构: ${result.viralStructure}`);
+            console.log(`选题角度: ${result.topicAngle}`);
+            console.log(`标签: ${result.tags.join(', ')}`);
+            console.log(chalk.cyan('--- end ---\n'));
 
             // Single-interactive mode: ask about fragment extraction
             if (interactive) {
@@ -108,7 +137,7 @@ export function registerTopicCommand(program: Command): void {
                 await fs.writeFile(fragmentLibPath, JSON.stringify(lib, null, 2), 'utf-8');
                 console.log(chalk.green(`句式碎片 ${sentences.length} 条，段落碎片 ${paragraphs.length} 条`));
 
-                await updateFeishuRecordStatus(recordId, 'stored', {
+                await updateFeishuRecordStatus(result.recordId, 'stored', {
                   '碎片提取时间': new Date().toISOString(),
                 });
               }
