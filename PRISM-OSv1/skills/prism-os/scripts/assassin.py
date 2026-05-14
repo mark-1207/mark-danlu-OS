@@ -420,22 +420,6 @@ def check_related_backups(topic: str, threshold: float = 0.7) -> List[Dict]:
     return results
 
 
-def log_material_source(title: str, material_source: str) -> bool:
-    """
-    2.23 写入素材来源到飞书备注
-
-    Args:
-        title: 标题
-        material_source: 素材来源路径
-
-    Returns:
-        bool: 是否成功
-    """
-    # TODO: 实现飞书备注写入
-    print(f"[Material Source] {title} -> {material_source}")
-    return False
-
-
 # ============ Phase 7: 刺客机制 ============
 
 def reverse_topic(historical_topic: str, publish_date: str = "") -> Dict:
