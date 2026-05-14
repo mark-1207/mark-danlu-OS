@@ -170,11 +170,12 @@ export type ContentGenerationOutput = string;
 // ─── Step 6: Review & Optimization ─────────────────────────────────
 
 export const QualityScoreSchema = z.object({
-  titleAttraction: z.number().min(1).max(10),
-  hookRetention: z.number().min(1).max(10),
-  contentValue: z.number().min(1).max(10),
-  emotionalEngagement: z.number().min(1).max(10),
-  interactionDesign: z.number().min(1).max(10),
+  warmth: z.number().min(1).max(10).describe('温度：被理解，不是被说教'),
+  vitality: z.number().min(1).max(10).describe('热度：文字有生命力，有呼吸感'),
+  depth: z.number().min(1).max(10).describe('深度：有真东西，不肤浅'),
+  richness: z.number().min(1).max(10).describe('厚度：旁征博引，信手拈来'),
+  emotionalArc: z.number().min(1).max(10).describe('情绪曲线：每个段落拽着读者往下读'),
+  knowledgeTransfer: z.number().min(1).max(10).describe('知识迁移：跨维度"原来如此"的闪电感'),
 });
 
 export const ReviewChangeSchema = z.object({
@@ -210,11 +211,12 @@ export interface ArticleOutput {
   content: string;
   wordCount: number;
   qualityScore: {
-    title: number;
-    hook: number;
-    value: number;
-    emotion: number;
-    interaction: number;
+    warmth: number;
+    vitality: number;
+    depth: number;
+    richness: number;
+    emotionalArc: number;
+    knowledgeTransfer: number;
   };
   meta: {
     angle: string;
