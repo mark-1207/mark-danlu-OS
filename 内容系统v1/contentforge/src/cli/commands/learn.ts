@@ -16,7 +16,8 @@ export async function runLearn(options: {
   clearType?: string;
   inspect?: string;
   decay?: boolean;
-  includeCompetitor?: boolean;  // 新增
+  includeCompetitor?: boolean;
+  analyze?: boolean;  // 飞书 AI 分析
 }): Promise<void> {
   const config = await loadConfig();
   const baseDir = path.resolve(options.corpusDir ?? config.output?.dir ?? './output');
@@ -215,6 +216,19 @@ export async function runLearn(options: {
     return;
   }
 
+  // ── --analyze (飞书 AI 分析) ──────────────────────────────────────
+  if (options.analyze) {
+    const { runFeishuAnalysis } = await import('../../scenarios/topic/feishu-analyze.js');
+    console.log(chalk.bold('\n🔍 飞书竞品文章 AI 分析\n'));
+    const result = await runFeishuAnalysis();
+    console.log(chalk.green(`\n✅ 分析完成`));
+    console.log(`  总记录: ${result.total}`);
+    console.log(`  已分析: ${result.analyzed}`);
+    console.log(`  跳过: ${result.skipped}`);
+    console.log(`  失败: ${result.errors}`);
+    return;
+  }
+
   // ── --include-competitor ────────────────────────────────────────
   if (options.includeCompetitor) {
     const { generateCompetitorStyleReport } = await import('../../scenarios/topic/competitor-style-report.js');
@@ -265,6 +279,7 @@ export function registerLearnCommand(program: Command): void {
     .option('--inspect <runId>', '查看某个 runId 或文件的碎片来源详情')
     .option('--decay', '对碎片库执行 decay 扫描，更新老旧碎片状态')
     .option('--include-competitor', '生成竞品风格报告（基于飞书竞品素材库 analyzed/stored 记录）')
+    .option('--analyze', 'AI 分析飞书待分析记录（提取爆款结构/选题角度/标签）')
     .action(async (opts) => {
       try {
         await runLearn({
@@ -277,6 +292,7 @@ export function registerLearnCommand(program: Command): void {
           inspect: opts.inspect,
           decay: opts.decay,
           includeCompetitor: opts.includeCompetitor,
+          analyze: opts.analyze,
         });
       } catch (error) {
         logger.error('learn command failed', { error: String(error) });
