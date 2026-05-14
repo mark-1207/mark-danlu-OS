@@ -2,7 +2,8 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'path';
 import fs from 'fs/promises';
-import { loadConfig } from '../../config/loader.js';
+import { loadConfig, setCachedConfig } from '../../config/loader.js';
+import { llmFactory } from '../../llm/factory.js';
 import { runFragmentAnalysis } from '../../fragment-library/analyzer.js';
 import { getFragmentStore } from '../../fragment-library/fragment-store.js';
 import { logger } from '../../utils/logger.js';
@@ -20,6 +21,13 @@ export async function runLearn(options: {
   analyze?: boolean;  // 飞书 AI 分析
 }): Promise<void> {
   const config = await loadConfig();
+  setCachedConfig(config);
+
+  // Register LLM providers (needed for --analyze)
+  for (const [name, providerConfig] of Object.entries(config.providers)) {
+    llmFactory.register(name, providerConfig);
+  }
+
   const baseDir = path.resolve(options.corpusDir ?? config.output?.dir ?? './output');
   const resolvedCorpusDir = path.join(baseDir, 'corpus');
 
