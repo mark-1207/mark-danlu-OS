@@ -3,6 +3,9 @@ import { PipelineStep } from '../../../core/step.js';
 import { PipelineContext } from '../../../core/context.js';
 import type { LLMProvider } from '../../../llm/types.js';
 import { promptLoader } from '../../../prompts/loader.js';
+import { getCachedConfig } from '../../../config/loader.js';
+import { getObsidianReader } from '../../../io/obsidian/reader.js';
+import { logger } from '../../../utils/logger.js';
 import {
   PlatformAssignmentsSchema,
   TopicCardSchema,
@@ -10,6 +13,7 @@ import {
   XiaohongshuOutlineSchema,
   DouyinOutlineSchema,
   type PlatformAssignments,
+  type TopicAnalysis,
   type WechatOutline,
   type XiaohongshuOutline,
   type DouyinOutline,
@@ -18,6 +22,37 @@ import {
 const WechatInputSchema = z.object({ topicCard: TopicCardSchema.optional() });
 const XiaohongshuInputSchema = z.object({ topicCard: TopicCardSchema.optional() });
 const DouyinInputSchema = z.object({ topicCard: TopicCardSchema.optional() });
+
+// ── Obsidian material loader for outline ───────────────────────────────
+
+async function loadObsidianMaterialsForOutline(context: PipelineContext): Promise<string> {
+  const config = getCachedConfig();
+  const obsidianConfig = config.obsidian;
+  if (!obsidianConfig?.vaultPath) return '';
+
+  try {
+    const reader = getObsidianReader(obsidianConfig.vaultPath, obsidianConfig.readDirs);
+    await reader.load();
+
+    const topicAnalysis = context.get<TopicAnalysis>('topic-analysis');
+    const keywords: string[] = [];
+    if (topicAnalysis?.keyword) keywords.push(topicAnalysis.keyword);
+    if (topicAnalysis?.subTopics) {
+      for (const st of topicAnalysis.subTopics.slice(0, 3)) keywords.push(st.name);
+    }
+
+    if (keywords.length === 0) return '';
+
+    const materials = reader.search(keywords, { minQuality: 6, limit: 8 });
+    if (materials.length === 0) return '';
+
+    logger.info(`[outline-generation] loaded ${materials.length} Obsidian materials for knowledge transfer`);
+    return reader.formatForPrompt(materials);
+  } catch (err) {
+    logger.warn('[outline-generation] failed to load Obsidian materials:', String(err));
+    return '';
+  }
+}
 
 // ── Wechat ──────────────────────────────────────────────────────────
 
@@ -37,9 +72,15 @@ export class OutlineWechatStep extends PipelineStep<z.infer<typeof WechatInputSc
     const confirmedTitle = context.get<string>('confirmed-title-wechat');
     const title = confirmedTitle ?? assignments.wechat.titleDrafts[0];
     const topicCard = { ...assignments.wechat, title };
+
+    const materials = await loadObsidianMaterialsForOutline(context);
+
     const template = await promptLoader.load('create', 'outline', 'wechat');
     const systemPrompt = promptLoader.render(template.system, {});
-    const userPrompt = promptLoader.render(template.user, { topicCard: JSON.stringify(topicCard, null, 2) });
+    const userPrompt = promptLoader.render(template.user, {
+      topicCard: JSON.stringify(topicCard, null, 2),
+      materials,
+    });
 
     return this.callLLMJson<WechatOutline>([
       { role: 'system', content: systemPrompt },

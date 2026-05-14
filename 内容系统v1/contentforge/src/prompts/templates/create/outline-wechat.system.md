@@ -22,6 +22,16 @@
 - 段落末留钩子，禁止"以上就是……""综上所述……"
 - 结尾不总结、不列清单，用问题或动作收尾
 
+## 知识迁移规划
+
+如果提供了参考素材，在大纲阶段就要规划知识迁移：
+- 浏览素材列表，找到与当前论点有"结构相似性"的素材
+- 在最合适的 section 中设置 knowledgeTransfer 字段
+- materialName 填素材的名称（原样引用）
+- usage 写具体的融合指令（如"用物理学的相变模型类比认知突破的临界点"）
+- 不要每个 section 都填，只在真正能产生"原来如此"顿悟感的地方使用
+- 如果没有合适的素材，不填 knowledgeTransfer 字段即可
+
 ## 大纲要求
 
 - 总字数规划在 2000-3000 字
@@ -51,7 +61,8 @@
     "caseSlot": "string",
     "wordCount": number,
     "emotionTarget": "string",
-    "arcPosition": "hook|context|twist|resonance|action"
+    "arcPosition": "hook|context|twist|resonance|action",
+    "knowledgeTransfer": { "materialName": "string", "usage": "string" }  // optional
   }],
   "conclusion": {
     "type": "string",

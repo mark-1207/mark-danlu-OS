@@ -104,6 +104,10 @@ export const WechatOutlineSchema = z.object({
     wordCount: z.number(),
     emotionTarget: z.string(),
     arcPosition: z.enum(['hook', 'context', 'twist', 'resonance', 'action']).describe('该段落在情绪曲线中的位置'),
+    knowledgeTransfer: z.object({
+      materialName: z.string().describe('引用的知识库素材名称'),
+      usage: z.string().describe('如何将该素材融入本段落的写作指令'),
+    }).optional().describe('知识迁移计划，如无可不填'),
   })),
   conclusion: z.object({
     type: z.string(),
