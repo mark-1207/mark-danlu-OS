@@ -3,6 +3,59 @@ import chalk from 'chalk';
 import { callWithFallback } from '../../utils/llm-call.js';
 import type { CompetitorArticle } from './types.js';
 
+/**
+ * Parse JSON from LLM response — handles arrays, wrapped arrays, single objects,
+ * and nested structures like { "hook": [{...}], "transition": [{...}] } or
+ * { "opening": {...}, "argument": {...} }.
+ */
+function parseJsonItems<T>(raw: string): T[] {
+  // Try to parse the whole response as JSON first
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw.trim());
+  } catch {
+    // Try to find a JSON array
+    const arrayMatch = raw.match(/\[[\s\S]*\]/);
+    if (arrayMatch) {
+      try { parsed = JSON.parse(arrayMatch[0]); } catch { /* fall through */ }
+    }
+    // Try to find any JSON object
+    if (!parsed) {
+      const objMatch = raw.match(/\{[\s\S]*\}/);
+      if (objMatch) {
+        try { parsed = JSON.parse(objMatch[0]); } catch { return []; }
+      } else {
+        return [];
+      }
+    }
+  }
+
+  // If it's already an array, return it
+  if (Array.isArray(parsed)) return parsed as T[];
+
+  // If it's an object, check if it's a nested structure
+  if (typeof parsed === 'object' && parsed !== null) {
+    const values = Object.values(parsed);
+
+    // Case 1: { "hook": [{...}, {...}], "transition": [{...}] } — values are arrays of items
+    const allArrays = values.every((v) => Array.isArray(v));
+    if (allArrays && values.length > 0) {
+      return (values as T[][]).flat();
+    }
+
+    // Case 2: { "opening": {...}, "argument": {...} } — values are individual items
+    const allObjects = values.every((v) => typeof v === 'object' && v !== null && !Array.isArray(v));
+    if (allObjects && values.length > 0) {
+      return values as T[];
+    }
+
+    // Case 3: single item object — check if it has the expected fields
+    return [parsed as T];
+  }
+
+  return [];
+}
+
 type SentenceFragmentType = 'hook' | 'transition' | 'cta' | 'power-line' | 'rhetorical-question' | 'data-opener';
 type ParagraphFragmentType = 'opening' | 'argument' | 'emotional-peak' | 'closing' | 'case-study';
 
@@ -83,14 +136,14 @@ export async function extractSentenceFragments(
 
   const prompt = `${SENTENCE_EXTRACTION_PROMPT}\n\n# 文章平台: ${article.platform}\n# 文章标签: ${article.tags.join('、')}\n\n# 文章内容\n${content.slice(0, 8000)}`;
 
-  const raw = await callWithFallback([{ role: 'user', content: prompt }], { temperature: 0.3, maxTokens: 4096, jsonMode: true });
+  const raw = await callWithFallback([{ role: 'user', content: prompt }], { temperature: 0.3, maxTokens: 4096, jsonMode: true, model: 'heavy' });
 
-  const jsonMatch = raw.match(/\[[\s\S]*?\]\]/);
-  if (!jsonMatch) return [];
+  const items = parseJsonItems<{ type: SentenceFragmentType; text: string; structure: string }>(raw);
+  if (items.length === 0) return [];
 
-  try {
-    const items = JSON.parse(jsonMatch[0]) as { type: SentenceFragmentType; text: string; structure: string }[];
-    return items.map(item => ({
+  return items
+    .filter((item) => item.type && item.text && item.structure)
+    .map(item => ({
       id: randomUUID(),
       type: item.type,
       text: item.text,
@@ -103,9 +156,6 @@ export async function extractSentenceFragments(
       useCount: 0,
       decayLevel: 'active' as const,
     }));
-  } catch {
-    return [];
-  }
 }
 
 export async function extractParagraphFragments(
@@ -116,14 +166,14 @@ export async function extractParagraphFragments(
 
   const prompt = `${PARAGRAPH_EXTRACTION_PROMPT}\n\n# 文章内容\n${content.slice(0, 8000)}`;
 
-  const raw = await callWithFallback([{ role: 'user', content: prompt }], { temperature: 0.3, maxTokens: 4096, jsonMode: true });
+  const raw = await callWithFallback([{ role: 'user', content: prompt }], { temperature: 0.3, maxTokens: 4096, jsonMode: true, model: 'heavy' });
 
-  const jsonMatch = raw.match(/\[[\s\S]*?\]\]/);
-  if (!jsonMatch) return [];
+  const items = parseJsonItems<{ type: ParagraphFragmentType; text: string; structure: string }>(raw);
+  if (items.length === 0) return [];
 
-  try {
-    const items = JSON.parse(jsonMatch[0]) as { type: ParagraphFragmentType; text: string; structure: string }[];
-    return items.map(item => ({
+  return items
+    .filter((item) => item.type && item.text && item.structure)
+    .map(item => ({
       id: randomUUID(),
       type: item.type,
       text: item.text,
@@ -136,7 +186,4 @@ export async function extractParagraphFragments(
       useCount: 0,
       decayLevel: 'active' as const,
     }));
-  } catch {
-    return [];
-  }
 }

@@ -18,7 +18,8 @@ export async function runLearn(options: {
   inspect?: string;
   decay?: boolean;
   includeCompetitor?: boolean;
-  analyze?: boolean;  // 飞书 AI 分析
+  analyze?: boolean;
+  extractFragments?: boolean;
 }): Promise<void> {
   const config = await loadConfig();
   setCachedConfig(config);
@@ -224,6 +225,20 @@ export async function runLearn(options: {
     return;
   }
 
+  // ── --extract-fragments (碎片提取到 Obsidian) ─────────────────────
+  if (options.extractFragments) {
+    const { runFragmentExtraction } = await import('../../scenarios/topic/feishu-extract.js');
+    console.log(chalk.bold('\n🧩 碎片提取到 Obsidian\n'));
+    const result = await runFragmentExtraction();
+    console.log(chalk.green(`\n✅ 提取完成`));
+    console.log(`  总记录: ${result.total}`);
+    console.log(`  已提取: ${result.extracted}`);
+    console.log(`  跳过: ${result.skipped}`);
+    console.log(`  失败: ${result.errors}`);
+    console.log(`  写入原子卡: ${result.cardsWritten}`);
+    return;
+  }
+
   // ── --analyze (飞书 AI 分析) ──────────────────────────────────────
   if (options.analyze) {
     const { runFeishuAnalysis } = await import('../../scenarios/topic/feishu-analyze.js');
@@ -288,6 +303,7 @@ export function registerLearnCommand(program: Command): void {
     .option('--decay', '对碎片库执行 decay 扫描，更新老旧碎片状态')
     .option('--include-competitor', '生成竞品风格报告（基于飞书竞品素材库 analyzed/stored 记录）')
     .option('--analyze', 'AI 分析飞书待分析记录（提取爆款结构/选题角度/标签）')
+    .option('--extract-fragments', '从飞书已分析记录提取碎片写入 Obsidian 原子库')
     .action(async (opts) => {
       try {
         await runLearn({
@@ -301,6 +317,7 @@ export function registerLearnCommand(program: Command): void {
           decay: opts.decay,
           includeCompetitor: opts.includeCompetitor,
           analyze: opts.analyze,
+          extractFragments: opts.extractFragments,
         });
       } catch (error) {
         logger.error('learn command failed', { error: String(error) });
