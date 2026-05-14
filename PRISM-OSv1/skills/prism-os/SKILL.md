@@ -25,21 +25,29 @@ version: 1.0.6
 
 ### Phase 0: 意图识别与确认
 
-**执行方式**：当用户表达创作意图时，先判断是否触发 PRISM-OS。
+**执行方式**：当用户表达创作意图时，先调用 LLM 判断是否触发 PRISM-OS。
 
-**触发判断（Claude 直接判断，不需要调用 LLM）**：
+**意图识别 Prompt**：
+```
+分析用户输入，判断是否需要生成选题或标题。
 
-| 类型 | 示例 | 触发？ |
-|------|------|--------|
-| 显式请求 | "帮我写一篇关于AI的文章"、"想个选题" | 是 |
-| 表达观点/想法 | "我觉得AI会改变很多人的命运"、"努力可能是个陷阱" | 是 |
-| 话题疑问句 | "为什么程序员反而更焦虑了？"、"AI到底会不会取代人？" | 是 |
-| 分享信息 | "今天看到一个新闻说XXX"、"最近发现XXX挺有意思" | 是 |
-| 普通聊天 | "你好"、"今天天气不错" | 否 |
-| 技术问题 | "这个代码怎么写"、"帮我debug" | 否 |
-| 其他任务 | "帮我翻译这段话"、"总结一下这篇文章" | 否 |
+用户输入：{{USER_INPUT}}
 
-**判断原则**：用户输入中包含**可展开为选题的观点、现象、疑问或信息**，即使没有"写""选题"等关键词，也应触发。
+返回 JSON：
+{
+  "trigger": true/false,
+  "confidence": 0.0-1.0,
+  "reason": "简短理由"
+}
+
+触发条件（满足任一即触发）：
+1. 显式请求：用户想生成文章选题、拟定标题、策划内容方向、讨论写什么
+2. 表达观点/想法：用户表达了一个可以展开为选题的观点或立场
+3. 话题疑问句：用户提出了一个可以深入探讨的问题
+4. 分享信息：用户分享了新闻、现象、发现，暗示创作意图
+
+不触发：用户只是想聊天、问技术问题、做其他任务。
+```
 
 **如果 trigger=true**：追问确认
 
@@ -52,18 +60,23 @@ version: 1.0.6
 
 **如果 trigger=false**：不触发 skill，正常对话处理。
 
-### Phase 0.5: 自动抓取内容触发
+### Phase 0.5: marktap 抓取内容触发
 
-当竞品文章分析数据可用时（来自 contentforge 抓取流程），PRISM-OS 接收数据并进入选题流程：
+当用户通过 marktap 抓取竞品文章后，Claude 从 Obsidian `00_收件箱/` 读取新文章，提取选题方向送入 PRISM-OS：
 
-**触发方式**：抓取完成后，Claude 将分析结果作为用户输入送入 PRISM-OS，跳过 Phase 0 意图识别，直接进入 Phase 1 苏格拉底网关。
+**触发方式**：marktap 抓取完成后，Claude 读取新保存的文章，提取核心观点作为用户输入，跳过 Phase 0 意图识别，直接进入 Phase 1 苏格拉底网关。
 
-**输入格式**（由 Claude 从抓取输出中提取）：
+**marktap 工具**：
+- 位置：`D:\AI\marktap\marktap.js`
+- 功能：从 `links.txt` 读取 URL，抓取文章内容，保存到 Obsidian `00_收件箱/`
+- 支持平台：微信公众号、知乎、Twitter、小红书、微博、B站、Medium、Dev.to、Reddit、YouTube
+- 用法：双击桌面 `marktap.lnk` 或运行 `marktap-desktop.bat`
+
+**输入格式**（由 Claude 从文章中提取）：
 ```
-竞品文章标题：{{TITLE}}
+文章标题：{{TITLE}}
 平台：{{PLATFORM}}
-内容摘要：{{SUMMARY}}
-爆款结构：{{VIRAL_STRUCTURE}}
+核心观点：{{CORE_CLAIM}}
 选题角度：{{TOPIC_ANGLE}}
 ```
 
@@ -73,7 +86,7 @@ version: 1.0.6
 - Phase 2 棱镜引擎基于竞品分析生成差异化标题（避免重复竞品角度）
 - 后续流程与手动触发一致
 
-**注意**：抓取和分析由 contentforge 的 `topic scrape` 命令完成，PRISM-OS 只接收分析结果，不执行抓取。
+**注意**：抓取由 marktap 完成，PRISM-OS 只接收文章内容，不执行抓取。
 
 ---
 
@@ -133,10 +146,10 @@ def classify_input(user_raw_input):
   "reason": "命题有一定张力，但缺乏具体案例支撑"
 }
 
-决策规则：
-- Entropy < 1.5 → "blocked"，拦截重构
-- Entropy < 2.5 → "clarify"，迫选追问
-- Entropy >= 2.5 → "pass"，直接放行
+决策规则（总分 0-1）：
+- Entropy < 0.3 → "blocked"，拦截重构
+- Entropy < 0.7 → "clarify"，迫选追问
+- Entropy >= 0.7 → "pass"，直接放行
 ```
 
 **提取关键要素**：
@@ -389,7 +402,11 @@ def check_cliche(title, vocab_fingerprint_db):
 }
 ```
 
-**双端大纲生成 Prompt**：
+**双端大纲生成 Prompt**（仅当用户同时需要公众号+小红书时触发）：
+
+触发条件：用户明确表示要在公众号和小红书两个平台发布，或用户要求"双端大纲"。
+如果用户只需要单一平台，跳过此步骤，直接由 contentforge 的大纲步骤处理。
+
 ```
 你是全平台内容策划师。为同一选题生成两套大纲：
 
@@ -818,7 +835,7 @@ def search_with_retry(query, max_retries=3):
 
 **用户**: yes
 
-**网关熵值计算**: Entropy=0.2, decision=clarify
+**网关熵值计算**: Entropy=0.45, decision=clarify
 
 **输出追问**:
 ```
