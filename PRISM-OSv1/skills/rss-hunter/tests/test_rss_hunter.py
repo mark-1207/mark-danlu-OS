@@ -58,18 +58,18 @@ class TestSanitizeFilename:
 
 class TestBuildFrontmatter:
     def test_basic_fields(self):
-        fm = _build_frontmatter({"source": "36氪", "date": "2026-05-14"})
+        fm = _build_frontmatter({"type": "insight", "status": "active"})
         assert "---" in fm
-        assert "source: 36氪" in fm
-        assert "date: 2026-05-14" in fm
+        assert "type: insight" in fm
+        assert "status: active" in fm
 
     def test_list_field(self):
-        fm = _build_frontmatter({"tags": ["AI", "科技"]})
-        assert "tags: [AI, 科技]" in fm
+        fm = _build_frontmatter({"topics": ["AI", "科技"]})
+        assert "topics: [AI, 科技]" in fm
 
-    def test_float_field(self):
-        fm = _build_frontmatter({"confidence": 0.85})
-        assert "confidence: 0.85" in fm
+    def test_int_field(self):
+        fm = _build_frontmatter({"confidence": 8})
+        assert "confidence: 8" in fm
 
 
 class TestWriteObsidian:
@@ -99,6 +99,11 @@ class TestWriteObsidian:
         assert "数据裂缝" in content
         assert "Test Crack" in content
         assert "AI 会创造就业" in content
+        assert "type: insight" in content
+        assert "confidence: 8" in content  # 0.85 * 10 = 8.5, round(8.5) = 8 (banker's rounding)
+        assert "核心观点" in content
+        assert "洞察来源" in content
+        assert "洞察形成逻辑" in content
 
     def test_write_item_creates_file(self):
         result = write_item(
@@ -114,7 +119,12 @@ class TestWriteObsidian:
         assert result.exists()
         content = result.read_text(encoding="utf-8")
         assert "Test Item" in content
-        assert "裂缝" not in content  # 普通条目无裂缝信息
+        assert "type: atom" in content
+        assert "subtype: viewpoint" in content
+        assert "原子内容" in content
+        assert "来源" in content
+        assert "source_note: 36氪" in content
+        assert "source_url: https://example.com" in content
 
     def test_write_creates_directory(self):
         nested = self.tmpdir / "deep" / "nested" / "path"

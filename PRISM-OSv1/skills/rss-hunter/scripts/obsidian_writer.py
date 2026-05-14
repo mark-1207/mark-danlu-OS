@@ -2,6 +2,7 @@
 """
 RSS-Hunter Obsidian 写入模块
 将 RSS 条目（有裂缝/无裂缝）写入 Obsidian vault
+格式严格遵循 99_系统/Template/ 中的模板规范
 
 用法:
     from obsidian_writer import write_crack, write_item
@@ -40,14 +41,16 @@ def _get_vault_path() -> Path:
 
 def _sanitize_filename(title: str, max_len: int = 80) -> str:
     """将标题转为安全文件名"""
-    # 移除 Windows 不允许的字符
     safe = re.sub(r'[<>:"/\\|?*]', '', title)
-    # 移除换行和多余空格
     safe = re.sub(r'\s+', ' ', safe).strip()
-    # 截断
     if len(safe) > max_len:
         safe = safe[:max_len].rstrip()
     return safe or "untitled"
+
+
+def _confidence_to_score(confidence: float) -> int:
+    """将 0.0-1.0 置信度转为 1-10 整数评分"""
+    return max(1, min(10, round(confidence * 10)))
 
 
 def _build_frontmatter(fields: Dict) -> str:
@@ -55,8 +58,11 @@ def _build_frontmatter(fields: Dict) -> str:
     lines = ["---"]
     for key, value in fields.items():
         if isinstance(value, list):
-            lines.append(f"{key}: [{', '.join(str(v) for v in value)}]")
-        elif isinstance(value, float):
+            if value:
+                lines.append(f"{key}: [{', '.join(str(v) for v in value)}]")
+            else:
+                lines.append(f"{key}: []")
+        elif isinstance(value, int):
             lines.append(f"{key}: {value}")
         else:
             lines.append(f"{key}: {value}")
@@ -79,6 +85,7 @@ def write_crack(
 ) -> Optional[Path]:
     """
     将有裂缝的条目写入 Obsidian 洞察库
+    遵循 Insight_洞察模板.md 的 frontmatter 和 body 格式
 
     Args:
         title: 文章标题
@@ -99,43 +106,63 @@ def write_crack(
     if vault_path is None:
         vault_path = _get_vault_path()
 
-    # 构建目录
     crack_dir = vault_path / CRACK_SUBDIR
     crack_dir.mkdir(parents=True, exist_ok=True)
 
-    # 构建文件名
     today = datetime.now().strftime("%Y-%m-%d")
-    filename = f"{today}-{_sanitize_filename(title)}.md"
+    filename = f"{_sanitize_filename(title)}.md"
     filepath = crack_dir / filename
 
-    # 构建 frontmatter
+    # topics: 合并 category + tags，去重
+    topics = list(dict.fromkeys([category] + tags))
+
+    # frontmatter 遵循洞察模板
     frontmatter = _build_frontmatter({
-        "source": source,
-        "category": category,
-        "tags": tags,
-        "date": today,
-        "url": url,
-        "crack_type": crack_type,
-        "confidence": confidence,
+        "type": "insight",
+        "status": "active",
+        "topics": topics,
+        "sub_topics": [crack_type],
+        "source_file": source,
+        "atoms_used": [],
+        "linked_insights": [],
+        "linked_goldens": [],
+        "confidence": _confidence_to_score(confidence),
+        "usage_count": 0,
+        "created": today,
+        "updated": today,
     })
 
-    # 构建内容
+    # body 遵循洞察模板结构
     content = f"""{frontmatter}
-
 # {title}
 
+## 核心观点
+> {consensus} → {reality}
+
+## 洞察来源
+| 来源类型 | 来源ID | 说明 |
+|---------|--------|------|
+| RSS | {source} | [{title}]({url}) |
+
+## 洞察形成逻辑
+1. **前提**：{consensus}
+2. **真相**：{reality}
+3. **裂缝类型**：{crack_type}
+4. **置信度**：{confidence * 100:.0f}%
+
+## 内容摘要
 {summary}
 
-## 认知裂缝
-- 共识：{consensus}
-- 现实：{reality}
-- 裂缝类型：{crack_type}
-- 置信度：{confidence * 100:.0f}%
+---
+## 元信息
+- 成熟度：active（新发现）
+- 置信度：{_confidence_to_score(confidence)}/10
+- 使用次数：0
 """
 
     try:
         filepath.write_text(content, encoding="utf-8")
-        _safe_print(f"[写入] 裂缝 → {filepath.name}")
+        _safe_print(f"[写入] 洞察 → {filepath.name}")
         return filepath
     except Exception as e:
         _safe_print(f"[Error] 写入失败 {filepath}: {e}")
@@ -153,6 +180,7 @@ def write_item(
 ) -> Optional[Path]:
     """
     将无裂缝的条目写入 Obsidian 原子库
+    遵循 Atom_原子模板.md 的 frontmatter 和 body 格式
 
     Args:
         title: 文章标题
@@ -169,35 +197,48 @@ def write_item(
     if vault_path is None:
         vault_path = _get_vault_path()
 
-    # 构建目录
     item_dir = vault_path / ITEM_SUBDIR
     item_dir.mkdir(parents=True, exist_ok=True)
 
-    # 构建文件名
     today = datetime.now().strftime("%Y-%m-%d")
-    filename = f"{today}-{_sanitize_filename(title)}.md"
+    filename = f"{_sanitize_filename(title)}.md"
     filepath = item_dir / filename
 
-    # 构建 frontmatter
+    # topics: 合并 category + tags，去重
+    topics = list(dict.fromkeys([category] + tags))
+
+    # frontmatter 遵循原子模板
     frontmatter = _build_frontmatter({
-        "source": source,
-        "category": category,
-        "tags": tags,
-        "date": today,
-        "url": url,
+        "type": "atom",
+        "subtype": "viewpoint",
+        "status": "active",
+        "topics": topics,
+        "source_note": source,
+        "source_url": url,
+        "linked_insights": [],
+        "linked_goldens": [],
+        "quality_score": 7,
+        "usage_count": 0,
+        "created": today,
+        "updated": today,
     })
 
-    # 构建内容
+    # body 遵循原子模板结构
     content = f"""{frontmatter}
-
 # {title}
 
-{summary}
+## 原子内容
+> {summary}
+
+## 来源
+- 信源：{source}
+- 链接：[{title}]({url})
+- 日期：{today}
 """
 
     try:
         filepath.write_text(content, encoding="utf-8")
-        _safe_print(f"[写入] 普通 → {filepath.name}")
+        _safe_print(f"[写入] 原子 → {filepath.name}")
         return filepath
     except Exception as e:
         _safe_print(f"[Error] 写入失败 {filepath}: {e}")
@@ -210,11 +251,36 @@ if __name__ == "__main__":
     _safe_print("obsidian_writer.py - Obsidian 写入模块测试")
 
     _safe_print("\n[测试] _sanitize_filename...")
-    _safe_print(f"  'AI 让程序员失业？' → '{_sanitize_filename('AI 让程序员失业？')}'")
-    _safe_print(f"  'Test: <invalid> chars' → '{_sanitize_filename('Test: <invalid> chars')}'")
+    _safe_print(f"  'AI 让程序员失业？' -> '{_sanitize_filename('AI 让程序员失业？')}'")
+    _safe_print(f"  'Test: <invalid> chars' -> '{_sanitize_filename('Test: <invalid> chars')}'")
 
-    _safe_print("\n[测试] _build_frontmatter...")
-    fm = _build_frontmatter({"source": "36氪", "tags": ["AI", "科技"], "confidence": 0.85})
+    _safe_print("\n[测试] _confidence_to_score...")
+    _safe_print(f"  0.85 -> {_confidence_to_score(0.85)}")
+    _safe_print(f"  0.5 -> {_confidence_to_score(0.5)}")
+    _safe_print(f"  1.0 -> {_confidence_to_score(1.0)}")
+
+    _safe_print("\n[测试] _build_frontmatter (洞察格式)...")
+    fm = _build_frontmatter({
+        "type": "insight",
+        "status": "active",
+        "topics": ["AI", "科技"],
+        "confidence": 8,
+        "usage_count": 0,
+        "created": "2026-05-14",
+        "updated": "2026-05-14",
+    })
     _safe_print(fm)
+
+    _safe_print("\n[测试] _build_frontmatter (原子格式)...")
+    fm2 = _build_frontmatter({
+        "type": "atom",
+        "subtype": "viewpoint",
+        "status": "active",
+        "topics": ["AI", "科技"],
+        "quality_score": 7,
+        "created": "2026-05-14",
+        "updated": "2026-05-14",
+    })
+    _safe_print(fm2)
 
     _safe_print("\n测试完成！")
