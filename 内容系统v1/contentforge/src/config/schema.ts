@@ -82,6 +82,16 @@ const ConfigSchema = z.object({
       rotationOrder: z.array(z.string()).default(['openai', 'kimi', 'gemini']),
     })
     .optional(),
+  obsidian: z
+    .object({
+      vaultPath: z.string().describe('Absolute path to Obsidian vault root'),
+      readDirs: z
+        .array(z.string())
+        .default(['40_知识库/原子库', '40_知识库/洞察库', '40_知识库/金句库', '40_知识库/思维模型', '40_知识库/人生哲学', '30_研究/书籍拆解'])
+        .describe('Relative paths under vault to read knowledge from'),
+      writeDir: z.string().default('50_资源/生成文章').describe('Relative path under vault to write generated articles'),
+    })
+    .optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

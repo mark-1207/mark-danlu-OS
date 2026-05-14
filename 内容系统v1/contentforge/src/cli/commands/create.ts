@@ -40,6 +40,7 @@ import {
 } from '../../scenarios/create/steps/index.js';
 import { askPostGen } from '../../scenarios/revision/cli/post-gen-prompt.js';
 import { RevisionPipeline } from '../../scenarios/revision/index.js';
+import { getObsidianWriter } from '../../io/obsidian/writer.js';
 
 const VALID_PLATFORMS = ['wechat', 'xiaohongshu', 'douyin'] as const;
 const PLATFORM_LABELS: Record<string, string> = {
@@ -64,6 +65,40 @@ export async function cleanupIntermediateFiles(runDir: string): Promise<void> {
       .filter((f) => !KEEP.has(f) && !f.endsWith('.md'))
       .map((f) => fs.unlink(path.join(runDir, f))),
   );
+}
+
+/**
+ * Write generated articles back to Obsidian vault (if configured).
+ */
+async function writeArticlesToObsidian(
+  context: PipelineContext,
+  platforms: string[],
+): Promise<void> {
+  const { getCachedConfig } = await import('../../config/loader.js');
+  const config = getCachedConfig();
+  const obsidianConfig = config.obsidian;
+  if (!obsidianConfig?.vaultPath) return;
+
+  const writer = getObsidianWriter(obsidianConfig.vaultPath, obsidianConfig.writeDir);
+  const topicAnalysis = context.get<TopicAnalysis>('topic-analysis');
+
+  for (const platform of platforms) {
+    const reviewResult = context.get<ReviewResult>(`review-${platform}`);
+    if (!reviewResult) continue;
+
+    try {
+      const filePath = await writer.writeArticle({
+        title: reviewResult.recommendedTitle,
+        content: reviewResult.revisedContent,
+        platform,
+        topics: topicAnalysis?.subTopics?.map((s) => s.name) ?? [],
+        keyword: topicAnalysis?.keyword,
+      });
+      logger.info(`[create] article synced to Obsidian: ${filePath}`);
+    } catch (err) {
+      logger.warn(`[create] failed to write ${platform} article to Obsidian:`, String(err));
+    }
+  }
 }
 
 // ─── Helper: buildTopicAnalysisReview ─────────────────────────────────────────
@@ -384,6 +419,9 @@ export async function runCreate(
       // Cleanup: keep only final .md files and run-meta.json
       await cleanupIntermediateFiles(runDir);
 
+      // Sync articles to Obsidian (if configured)
+      await writeArticlesToObsidian(context, platformsToRun);
+
       // Summarize
       const tokenUsage = context.getTotalTokenUsage();
       const cost = estimateCost(tokenUsage.input, tokenUsage.output);
@@ -454,6 +492,9 @@ export async function runCreate(
 
     // Cleanup: keep only final .md files and run-meta.json
     await cleanupIntermediateFiles(runDir);
+
+    // Sync articles to Obsidian (if configured)
+    await writeArticlesToObsidian(finalContext, [...platformNames]);
 
     // Summarize
     const tokenUsage = finalContext.getTotalTokenUsage();

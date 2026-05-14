@@ -65,4 +65,16 @@ export const DEFAULT_CONFIG: Config = {
   textProviders: {
     rotationOrder: ['openai', 'kimi', 'gemini'],
   },
+  obsidian: {
+    vaultPath: 'd:/软件/obsidian笔记/内容素材库',
+    readDirs: [
+      '40_知识库/原子库',
+      '40_知识库/洞察库',
+      '40_知识库/金句库',
+      '40_知识库/思维模型',
+      '40_知识库/人生哲学',
+      '30_研究/书籍拆解',
+    ],
+    writeDir: '50_资源/生成文章',
+  },
 };
