@@ -89,6 +89,13 @@ export const WechatOutlineSchema = z.object({
     technique: z.string(),
     content: z.string(),
   }),
+  emotionalArc: z.object({
+    hook: z.string().describe('钩子：极速拉升唤醒度，3秒抓住注意力'),
+    context: z.string().describe('铺垫：效价平稳，建立"跟我有关"的预期'),
+    twist: z.string().describe('冲突/反转：效价剧烈翻转，唤醒度峰值'),
+    resonance: z.string().describe('共鸣：情绪转化为思考，"想通了"的爽感'),
+    action: z.string().describe('行动：情绪回落前给出口，问题或动作收尾'),
+  }),
   sections: z.array(z.object({
     title: z.string(),
     purpose: z.string(),
@@ -96,6 +103,7 @@ export const WechatOutlineSchema = z.object({
     caseSlot: z.string(),
     wordCount: z.number(),
     emotionTarget: z.string(),
+    arcPosition: z.enum(['hook', 'context', 'twist', 'resonance', 'action']).describe('该段落在情绪曲线中的位置'),
   })),
   conclusion: z.object({
     type: z.string(),
