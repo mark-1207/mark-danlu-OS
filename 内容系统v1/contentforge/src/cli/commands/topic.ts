@@ -95,7 +95,7 @@ export function registerTopicCommand(program: Command): void {
             const result = await scrapeOne(url);
             succeeded.push(result);
 
-            // Output analysis data for Claude/PRISM-OS consumption
+            // 展示分析结果
             console.log(chalk.cyan('\n--- 竞品分析 ---'));
             console.log(`标题: ${result.title}`);
             console.log(`平台: ${result.platform}`);
