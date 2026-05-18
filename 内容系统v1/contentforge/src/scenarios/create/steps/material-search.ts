@@ -3,6 +3,7 @@ import { PipelineStep } from '../../../core/step.js';
 import { PipelineContext } from '../../../core/context.js';
 import type { LLMProvider } from '../../../llm/types.js';
 import { getCachedConfig } from '../../../config/loader.js';
+import { callWithFallback } from '../../../utils/llm-call.js';
 import { logger } from '../../../utils/logger.js';
 import {
   MaterialSearchOutputSchema,
@@ -172,9 +173,55 @@ export function extractQueriesFromOutlines(
 /**
  * Use LLM to extract materials from raw search results
  */
+/**
+ * Extract the first JSON array from LLM output, tolerating trailing garbage.
+ * Handles: markdown fences, leading text, trailing explanations, single objects.
+ */
+function extractJsonArray(raw: string): unknown[] | null {
+  let text = raw.trim();
+  // Strip markdown code fences
+  text = text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+
+  // Try to find a JSON array first
+  const arrStart = text.indexOf('[');
+  if (arrStart !== -1) {
+    let depth = 0;
+    for (let i = arrStart; i < text.length; i++) {
+      if (text[i] === '[') depth++;
+      else if (text[i] === ']') depth--;
+      if (depth === 0) {
+        try {
+          const parsed = JSON.parse(text.slice(arrStart, i + 1));
+          if (Array.isArray(parsed)) return parsed;
+        } catch { /* continue to try single object */ }
+        break;
+      }
+    }
+  }
+
+  // Fallback: try parsing as a single JSON object and wrap in array
+  const objStart = text.indexOf('{');
+  if (objStart !== -1) {
+    let depth = 0;
+    for (let i = objStart; i < text.length; i++) {
+      if (text[i] === '{') depth++;
+      else if (text[i] === '}') depth--;
+      if (depth === 0) {
+        try {
+          const parsed = JSON.parse(text.slice(objStart, i + 1));
+          if (parsed && typeof parsed === 'object') return [parsed];
+        } catch { /* give up */ }
+        break;
+      }
+    }
+  }
+
+  return null;
+}
+
 async function extractMaterials(
-  provider: LLMProvider,
-  defaultModel: string,
+  _provider: LLMProvider,
+  _defaultModel: string,
   platform: 'wechat' | 'xiaohongshu' | 'douyin',
   outlineSection: string,
   searchResults: SearchResult[],
@@ -212,27 +259,30 @@ Return a JSON array like:
 
 Return ONLY valid JSON, no markdown.`;
 
+  const messages = [
+    { role: 'system' as const, content: systemPrompt },
+    { role: 'user' as const, content: userPrompt },
+  ];
+
+  // callWithFallback: primary(openai/mimo) → fallback(kimi), auto jsonMode retry
   try {
-    const response = await provider.chat({
-      model: defaultModel,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
+    const content = await callWithFallback(messages, {
       temperature: 0.3,
       maxTokens: 2048,
       jsonMode: true,
     });
 
-    const parsed = JSON.parse(response.content);
-    if (Array.isArray(parsed)) {
+    const parsed = extractJsonArray(content);
+    if (parsed) {
       return parsed.filter(
         (m): m is Material =>
           m != null && typeof m === 'object' && 'type' in m && 'content' in m && 'source' in m,
       );
     }
+    logger.warn(`[material-search] no JSON array found in LLM response for ${platform}: ${content.slice(0, 200)}`);
   } catch (err) {
-    logger.warn(`[material-search] LLM extraction failed for ${platform}:`, String(err));
+    const errMsg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    logger.warn(`[material-search] LLM extraction failed for ${platform}: ${errMsg}`);
   }
 
   return [];
