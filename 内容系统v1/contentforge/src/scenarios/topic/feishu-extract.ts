@@ -118,6 +118,56 @@ function paragraphToAtomCard(
 }
 
 /**
+ * Write a fallback atom card when no fragments were extracted.
+ * Uses the analyzed fields (title + topic angle + tags) as the card content.
+ */
+function writeFallbackAtomCard(
+  record: FeishuRecord,
+): { filename: string; content: string } {
+  const title = record.fields.原文标题;
+  const topicAngle = record.fields.选题角度 ?? '';
+  const tags = record.fields.标签 ?? [];
+  const summary = record.fields.内容摘要 ?? '';
+  const sourceUrl = record.fields.原始链接;
+  const now = new Date().toISOString().slice(0, 10);
+
+  const name = `fallback-${title.slice(0, 20).replace(/[\n\r]/g, '').replace(/[\\/:*?"<>|]/g, '_')}`;
+
+  const frontmatter = [
+    '---',
+    'type: atom',
+    'subtype: fallback',
+    'status: active',
+    `topics: [${tags.join(', ')}]`,
+    'quality_score: 6',
+    'usage_count: 0',
+    `source_note: "${title}"`,
+    `source_url: "${sourceUrl}"`,
+    `created: ${now}`,
+    `updated: ${now}`,
+    '---',
+  ].join('\n');
+
+  const body = [
+    `# ${title}`,
+    '',
+    '## 选题角度',
+    topicAngle || '（未提取到有效角度）',
+    '',
+    '## 内容摘要',
+    summary || '（无摘要）',
+    '',
+    '## 标签',
+    tags.length > 0 ? tags.join('、') : '（无标签）',
+    '',
+    '## 说明',
+    '⚠️ 碎片提取为 0，以此分析结果字段代替写入，仅作素材积累',
+  ].join('\n');
+
+  return { filename: `${name}.md`, content: `${frontmatter}\n\n${body}\n` };
+}
+
+/**
  * Extract fragments from analyzed feishu records and write to Obsidian.
  */
 export async function runFragmentExtraction(): Promise<{
@@ -179,15 +229,33 @@ export async function runFragmentExtraction(): Promise<{
       }
 
       const totalFragments = sentences.length + paragraphs.length;
-      if (totalFragments > 0) {
+      if (totalFragments === 0) {
+        // Fallback: write a card using analyzed fields (title + angle + tags)
+        const { filename, content: cardContent } = writeFallbackAtomCard(record);
+        await fs.writeFile(path.join(atomDir, filename), cardContent, 'utf-8');
+        cardsWritten++;
+        logger.info(`[feishu-extract] ⚠️ "${title}" — no fragments, wrote fallback card`);
+      } else {
+        // Write atom cards to Obsidian
+        for (const s of sentences) {
+          const { filename, content: cardContent } = sentenceToAtomCard(s, title, record.fields.原始链接);
+          await fs.writeFile(path.join(atomDir, filename), cardContent, 'utf-8');
+          cardsWritten++;
+        }
+
+        for (const p of paragraphs) {
+          const { filename, content: cardContent } = paragraphToAtomCard(p, title, record.fields.原始链接);
+          await fs.writeFile(path.join(atomDir, filename), cardContent, 'utf-8');
+          cardsWritten++;
+        }
+
         // Update feishu status only when fragments were actually extracted
         await updateFeishuRecordStatus(record.record_id, 'stored', {
           '碎片提取时间': new Date().toISOString(),
         });
-      }
 
-      logger.info(`[feishu-extract] ✅ "${title}" — ${sentences.length} sentences + ${paragraphs.length} paragraphs`);
-      extracted++;
+        logger.info(`[feishu-extract] ✅ "${title}" — ${sentences.length} sentences + ${paragraphs.length} paragraphs`);
+      }
     } catch (err) {
       logger.error(`[feishu-extract] ❌ "${title}": ${String(err)}`);
       errors++;
