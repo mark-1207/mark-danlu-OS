@@ -7,6 +7,9 @@ import { llmFactory } from '../../llm/factory.js';
 import { runFragmentAnalysis } from '../../fragment-library/analyzer.js';
 import { getFragmentStore } from '../../fragment-library/fragment-store.js';
 import { logger } from '../../utils/logger.js';
+import { readFeedbackRecords } from '../../scenarios/feedback/feishu-feedback.js';
+import { buildFeedbackSignal, computeFeedbackStats, compareWithCompetitor } from '../../scenarios/feedback/analyzer.js';
+import { readFeishuRecords } from '../../scenarios/topic/feishu-sync.js';
 
 export async function runLearn(options: {
   corpusDir?: string;
@@ -20,6 +23,8 @@ export async function runLearn(options: {
   includeCompetitor?: boolean;
   analyze?: boolean;
   extractFragments?: boolean;
+  feedbackSummary?: boolean;
+  feedbackCompare?: boolean;
 }): Promise<void> {
   const config = await loadConfig();
   setCachedConfig(config);
@@ -261,6 +266,75 @@ export async function runLearn(options: {
     return;
   }
 
+  // ── --feedback-summary ────────────────────────────────────────
+  if (options.feedbackSummary) {
+    const records = await readFeedbackRecords();
+    const signal = buildFeedbackSignal(records);
+    const stats = computeFeedbackStats(records);
+
+    console.log(chalk.bold('\n📈 反馈数据分析报告\n'));
+    console.log(`总文章数: ${stats.totalArticles}`);
+    console.log(`平均阅读: ${stats.avgReads.toFixed(0)}`);
+    console.log(`平均互动率: ${(stats.avgEngagement * 100).toFixed(2)}%`);
+    console.log(chalk.bold('\n🏆 表现最佳\n'));
+    if (signal.topPlatform) console.log(`平台: ${signal.topPlatform}`);
+    console.log(`结构: ${signal.topStructures.join(' > ')}`);
+    console.log(`调性: ${signal.topTones.join(' > ')}`);
+    console.log(`角度: ${signal.topAngles.join(' > ')}`);
+
+    if (signal.weakPatterns.length > 0) {
+      console.log(chalk.bold('\n⚠️ 弱势模式\n'));
+      for (const w of signal.weakPatterns) {
+        console.log(`  ${w.recommendation}`);
+      }
+    }
+
+    if (Object.keys(signal.platformDiff).length > 0) {
+      console.log(chalk.bold('\n📱 平台差异\n'));
+      for (const [p, eng] of Object.entries(signal.platformDiff)) {
+        console.log(`  ${p}: ${(eng * 100).toFixed(2)}%`);
+      }
+    }
+
+    console.log(chalk.green('\n✅ 反馈分析完成\n'));
+    return;
+  }
+
+  // ── --feedback-compare ─────────────────────────────────────────
+  if (options.feedbackCompare) {
+    const myRecords = await readFeedbackRecords();
+    const competitorRecords = await readFeishuRecords();
+    const analyzed = competitorRecords.filter(r => r.fields.状态 === 'analyzed' || r.fields.状态 === 'stored');
+
+    // Build competitor engagement map by tag (mock: from interaction data if available)
+    // In real use, competitor records may not have engagement data — skip if unavailable
+    const competitorEngByTag: Record<string, number> = {};
+    for (const r of analyzed) {
+      if (!r.fields.互动数据) continue;
+      const parts = r.fields.互动数据.split(/[,/]/).map(Number);
+      const likes = parts[0] || 0;
+      const reads = parts[1] || 0;
+      if (reads > 0) {
+        const eng = likes / reads;
+        for (const tag of (r.fields.标签 ?? [])) {
+          if (!competitorEngByTag[tag]) competitorEngByTag[tag] = 0;
+          competitorEngByTag[tag] = Math.max(competitorEngByTag[tag], eng);
+        }
+      }
+    }
+
+    const gaps = compareWithCompetitor(myRecords, competitorEngByTag);
+
+    console.log(chalk.bold('\n🔍 我方 vs 竞品差距分析\n'));
+    for (const g of gaps) {
+      const icon = g.direction === 'mine_better' ? '✅' : g.direction === 'competitor_better' ? '❌' : '➖';
+      console.log(`${icon} ${g.myTag} | 我: ${(g.myAvgEngagement * 100).toFixed(2)}% | 竞品: ${(g.competitorAvgEngagement * 100).toFixed(2)}%`);
+      console.log(`   → ${g.recommendation}`);
+    }
+    console.log(chalk.green('\n✅ 差距分析完成\n'));
+    return;
+  }
+
   // ── Default: run analysis ────────────────────────────────────────────
   const profile = store.getStyleProfile();
   const sentences = store.getAllSentences();
@@ -304,6 +378,8 @@ export function registerLearnCommand(program: Command): void {
     .option('--include-competitor', '生成竞品风格报告（基于飞书竞品素材库 analyzed/stored 记录）')
     .option('--analyze', 'AI 分析飞书待分析记录（提取爆款结构/选题角度/标签）')
     .option('--extract-fragments', '从飞书已分析记录提取碎片写入 Obsidian 原子库')
+    .option('--feedback-summary', '分析反馈数据，输出表现最佳的平台/结构/调性/角度')
+    .option('--feedback-compare', '对比我方内容与竞品内容的标签级差距')
     .action(async (opts) => {
       try {
         await runLearn({
@@ -318,6 +394,8 @@ export function registerLearnCommand(program: Command): void {
           includeCompetitor: opts.includeCompetitor,
           analyze: opts.analyze,
           extractFragments: opts.extractFragments,
+          feedbackSummary: opts.feedbackSummary,
+          feedbackCompare: opts.feedbackCompare,
         });
       } catch (error) {
         logger.error('learn command failed', { error: String(error) });
