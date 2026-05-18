@@ -29,6 +29,8 @@ export interface TopicAnalysisResult {
   viralStructure: string;
   topicAngle: string;
   tags: string[];
+  narrativeStructure: '故事型' | '清单型' | '对比型' | '分析型' | '混合型' | '';
+  emotionalTone: '励志' | '冷静' | '温暖' | '犀利' | '幽默' | '';
 }
 
 export interface CompetitorInsight {
@@ -50,6 +52,9 @@ export interface FeishuRecord {
     互动数据?: string;
     内容摘要?: string;
     爆款结构?: string;
+    叙事结构?: string;
+    情感调性?: string;
+    内容角度?: string;
     选题角度?: string;
     标签?: string[];
     来源类型: SourceType;

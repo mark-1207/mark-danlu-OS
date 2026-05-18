@@ -19,13 +19,17 @@ async function analyzeArticle(title: string, content: string, platform: string):
 2. 选题角度：这篇文章的切入角度是什么？为什么这个角度能火？
 3. 标签：提取 3-5 个关键词标签
 4. 内容摘要：一句话概括核心观点
+5. 叙事结构：判断文章整体属于哪种叙事模式（故事型/清单型/对比型/分析型/混合型）
+6. 情感调性：判断文章整体情感调性（励志/冷静/温暖/犀利/幽默）
 
 输出 JSON：
 {
   "summary": "一句话核心观点",
   "viralStructure": "叙事结构拆解",
   "topicAngle": "选题角度分析",
-  "tags": ["标签1", "标签2", "标签3"]
+  "tags": ["标签1", "标签2", "标签3"],
+  "narrativeStructure": "故事型" | "清单型" | "对比型" | "分析型" | "混合型",
+  "emotionalTone": "励志" | "冷静" | "温暖" | "犀利" | "幽默"
 }
 
 只输出 JSON，不要其他内容。`;
@@ -89,6 +93,9 @@ export async function runFeishuAnalysis(): Promise<{
         '选题角度': result.topicAngle,
         '标签': result.tags,
         '内容摘要': result.summary,
+        '叙事结构': result.narrativeStructure,
+        '情感调性': result.emotionalTone,
+        '内容角度': result.topicAngle,
       });
 
       logger.info(`[feishu-analyze] ✅ "${title}" — tags: ${result.tags.join(', ')}`);
