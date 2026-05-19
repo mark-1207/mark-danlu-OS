@@ -16,6 +16,15 @@ import os
 import re
 from typing import Dict, List, Optional, Any
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# ============ 规则映射表（Phase 4.7） ============
+from _rule_mappings import (
+    recognize_content_goal_rule,
+    recognize_user_motivation_rule,
+    classify_topic_type_rule,
+    decide_progression_method_rule,
+)
 
 # ============ YAML 配置加载 ============
 
@@ -50,7 +59,8 @@ def _get_config(path: List[str], default: Any = None) -> Any:
 # ============ T-1: 基础辅助函数 ============
 
 def _call_llm_raw(prompt: str, temperature: float = 0.7) -> Optional[str]:
-    """调用 LLM，返回原始文本"""
+    """调用 LLM，返回原始文本（Phase 4.7: 修复 scene bug）"""
+    os.environ["GATEWAY_SCENE"] = "writing-cn"
     sys.path.insert(0, str(Path(__file__).parent))
     from call_llm import call_llm as _call_llm
     result = _call_llm(prompt, temperature=temperature)
@@ -338,86 +348,38 @@ def cognitive_alignment_layer0(topic: str, platform: str = "both", user_input: s
 # ============ T-7: Layer 1 内容意图识别 ============
 
 def recognize_content_goal(topic: str, alignment_result: Dict) -> Dict:
-    """识别8类内容目标"""
-    prompt = f"""你是内容策略专家。根据命题识别内容目标。
-
-命题：{topic}
-
-八类内容目标：
-1. 认知升级：改变读者理解
-2. 情绪共鸣：建立代入感
-3. 实操教学：提供路径方法
-4. 趋势分析：建立判断力
-5. 观点表达：输出立场
-6. 信息整理：降低理解成本
-7. 身份认同：建立群体感
-8. 转化成交：建立信任
-
-用户立场：{alignment_result.get("parsed", {}).get("立场", "未明确")}
-用户方向：{alignment_result.get("parsed", {}).get("方向", "未明确")}
-
-返回 JSON：
-{{"内容目标": "具体目标", "置信度": 0.0-1.0}}"""
-
-    raw = _call_llm_raw(prompt)
-    if not raw:
-        return {"内容目标": "认知升级", "置信度": 0.5}
-    parsed = _parse_llm_json(raw)
-    if not parsed:
-        return {"内容目标": "认知升级", "置信度": 0.5}
-    return parsed
+    """识别8类内容目标（规则版 Phase 4.7）"""
+    return recognize_content_goal_rule(topic, alignment_result)
 
 
 def recognize_user_motivation(topic: str, alignment_result: Dict) -> Dict:
-    """识别用户阅读动机"""
-    prompt = f"""你是用户动机分析师。根据命题推断读者阅读动机。
+    """识别用户阅读动机（规则版 Phase 4.7）"""
+    return recognize_user_motivation_rule(topic, alignment_result)
 
-命题：{topic}
-用户立场：{alignment_result.get("parsed", {}).get("立场", "未明确")}
 
-常见动机类型：
-- 焦虑：想解决问题但不知道怎么做
-- 好奇：想了解新趋势/新事物
-- 认同：想找到同路人
-- 学习：想提升某方面能力
-- 决策：需要做某个决定但缺少信息
-- 转化：想影响他人或推动行动
+# ============ T-8: Phase 4.7 Layer 2 并行化 ============
 
-返回 JSON：
-{{"用户动机": "主动机", "二级动机": ["副动机1", "副动机2"]}}"""
-
-    raw = _call_llm_raw(prompt)
-    if not raw:
-        return {"用户动机": "好奇", "二级动机": ["焦虑", "学习"]}
-    parsed = _parse_llm_json(raw)
-    if not parsed:
-        return {"用户动机": "好奇", "二级动机": ["焦虑", "学习"]}
-    return parsed
+def _parallel_layer2(topic: str) -> Dict:
+    """并行执行 Layer 2 的 3个 LLM 调用（Phase 4.7）"""
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        f1 = executor.submit(extract_core_problem, topic)
+        f2 = executor.submit(extract_cognitive_tension, topic)
+        f3 = executor.submit(infer_potential_directions, topic)
+        core_problem = f1.result()
+        cognitive_tension = f2.result()
+        potential_directions = f3.result()
+    return {
+        "core_problem": core_problem,
+        "cognitive_tension": cognitive_tension,
+        "potential_directions": potential_directions,
+    }
 
 
 # ============ T-9~T-12: Layer 2 选题解析 ============
 
 def classify_topic_type(topic: str) -> Dict:
-    """识别5类选题类型"""
-    prompt = f"""分析命题类型。
-
-命题：{topic}
-
-五类选题类型：
-1. 趋势型：关注新事物/新变化
-2. 方法型：提供解决方案/步骤
-3. 观点型：表达立场/看法
-4. 情绪型：建立共鸣/情感连接
-5. 行业型：分析某个领域/行业
-
-返回 JSON：
-{{"类型": "类型名", "置信度": 0.0-1.0}}"""
-
-    raw = _call_llm_raw(prompt)
-    if not raw:
-        return {"类型": "观点型", "置信度": 0.5}
-    parsed = _parse_llm_json(raw)
-    return parsed if parsed else {"类型": "观点型", "置信度": 0.5}
+    """识别5类选题类型（规则版 Phase 4.7）"""
+    return classify_topic_type_rule(topic)
 
 
 def extract_core_problem(topic: str) -> Dict:
@@ -513,31 +475,9 @@ def select_main_structure(topic_type: str, alignment_result: Dict) -> Dict:
     }
 
 
-def decide_progression_method(structure: str, topic: str) -> Dict:
-    """决定6种推进方式中的一种或组合"""
-    prompt = f"""根据主结构选择推进方式。
-
-主结构：{structure}
-命题：{topic}
-
-六种推进方式：
-1. 递进推进：层层深入
-2. 拆解推进：模块化拆解
-3. 情绪推进：情绪曲线驱动
-4. 对比推进：强反差
-5. 冲突推进：认知碰撞
-6. 案例推进：从案例抽象
-
-返回 JSON：
-{{"推进方式": "方式名", "描述": "方式说明"}}"""
-
-    raw = _call_llm_raw(prompt)
-    if not raw:
-        return {"推进方式": "冲突推进", "描述": "制造认知落差"}
-    parsed = _parse_llm_json(raw)
-    if not parsed:
-        return {"推进方式": "冲突推进", "描述": "制造认知落差"}
-    return parsed
+def decide_progression_method(structure: str, topic: str, alignment_result: Optional[Dict] = None) -> Dict:
+    """决定6种推进方式中的一种或组合（规则版 Phase 4.7）"""
+    return decide_progression_method_rule(structure, topic, alignment_result)
 
 
 # ============ T-15~T-16: Layer 4 认知模块编排 ============
@@ -645,34 +585,50 @@ def generate_narrative_energy(topic: str, module_flow: List[Dict], platform: str
 
 # ============ T-19: CCOS 主函数 ============
 
-def cognitive_outline_workflow(topic: str, dimension: str, platform: str, alignment_result: Optional[Dict] = None) -> Dict:
+def cognitive_outline_workflow(
+    topic: str,
+    dimension: str,
+    platform: str,
+    alignment_result: Optional[Dict] = None,
+    shared_layer2_result: Optional[Dict] = None,
+) -> Dict:
     """
     Phase 4.5 完整流程：14项动态认知大纲生成
     顺序调用 T-7/T-8/T-9/T-10/T-11/T-12/T-13/T-14/T-16/T-17/T-18
+
+    Phase 4.7 优化：
+    - shared_layer2_result: 双平台共用 Layer 2 结果，传入则复用
+    - Layer 2 LLM 调用并行化（通过 shared_layer2_result 或 _parallel_layer2）
     """
     if alignment_result is None:
         alignment_result = {}
     if not alignment_result.get("parsed"):
         alignment_result["parsed"] = {}
 
-    # Layer 1: 内容意图识别
+    # Layer 1: 内容意图识别（规则版，无 LLM）
     content_goal = recognize_content_goal(topic, alignment_result)
     user_motivation = recognize_user_motivation(topic, alignment_result)
 
-    # Layer 2: 选题解析
+    # Layer 2: 选题解析（规则版 + LLM，并行化）
     topic_type_info = classify_topic_type(topic)
     topic_type = topic_type_info.get("类型", "观点型")
-    core_problem = extract_core_problem(topic)
-    cognitive_tension = extract_cognitive_tension(topic)
-    potential_directions = infer_potential_directions(topic)
+    if shared_layer2_result:
+        core_problem = shared_layer2_result["core_problem"]
+        cognitive_tension = shared_layer2_result["cognitive_tension"]
+        potential_directions = shared_layer2_result["potential_directions"]
+    else:
+        layer2 = _parallel_layer2(topic)
+        core_problem = layer2["core_problem"]
+        cognitive_tension = layer2["cognitive_tension"]
+        potential_directions = layer2["potential_directions"]
 
-    # Layer 3: 结构决策
+    # Layer 3: 结构决策（规则版，无 LLM）
     structure_info = select_main_structure(topic_type, alignment_result)
     main_structure = structure_info.get("主结构", "认知升级型")
-    progression_info = decide_progression_method(main_structure, topic)
+    progression_info = decide_progression_method(main_structure, topic, alignment_result)
     progression_method = progression_info.get("推进方式", "冲突推进")
 
-    # Layer 4: 认知模块编排
+    # Layer 4: 认知模块编排（LLM，平台相关）
     authorial = _load_authorial_identity()
     authorial_identity = inject_authorial_identity(
         authorial.get("thinking_pattern", {}),
@@ -681,7 +637,7 @@ def cognitive_outline_workflow(topic: str, dimension: str, platform: str, alignm
     )
     module_flow = generate_cognitive_module_flow(topic, main_structure, authorial_identity, platform)
 
-    # Layer 8: 内容势能设计
+    # Layer 8: 内容势能设计（LLM，平台相关）
     narrative_energy = generate_narrative_energy(topic, module_flow, platform)
 
     # 收敛立场
@@ -750,11 +706,22 @@ def _generate_final_outline_text(topic: str, structure: str, progression: str, m
 # ============ T-20: 双平台分别生成 ============
 
 def generate_dual_platform_outline(topic: str, dimension: str) -> Dict:
-    """同时生成公众号+小红书两套14项大纲"""
+    """
+    同时生成公众号+小红书两套14项大纲（Phase 4.7 优化）
+    - Layer 2 共用一次并行计算
+    - 双平台只各自调用 Layer 4 + Layer 8（共 6次 LLM）
+    """
+    # Layer 2 共享结果（3个 LLM 并行算1次）
+    shared_layer2 = _parallel_layer2(topic)
+
     # 公众号版本
-    wechat_outline = cognitive_outline_workflow(topic, dimension, "wechat")
+    wechat_outline = cognitive_outline_workflow(
+        topic, dimension, "wechat", shared_layer2_result=shared_layer2
+    )
     # 小红书版本
-    xiaohongshu_outline = cognitive_outline_workflow(topic, dimension, "xiaohongshu")
+    xiaohongshu_outline = cognitive_outline_workflow(
+        topic, dimension, "xiaohongshu", shared_layer2_result=shared_layer2
+    )
 
     return {
         "wechat_cognitive_outline": wechat_outline,

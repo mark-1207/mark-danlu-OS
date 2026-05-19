@@ -109,11 +109,88 @@ def generate_clarification_questions(user_input: str, input_type: str) -> List[s
     return []
 
 
-# ============ Phase 1: 熵值计算 ============
+# ============ Phase 1: 熵值计算（规则版 Phase 4.7） ============
+
+def _rule_object_clarity(text: str) -> float:
+    """规则计算对象清晰度（0-1）"""
+    # 明确的具体对象
+    specific_patterns = [
+        r"^(老板|员工|程序员|设计师|运营|销售|医生|老师|学生|家长|小孩|男性|女性)\s",
+        r"(老板|员工|程序员|设计师|运营|销售|医生|老师|学生|家长|小孩|男性|女性)的",
+        r"自媒体(创作者|人|账号)|(小红书|公众号|抖音|B站)(创作者|博主|账号)",
+        r"(初级|中级|高级|资深)\s", r"(00后|90后|80后|70后)\s",
+        r"(创业|互联网|金融|教育|医疗|电商|AI)\s",
+        r"(字节|腾讯|阿里|百度|美团|拼多多|京东)\s",
+    ]
+    for p in specific_patterns:
+        if re.search(p, text):
+            return 1.0
+
+    # 模糊对象
+    vague_patterns = [r"(年轻人|打工人|普通人|大家|人们|所有人|很多人)", r"(一个人|某人|有人)"]
+    for p in vague_patterns:
+        if re.search(p, text):
+            return 0.5
+
+    # 无对象
+    no_object_patterns = [r"^(很|觉得|感觉|好像|如何|怎么|为什么)", r"(迷茫|焦虑|困惑|无聊|无聊)"]
+    for p in no_object_patterns:
+        if re.search(p, text):
+            return 0.0
+
+    return 0.3
+
+
+def _rule_conflict_tension(text: str) -> float:
+    """规则计算冲突张力（0-1）"""
+    # 强矛盾关键词
+    strong_conflict = [
+        "越", "却", "反而", "然而", "但", "事实上", "其实", "真相是",
+        "表面上", "实际上", "并非", "不是", "反而", "竟然", "居然",
+        "越X越Y", "越来越", "一边X一边Y",
+    ]
+    # 反常识关键词
+    anti_common = [
+        "反直觉", "不对", "错了", "不是这样", "误区", "陷阱",
+        "淘汰", "失业", "崩塌", "危机", "终结", "消亡",
+    ]
+
+    text_lower = text.lower()
+    strong_count = sum(1 for kw in strong_conflict if kw in text_lower)
+    anti_count = sum(1 for kw in anti_common if kw in text_lower)
+
+    if strong_count >= 2 or anti_count >= 2:
+        return 1.0
+    elif strong_count >= 1 or anti_count >= 1:
+        return 0.7
+    elif strong_count > 0:
+        return 0.5
+    return 0.3
+
+
+def _rule_fact_support(text: str) -> float:
+    """规则计算事实支撑度（0-1）"""
+    # 有具体数据
+    if re.search(r"\d+%|\d+万|\d+亿|\d+年|\d+月|\d+日|\d+岁", text):
+        return 1.0
+    # 有具体案例
+    case_patterns = [r"(比如|例如|有个|曾经|一次|身边|朋友|同事|公司)", r"(案例|故事|经历|现象)"]
+    if any(re.search(p, text) for p in case_patterns):
+        return 0.7
+    # 有现象描述
+    phenomenon = ["发现", "看到", "感觉", "觉得", "似乎", "好像", "看起来"]
+    if any(kw in text for kw in phenomenon):
+        return 0.4
+    # 纯情绪
+    emotion_only = ["开心", "难过", "焦虑", "迷茫", "无聊", "不爽", "好累", "好烦"]
+    if all(kw in text for kw in emotion_only[:2]):
+        return 0.0
+    return 0.2
+
 
 def calculate_entropy(user_input: str, user_config: Optional[Dict] = None) -> Dict:
     """
-    计算命题熵值，评估用户输入的质量
+    计算命题熵值，评估用户输入的质量（Phase 4.7 规则版）
 
     熵值公式: Entropy = Object×0.4 + Conflict×0.4 + Fact×0.2
 
@@ -132,76 +209,27 @@ def calculate_entropy(user_input: str, user_config: Optional[Dict] = None) -> Di
             "reason": str
         }
     """
-    prompt = _build_entropy_prompt(user_input)
+    object_score = _rule_object_clarity(user_input)
+    conflict_score = _rule_conflict_tension(user_input)
+    fact_score = _rule_fact_support(user_input)
+    entropy = object_score * 0.4 + conflict_score * 0.4 + fact_score * 0.2
 
-    try:
-        response = _call_llm_raw(prompt)
-        if not response:
-            return _entropy_error_result("LLM 调用失败")
+    if entropy >= 2.5:
+        decision = "pass"
+        reason = "命题清晰、有张力、有事实支撑"
+    elif entropy >= 1.5:
+        decision = "clarify"
+        reason = "命题基本合格，建议补充具体对象或事实"
+    else:
+        decision = "blocked"
+        reason = "命题过于模糊或空洞，需重构"
 
-        # 尝试解析 JSON
-        result = _parse_llm_json(response)
-        if not result:
-            return _entropy_error_result(f"JSON 解析失败: {response[:100]}")
-
-        # 验证必需字段
-        required = ["object_clarity", "conflict_tension", "fact_support", "entropy_score", "decision", "reason"]
-        for field in required:
-            if field not in result:
-                return _entropy_error_result(f"缺少字段: {field}")
-
-        # 验证 decision 值
-        if result["decision"] not in ["blocked", "clarify", "pass"]:
-            return _entropy_error_result(f"无效 decision 值: {result['decision']}")
-
-        return result
-
-    except Exception as e:
-        return _entropy_error_result(f"异常: {str(e)}")
-
-
-def _build_entropy_prompt(user_input: str) -> str:
-    """构建熵值计算 Prompt"""
-    return f"""你是严格的命题审查员。评估用户输入的命题质量，按三个维度打分（0-1）：
-
-1. Object_Clarity（对象清晰度）：命题是否指向具体对象？
-   - 1.0：明确对象（如"自媒体创作者"、"初级程序员"）
-   - 0.5：模糊对象（如"年轻人"、"打工人"）
-   - 0.0：无对象（如"感觉很迷茫"、"想做点什么"）
-
-2. Conflict_Tension（冲突张力）：命题是否包含矛盾或反常识元素？
-   - 1.0：强矛盾（如"AI 让执行者失业"、"越努力越贫穷"）
-   - 0.5：弱矛盾（如"AI 改变工作方式"）
-   - 0.0：无矛盾（如"AI 很强大"、"要努力工作"）
-
-3. Fact_Support（事实支撑）：命题是否基于具体现象？
-   - 1.0：有具体案例或数据
-   - 0.5：有模糊描述
-   - 0.0：纯情绪表达
-
-计算公式：Entropy = Object×0.4 + Conflict×0.4 + Fact×0.2
-
-用户输入：{user_input}
-
-返回 JSON：
-{{
-  "object_clarity": 0.0-1.0,
-  "conflict_tension": 0.0-1.0,
-  "fact_support": 0.0-1.0,
-  "entropy_score": 0.0-3.0,
-  "decision": "blocked" | "clarify" | "pass",
-  "reason": "简短理由"
-}}"""
-
-
-def _entropy_error_result(reason: str) -> Dict:
-    """构建熵值计算错误结果"""
     return {
-        "object_clarity": 0.0,
-        "conflict_tension": 0.0,
-        "fact_support": 0.0,
-        "entropy_score": 0.0,
-        "decision": "error",
+        "object_clarity": round(object_score, 2),
+        "conflict_tension": round(conflict_score, 2),
+        "fact_support": round(fact_score, 2),
+        "entropy_score": round(entropy, 2),
+        "decision": decision,
         "reason": reason
     }
 
