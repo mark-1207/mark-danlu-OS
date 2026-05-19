@@ -10,6 +10,7 @@ import { logger } from '../../utils/logger.js';
 import { readFeedbackRecords } from '../../scenarios/feedback/feishu-feedback.js';
 import { buildFeedbackSignal, computeFeedbackStats, compareWithCompetitor } from '../../scenarios/feedback/analyzer.js';
 import { readFeishuRecords } from '../../scenarios/topic/feishu-sync.js';
+import { backfillCompetitorAnalysis } from '../../scenarios/topic/backfill-analysis.js';
 
 export async function runLearn(options: {
   corpusDir?: string;
@@ -25,6 +26,7 @@ export async function runLearn(options: {
   extractFragments?: boolean;
   feedbackSummary?: boolean;
   feedbackCompare?: boolean;
+  backfillAnalysis?: boolean;
 }): Promise<void> {
   const config = await loadConfig();
   setCachedConfig(config);
@@ -257,6 +259,18 @@ export async function runLearn(options: {
     return;
   }
 
+  // ── --backfill-analysis ────────────────────────────────────────
+  if (options.backfillAnalysis) {
+    console.log(chalk.bold('\n🔄 竞品历史记录补填中...\n'));
+    const result = await backfillCompetitorAnalysis();
+    console.log(chalk.green(`\n✅ 补填完成\n`));
+    console.log(`待补填: ${result.total} 条`);
+    console.log(`已更新: ${result.updated} 条`);
+    console.log(`跳过: ${result.skipped} 条`);
+    console.log(`失败: ${result.errors} 条`);
+    return;
+  }
+
   // ── --include-competitor ────────────────────────────────────────
   if (options.includeCompetitor) {
     const { generateCompetitorStyleReport } = await import('../../scenarios/topic/competitor-style-report.js');
@@ -380,6 +394,7 @@ export function registerLearnCommand(program: Command): void {
     .option('--extract-fragments', '从飞书已分析记录提取碎片写入 Obsidian 原子库')
     .option('--feedback-summary', '分析反馈数据，输出表现最佳的平台/结构/调性/角度')
     .option('--feedback-compare', '对比我方内容与竞品内容的标签级差距')
+    .option('--backfill-analysis', '对竞品表已有记录补填叙事结构/情感调性/内容角度')
     .action(async (opts) => {
       try {
         await runLearn({
@@ -396,6 +411,7 @@ export function registerLearnCommand(program: Command): void {
           extractFragments: opts.extractFragments,
           feedbackSummary: opts.feedbackSummary,
           feedbackCompare: opts.feedbackCompare,
+          backfillAnalysis: opts.backfillAnalysis,
         });
       } catch (error) {
         logger.error('learn command failed', { error: String(error) });
