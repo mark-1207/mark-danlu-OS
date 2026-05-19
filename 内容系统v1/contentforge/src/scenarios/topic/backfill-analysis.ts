@@ -7,7 +7,7 @@
  */
 import { readFeishuRecords, updateFeishuRecordStatus } from './feishu-sync.js';
 import { llmFactory } from '../../llm/factory.js';
-import { loadConfig, setCachedConfig } from '../../config/loader.js';
+import { loadConfig, getCachedConfig, setCachedConfig } from '../../config/loader.js';
 import { logger } from '../../utils/logger.js';
 
 interface ExtendedResult {
