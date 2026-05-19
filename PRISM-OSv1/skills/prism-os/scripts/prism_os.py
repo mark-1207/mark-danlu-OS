@@ -340,26 +340,25 @@ def run_prism_os(
 
     # ============ Phase 4-8: 扩展功能（可选） ============
     if include_phase_4_8 and final_candidates:
-        # Phase 4: Gap Analysis + 双端大纲
+        # Phase 4: CCOS v2.0 认知推进流大纲（替代旧版 gap_analysis 大纲）
         try:
-            from gap_analysis import gap_analysis
+            from cognitive_outline import cognitive_outline_workflow, generate_dual_platform_outline
 
-            result["phase"] = "gap"
-            # 获取第一个候选标题的维度
+            result["phase"] = "ccos"
             first_candidate = final_candidates[0] if final_candidates else {}
-            gap_result = gap_analysis(
-                thesis=thesis,
-                materials=materials,
-                title=first_candidate.get("title", ""),
-                audience=audience,
-                dimension=first_candidate.get("dimension", "")
-            )
-            result["gap"] = gap_result.get("gap")
-            result["outlines"] = gap_result.get("outlines")
+            title = first_candidate.get("title", "")
+            dimension = first_candidate.get("dimension", "")
+            platform_choice = "both"  # 默认双平台
+
+            if platform_choice == "both":
+                ccos_result = generate_dual_platform_outline(title, dimension)
+            else:
+                ccos_result = cognitive_outline_workflow(title, dimension, platform_choice)
+
+            result["ccos_outline"] = ccos_result
         except Exception as e:
-            print(f"[Warning] Phase 4 失败: {e}", file=sys.stderr)
-            result["gap"] = None
-            result["outlines"] = None
+            print(f"[Warning] Phase 4.5 CCOS 失败: {e}", file=sys.stderr)
+            result["ccos_outline"] = None
 
         # Phase 5: 逻辑压力测试 + 认知旅程
         try:
@@ -393,7 +392,8 @@ def run_prism_os(
                 "candidates_count": len(final_candidates),
                 "entropy_score": entropy_score,
                 "gap_score": result.get("gap", {}).get("gap_score", 0) if result.get("gap") else 0,
-                "candidates": [{"title": c.get("title", ""), "dimension": c.get("dimension", "")} for c in final_candidates[:5]]
+                "candidates": [{"title": c.get("title", ""), "dimension": c.get("dimension", "")} for c in final_candidates[:5]],
+                "ccos_outline": result.get("ccos_outline")
             }
             storage_result = append_log(log_entry)
             result["storage"] = {"status": "ok" if storage_result.get("status") == "ok" else "failed"}
@@ -496,10 +496,43 @@ def format_prism_os_output(result: Dict) -> str:
             lines.append(f"  建议: {recommendation}")
         lines.append("")
 
-    # 双端大纲
+    # 认知大纲（CCOS v2.0 / 旧版兼容）
+    ccos = result.get("ccos_outline")
+    if ccos:
+        lines.append("■ 认知大纲（CCOS v2.0）")
+
+        # 双平台 CCOS 格式
+        if isinstance(ccos, dict) and "wechat_cognitive_outline" in ccos:
+            for platform, label in [("wechat_cognitive_outline", "📝 公众号"), ("xiaohongshu_cognitive_outline", "📕 小红书")]:
+                outline = ccos.get(platform, {})
+                if outline:
+                    lines.append(f"  {label}:")
+                    lines.append(f"    内容目标: {outline.get('内容目标', '')}")
+                    lines.append(f"    主结构: {outline.get('主结构', '')}")
+                    lines.append(f"    推进方式: {outline.get('推进方式', '')}")
+                    modules = outline.get("认知模块流", [])
+                    if modules:
+                        module_names = " → ".join([m.get("模块", "") for m in modules[:5]])
+                        lines.append(f"    模块流: {module_names}")
+                    lines.append(f"    最终大纲: {outline.get('最终动态认知大纲', '')}")
+                    lines.append("")
+        # 单平台 CCOS 格式
+        elif isinstance(ccos, dict) and "内容目标" in ccos:
+            lines.append(f"    内容目标: {ccos.get('内容目标', '')}")
+            lines.append(f"    主结构: {ccos.get('主结构', '')}")
+            lines.append(f"    推进方式: {ccos.get('推进方式', '')}")
+            modules = ccos.get("认知模块流", [])
+            if modules:
+                module_names = " → ".join([m.get("模块", "") for m in modules[:5]])
+                lines.append(f"    模块流: {module_names}")
+            lines.append(f"    最终大纲: {ccos.get('最终动态认知大纲', '')}")
+            lines.append("")
+        lines.append("")
+
+    # 旧版双端大纲（向后兼容）
     outlines = result.get("outlines")
-    if outlines:
-        lines.append("■ 双端大纲")
+    if outlines and not ccos:
+        lines.append("■ 双端大纲（旧版）")
 
         wechat = outlines.get("wechat_outline")
         if wechat:
