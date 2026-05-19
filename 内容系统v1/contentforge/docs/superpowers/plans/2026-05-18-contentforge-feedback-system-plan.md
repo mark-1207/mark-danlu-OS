@@ -217,9 +217,9 @@ Phase 2-1（认知标签）            Phase 2-2（竞品认知分析）
 
 只需今天确认后立即开始：
 
-1. **Phase 1-2**：竞品分析报告 CLI（`learn --include-competitor` 输出完整报告）
-2. **Phase 1-3**：竞品历史数据分析回填（对已有 analyzed 记录补填三个字段）
-3. **Phase 1-1**：飞书反馈表加「文章ID」字段（用户手动操作）
+1. **Phase 1-2**：竞品分析报告 CLI（`learn --include-competitor` 输出完整报告） ✅ 已完成
+2. **Phase 1-3**：竞品历史数据分析回填（对已有 analyzed 记录补填三个字段） ✅ 已完成
+3. **Phase 1-1**：飞书反馈表加「文章ID」字段（用户手动操作） ⏳ 待用户操作
 
 ---
 
