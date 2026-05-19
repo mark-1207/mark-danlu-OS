@@ -49,7 +49,11 @@ export interface FeishuRecord {
     原文?: string;
     原始链接: string;
     平台: Platform;
-    互动数据?: string;
+    阅读数?: number;
+    评论数?: number;
+    点赞数?: number;
+    转发数?: number;
+    收藏数?: number;
     内容摘要?: string;
     爆款结构?: string;
     叙事结构?: string;

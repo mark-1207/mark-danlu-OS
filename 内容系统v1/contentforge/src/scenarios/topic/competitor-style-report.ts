@@ -59,9 +59,10 @@ interface CompetitorDimStats {
   overallAvgEngagement: number;
 }
 
-function calcEngagement(likes: number, comments: number, shares: number, reads: number): number {
+function calcEngagement(r: { fields: { 点赞数?: number; 评论数?: number; 转发数?: number; 阅读数?: number } }): number {
+  const reads = r.fields.阅读数 ?? 0;
   if (!reads) return 0;
-  return (likes + comments + shares) / reads;
+  return ((r.fields.点赞数 ?? 0) + (r.fields.评论数 ?? 0) + (r.fields.转发数 ?? 0)) / reads;
 }
 
 function safeAvg(values: number[]): number {
@@ -91,10 +92,7 @@ function dimStats(groups: Record<string, FeishuRecord[]>, getEng: (r: FeishuReco
   for (const [k, recs] of Object.entries(groups)) {
     if (!k) continue;
     out[k] = {
-      avgReads: safeAvg(recs.map(r => {
-        const { reads } = parseInteraction(r.fields.互动数据);
-        return reads;
-      })),
+      avgReads: safeAvg(recs.map(r => r.fields.阅读数 ?? 0)),
       avgEngagement: safeAvg(recs.map(getEng)),
       count: recs.length,
     };
@@ -103,22 +101,10 @@ function dimStats(groups: Record<string, FeishuRecord[]>, getEng: (r: FeishuReco
 }
 
 async function computeCompetitorStats(records: FeishuRecord[]): Promise<CompetitorDimStats> {
-  const byStructure = dimStats(groupBy(records, r => r.fields.叙事结构 ?? ''), r => {
-    const { likes, reads } = parseInteraction(r.fields.互动数据);
-    return calcEngagement(likes, 0, 0, reads);
-  });
-  const byTone = dimStats(groupBy(records, r => r.fields.情感调性 ?? ''), r => {
-    const { likes, reads } = parseInteraction(r.fields.互动数据);
-    return calcEngagement(likes, 0, 0, reads);
-  });
-  const byAngle = dimStats(groupBy(records, r => r.fields.内容角度 ?? r.fields.选题角度 ?? ''), r => {
-    const { likes, reads } = parseInteraction(r.fields.互动数据);
-    return calcEngagement(likes, 0, 0, reads);
-  });
-  const allEng = records.map(r => {
-    const { likes, reads } = parseInteraction(r.fields.互动数据);
-    return calcEngagement(likes, 0, 0, reads);
-  }).filter(v => v > 0);
+  const byStructure = dimStats(groupBy(records, r => r.fields.叙事结构 ?? ''), calcEngagement);
+  const byTone = dimStats(groupBy(records, r => r.fields.情感调性 ?? ''), calcEngagement);
+  const byAngle = dimStats(groupBy(records, r => r.fields.内容角度 ?? r.fields.选题角度 ?? ''), calcEngagement);
+  const allEng = records.map(r => calcEngagement(r)).filter(v => v > 0);
 
   // Tags across all records
   const tagGroups: Record<string, FeishuRecord[]> = {};
@@ -128,10 +114,7 @@ async function computeCompetitorStats(records: FeishuRecord[]): Promise<Competit
       tagGroups[tag].push(r);
     }
   }
-  const byTag = dimStats(tagGroups, r => {
-    const { likes, reads } = parseInteraction(r.fields.互动数据);
-    return calcEngagement(likes, 0, 0, reads);
-  });
+  const byTag = dimStats(tagGroups, calcEngagement);
 
   return {
     byStructure,
