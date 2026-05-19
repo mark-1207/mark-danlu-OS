@@ -1,6 +1,7 @@
 export interface FeedbackRecord {
   record_id: string;
   fields: {
+    文章ID: string;
     内容标题: string;
     原文链接: string;
     平台: 'wechat' | 'xiaohongshu' | 'video';

@@ -83,6 +83,7 @@ export async function readFeedbackRecords(): Promise<FeedbackRecord[]> {
       records.push({
         record_id: recordId,
         fields: {
+          文章ID: (fields['文章ID'] as string) ?? '',
           内容标题: (fields['内容标题'] as string) ?? '',
           原文链接: (fields['原文链接'] as string) ?? '',
           平台: platform as FeedbackRecord['fields']['平台'],
