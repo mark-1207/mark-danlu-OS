@@ -2,32 +2,163 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fetchCompetitiveRecords } from './competitor-cache.js';
 import { formatRecordsForPrompt } from './competitor-cache.js';
+import { readFeishuRecords } from './feishu-sync.js';
 import { llmFactory } from '../../llm/factory.js';
-import { loadConfig } from '../../config/loader.js';
+import { loadConfig, getCachedConfig, setCachedConfig } from '../../config/loader.js';
 import { safeJsonParse } from '../../utils/json-parser.js';
 import type { FeishuRecord } from './types.js';
+import { readFeedbackRecords } from '../feedback/feishu-feedback.js';
+import { computeFeedbackStats } from '../feedback/analyzer.js';
 
-const REPORT_PATH = path.join(process.cwd(), 'output', 'corpus', 'competitor-style-report.md');
-const META_PATH = path.join(process.cwd(), 'output', 'corpus', 'competitor-style-report-meta.json');
-
-interface ReportMeta {
-  generatedAt: string;
-  recordCount: number;
-  recordIds: string[];
-}
-
-interface AnalysisSections {
-  marketOverview: string;
-  structurePreferences: string;
-  angleDistribution: string;
-  highPerformanceFeatures: string;
-  differentiationSuggestions: string;
+/**
+ * Generate report file path with date stamp in the corpus directory.
+ */
+function reportPath(date: Date): string {
+  const dateStr = date.toISOString().slice(0, 10);
+  return path.join(process.cwd(), 'output', 'corpus', '竞品库', `竞品分析报告-${dateStr}.md`);
 }
 
 /**
- * 调用 AI 分析竞品集合，生成结构化报告内容
+ * Obsidian vault path for competitor reports.
  */
-async function analyzeCompetitorSet(records: FeishuRecord[]): Promise<AnalysisSections> {
+function obsidianReportPath(date: Date): string {
+  const dateStr = date.toISOString().slice(0, 10);
+  const config = getCachedConfig();
+  const vaultPath = config.obsidian?.vaultPath ?? '';
+  if (!vaultPath) return '';
+  return path.join(vaultPath, '竞品库', `竞品分析报告-${dateStr}.md`);
+}
+
+/**
+ * Copy report to Obsidian vault if configured.
+ */
+async function copyToObsidian(content: string, date: Date): Promise<void> {
+  const obsidianPath = obsidianReportPath(date);
+  if (!obsidianPath) return;
+  try {
+    await fs.mkdir(path.dirname(obsidianPath), { recursive: true });
+    await fs.writeFile(obsidianPath, content, 'utf-8');
+  } catch {
+    // Obsidian write is non-fatal — log but don't fail
+  }
+}
+
+// ─── Statistics helpers ──────────────────────────────────────────────
+
+interface DimStat {
+  avgReads: number;
+  avgEngagement: number;
+  count: number;
+}
+
+interface CompetitorDimStats {
+  byStructure: Record<string, DimStat>;
+  byTone: Record<string, DimStat>;
+  byAngle: Record<string, DimStat>;
+  byTag: Record<string, DimStat>;
+  overallAvgEngagement: number;
+}
+
+function calcEngagement(likes: number, comments: number, shares: number, reads: number): number {
+  if (!reads) return 0;
+  return (likes + comments + shares) / reads;
+}
+
+function safeAvg(values: number[]): number {
+  const nz = values.filter(v => v > 0);
+  return nz.length === 0 ? 0 : nz.reduce((a, b) => a + b, 0) / nz.length;
+}
+
+function parseInteraction(raw?: string): { likes: number; reads: number } {
+  if (!raw) return { likes: 0, reads: 0 };
+  const parts = raw.split(/[,/]/).map(Number);
+  return { likes: parts[0] || 0, reads: parts[1] || 0 };
+}
+
+function groupBy<T>(records: T[], keyFn: (r: T) => string): Record<string, T[]> {
+  const m: Record<string, T[]> = {};
+  for (const r of records) {
+    const k = keyFn(r);
+    if (!k) continue;
+    if (!m[k]) m[k] = [];
+    m[k].push(r);
+  }
+  return m;
+}
+
+function dimStats(groups: Record<string, FeishuRecord[]>, getEng: (r: FeishuRecord) => number): Record<string, DimStat> {
+  const out: Record<string, DimStat> = {};
+  for (const [k, recs] of Object.entries(groups)) {
+    if (!k) continue;
+    out[k] = {
+      avgReads: safeAvg(recs.map(r => {
+        const { reads } = parseInteraction(r.fields.互动数据);
+        return reads;
+      })),
+      avgEngagement: safeAvg(recs.map(getEng)),
+      count: recs.length,
+    };
+  }
+  return out;
+}
+
+async function computeCompetitorStats(records: FeishuRecord[]): Promise<CompetitorDimStats> {
+  const byStructure = dimStats(groupBy(records, r => r.fields.叙事结构 ?? ''), r => {
+    const { likes, reads } = parseInteraction(r.fields.互动数据);
+    return calcEngagement(likes, 0, 0, reads);
+  });
+  const byTone = dimStats(groupBy(records, r => r.fields.情感调性 ?? ''), r => {
+    const { likes, reads } = parseInteraction(r.fields.互动数据);
+    return calcEngagement(likes, 0, 0, reads);
+  });
+  const byAngle = dimStats(groupBy(records, r => r.fields.内容角度 ?? r.fields.选题角度 ?? ''), r => {
+    const { likes, reads } = parseInteraction(r.fields.互动数据);
+    return calcEngagement(likes, 0, 0, reads);
+  });
+  const allEng = records.map(r => {
+    const { likes, reads } = parseInteraction(r.fields.互动数据);
+    return calcEngagement(likes, 0, 0, reads);
+  }).filter(v => v > 0);
+
+  // Tags across all records
+  const tagGroups: Record<string, FeishuRecord[]> = {};
+  for (const r of records) {
+    for (const tag of (r.fields.标签 ?? [])) {
+      if (!tagGroups[tag]) tagGroups[tag] = [];
+      tagGroups[tag].push(r);
+    }
+  }
+  const byTag = dimStats(tagGroups, r => {
+    const { likes, reads } = parseInteraction(r.fields.互动数据);
+    return calcEngagement(likes, 0, 0, reads);
+  });
+
+  return {
+    byStructure,
+    byTone,
+    byAngle,
+    byTag,
+    overallAvgEngagement: safeAvg(allEng),
+  };
+}
+
+// ─── LLM-assisted insight generation ──────────────────────────────
+
+interface CoreFinding {
+  sentence: string;
+  source: string;
+}
+
+interface KeyInsights {
+  findings: CoreFinding[];
+  nextActions: string[];
+}
+
+async function generateCoreFinding(
+  compStats: CompetitorDimStats,
+  feedbackStats: { avgEngagement: number; byStructure: Record<string, DimStat> },
+  gapData: { structure: string; compEng: number; myEng: number }[],
+): Promise<KeyInsights> {
   const config = await loadConfig();
   for (const [name, providerConfig] of Object.entries(config.providers)) {
     llmFactory.register(name, providerConfig);
@@ -35,176 +166,240 @@ async function analyzeCompetitorSet(records: FeishuRecord[]): Promise<AnalysisSe
   const provider = llmFactory.get('kimi');
   const model = config.providers['kimi']?.defaultModel ?? 'moonshot-v1-8k';
 
-  const formattedRecords = formatRecordsForPrompt(records);
-  const prompt = `你是一位内容市场分析师。分析以下竞品内容集合，生成风格报告。
+  const prompt = `你是一个内容策略分析师。基于以下竞品和我方数据，生成一条核心发现和 2-3 条可执行的下一步行动建议。
 
-竞品数据：
-${formattedRecords}
+数据：
+【竞品结构偏好】${JSON.stringify(compStats.byStructure, null, 2)}
+【我方结构偏好】${JSON.stringify(feedbackStats.byStructure, null, 2)}
+【差距】${JSON.stringify(gapData, null, 2)}
 
-请严格按以下 JSON 格式输出（只输出 JSON，不要有任何其他文字）：
+请严格按以下 JSON 格式输出（只输出 JSON）：
 {
-  "marketOverview": "整体市场风格概述：归纳这些竞品的整体风格倾向、话题类型、情绪基调和叙事节奏（100-200字）",
-  "structurePreferences": "结构偏好分析：\n### 2.1 常见开头模式\n（归纳 top 3 开头句式/角度）\n\n### 2.2 主流叙事结构\n（归纳最常见的内容框架，如：问题+案例+结论 / 情绪递进+高潮+行动等）\n\n### 2.3 结尾/CTA 模式\n（归纳常见收尾方式）",
-  "angleDistribution": "内容角度分布：基于所有竞品提炼角度类型分布，如实反映数据（如：AI焦虑恐慌 高频 / 职场应用 中频），不要编造具体数字",
-  "highPerformanceFeatures": "高绩效内容特征：分析收藏标记为 true 的记录，提炼高互动内容的共同特征（50-100字）",
-  "differentialSuggestions": "差异化机会建议：基于以上分析，给出 3-5 条差异化切入建议（50-150字）"
-}`;
+  "findings": [
+    { "sentence": "一句话核心发现（包含具体数字和可执行判断）", "source": "来源说明" }
+  ],
+  "nextActions": [
+    "行动1：具体动作（目标话题）- 预期效果",
+    "行动2：具体动作（目标话题）- 预期效果",
+    "行动3：具体动作（目标话题）- 预期效果"
+  ]
+}
+
+要求：
+- 核心发现必须包含具体数字（互动率、占比等）
+- 下一步行动必须具体可执行，不说空话
+- 如果竞品和我方数据不足 3 条，记录"数据样本不足，无法得出可靠结论"`;
 
   try {
     const response = await provider.chat({
       model,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.3,
-      maxTokens: 4096,
+      maxTokens: 2048,
       jsonMode: true,
     });
-
-    const parsed = safeJsonParse<AnalysisSections>(response.content, 'competitor-style-report');
-    return parsed;
-  } catch (e) {
-    throw new Error(`竞品分析 LLM 调用失败: ${e}`);
+    return safeJsonParse<KeyInsights>(response.content, 'core-finding') ?? {
+      findings: [{ sentence: '数据样本不足，无法得出可靠结论', source: '样本量 < 3' }],
+      nextActions: [],
+    };
+  } catch {
+    return {
+      findings: [{ sentence: 'AI 分析调用失败，请检查日志', source: 'LLM error' }],
+      nextActions: [],
+    };
   }
 }
 
-/**
- * 生成竞品风格报告
- */
+// ─── Main report generator ─────────────────────────────────────────
+
 export async function generateCompetitorStyleReport(): Promise<void> {
-  // 1. 读取飞书竞品数据
-  const records = await fetchCompetitiveRecords();
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10);
 
-  // 2. 确保输出目录存在
-  const outputDir = path.join(process.cwd(), 'output', 'corpus');
-  await fs.mkdir(outputDir, { recursive: true });
+  // 1. Load data
+  const config = await loadConfig();
+  for (const [name, providerConfig] of Object.entries(config.providers)) {
+    llmFactory.register(name, providerConfig);
+  }
+  setCachedConfig(config);
 
-  // 3. 读取已有 meta，判断是否可跳过
-  let meta: ReportMeta | null = null;
-  try {
-    const metaContent = await fs.readFile(META_PATH, 'utf-8');
-    meta = JSON.parse(metaContent) as ReportMeta;
-  } catch {
-    // 无 meta，首次生成
+  const [compRecords, feedbackRecords] = await Promise.all([
+    fetchCompetitiveRecords(),
+    readFeedbackRecords().catch(() => [] as ReturnType<typeof readFeedbackRecords>),
+  ]);
+
+  const compStats = await computeCompetitorStats(compRecords);
+  const feedbackStats = computeFeedbackStats(feedbackRecords as Parameters<typeof computeFeedbackStats>[0]);
+
+  // 2. Build gap analysis (structure level)
+  const gapData: { structure: string; compEng: number; myEng: number }[] = [];
+  for (const [s, comp] of Object.entries(compStats.byStructure)) {
+    const mine = feedbackStats.byStructure[s];
+    gapData.push({
+      structure: s,
+      compEng: comp.avgEngagement,
+      myEng: mine?.avgEngagement ?? 0,
+    });
   }
 
-  const recordIds = records.map(r => r.record_id).sort();
-  const metaIds = meta?.recordIds.sort() ?? [];
-  const recordsUnchanged =
-    meta !== null &&
-    recordIds.length === metaIds.length &&
-    recordIds.every((id, i) => id === metaIds[i]);
+  // 3. Core finding + next actions (LLM-assisted)
+  const { findings, nextActions } = await generateCoreFinding(compStats, feedbackStats, gapData);
 
-  // 4. 构建报告内容
-  const now = new Date().toISOString();
-  const sections: AnalysisSections = {
-    marketOverview: '(未生成)',
-    structurePreferences: '(未生成)',
-    angleDistribution: '(未生成)',
-    highPerformanceFeatures: '(未生成)',
-    differentiationSuggestions: '(未生成)',
-  };
-  let analysisError = false;
+  // 4. Build tables
+  const sortByEng = (m: Record<string, DimStat>) =>
+    Object.entries(m).sort((a, b) => b[1].avgEngagement - a[1].avgEngagement);
 
-  if (!recordsUnchanged) {
-    // 需要重新分析
-    if (records.length === 0) {
-      sections.marketOverview = '竞品库暂无 analyzed/stored 状态记录，无法生成市场分析。';
-      sections.structurePreferences = '无数据';
-      sections.angleDistribution = '无数据';
-      sections.highPerformanceFeatures = '无数据';
-      sections.differentialSuggestions = '请先通过 topic scrape 命令抓取并分析竞品内容。';
-    } else {
-      try {
-        const aiResult = await analyzeCompetitorSet(records);
-        sections.marketOverview = aiResult.marketOverview;
-        sections.structurePreferences = aiResult.structurePreferences;
-        sections.angleDistribution = aiResult.angleDistribution;
-        sections.highPerformanceFeatures = aiResult.highPerformanceFeatures;
-        sections.differentialSuggestions = aiResult.differentialSuggestions;
-      } catch {
-        analysisError = true;
-        sections.marketOverview = 'AI 分析失败，跳过结构化分析。原始数据摘要已生成。';
-      }
-    }
-  } else {
-    // 缓存命中且无更新，跳过 AI 调用
-    sections.marketOverview = '(报告内容未更新，缓存命中)';
-  }
+  const structureTable = sortByEng(compStats.byStructure)
+    .map(([s, d]) => `| ${s} | ${d.count} | ${(d.avgEngagement * 100).toFixed(1)}% |`)
+    .join('\n');
 
-  // 5. 构建表格数据
-  const favoritedRecords = records.filter(r => r.fields.收藏).slice(0, 5);
-  const latestRecords = [...records]
-    .sort((a, b) => new Date(b.fields.抓取时间).getTime() - new Date(a.fields.抓取时间).getTime())
-    .slice(0, 5);
+  const toneTable = sortByEng(compStats.byTone)
+    .map(([t, d]) => `| ${t} | ${d.count} | ${(d.avgEngagement * 100).toFixed(1)}% |`)
+    .join('\n');
 
-  const favoriteTable = favoritedRecords.length > 0
-    ? favoritedRecords.map(r => `| ${r.fields.原文标题} | ${r.fields.平台} | ${r.fields.选题角度 ?? '-'} |`).join('\n')
-    : '| - | - | - |';
+  const angleTable = sortByEng(compStats.byAngle)
+    .slice(0, 8)
+    .map(([a, d]) => `| ${a} | ${d.count} | ${(d.avgEngagement * 100).toFixed(1)}% |`)
+    .join('\n');
 
-  const latestTable = latestRecords.map(r =>
-    `| ${r.fields.原文标题} | ${r.fields.平台} | ${new Date(r.fields.抓取时间).toLocaleString('zh-CN')} |`
-  ).join('\n');
+  const tagTable = sortByEng(compStats.byTag)
+    .slice(0, 10)
+    .map(([tag, d]) => `| ${tag} | ${d.count} | ${(d.avgEngagement * 100).toFixed(1)}% |`)
+    .join('\n');
 
-  // 6. 写入报告
-  const reportContent = `# 竞品风格报告
+  const gapTable = gapData
+    .filter(g => g.myEng > 0)
+    .sort((a, b) => (b.compEng - b.myEng) - (a.compEng - a.myEng))
+    .map(g => {
+      const diff = g.compEng - g.myEng;
+      const icon = diff > 0.01 ? '❌' : diff < -0.01 ? '✅' : '➖';
+      return `| ${g.structure} | ${(g.myEng * 100).toFixed(1)}% | ${(g.compEng * 100).toFixed(1)}% | ${icon} |`;
+    })
+    .join('\n');
 
-> 生成时间：${now}
-> 数据来源：飞书竞品素材库（analyzed/stored，共 ${records.length} 条）
-> 缓存状态：${recordsUnchanged ? '命中（无需更新）' : analysisError ? 'AI 分析失败' : '重新生成'}
+  const latestTable = compRecords.slice(0, 5)
+    .map(r => `| ${r.fields.原文标题} | ${r.fields.平台} | ${r.fields.叙事结构 ?? '-'} | ${r.fields.情感调性 ?? '-'} |`)
+    .join('\n');
+
+  // 5. Compose report
+  const report = `# 竞品分析报告 · ${dateStr}
+
+> 生成时间：${now.toLocaleString('zh-CN')}
+> 数据来源：飞书竞品素材库（${compRecords.length} 条）+ 反馈数据表（${feedbackRecords.length} 条）
+> 竞品平均互动率：${(compStats.overallAvgEngagement * 100).toFixed(2)}%
+> 我方平均互动率：${(feedbackStats.avgEngagement * 100).toFixed(2)}%
 
 ---
 
-## 一、整体市场风格概述
+## 0. 核心发现一句话
 
-${sections.marketOverview}
-
----
-
-## 二、结构偏好分析
-
-${sections.structurePreferences}
+${findings.length > 0 ? findings.map(f => `- **${f.sentence}**（来源：${f.source}）`).join('\n') : '（数据样本不足）'}
 
 ---
 
-## 三、内容角度分布
+## 1. 市场格局
 
-${sections.angleDistribution}
+### 竞品水位
+- 样本量：${compRecords.length} 篇竞品文章
+- 平均阅读量：${(Object.values(compStats.byTag).reduce((s, d) => s + d.avgReads, 0) / Math.max(Object.keys(compStats.byTag).length, 1)).toFixed(0)}
+- 平均互动率：${(compStats.overallAvgEngagement * 100).toFixed(2)}%
+
+### 我方位置
+- 样本量：${feedbackRecords.length} 篇已录入文章
+- 平均互动率：${(feedbackStats.avgEngagement * 100).toFixed(2)}%
+- 差距：${((feedbackStats.avgEngagement - compStats.overallAvgEngagement) * 100).toFixed(2)}%（${feedbackStats.avgEngagement >= compStats.overallAvgEngagement ? '我方优于竞品' : '竞品优于我方'}）
+
+### 结论
+${feedbackStats.avgEngagement >= compStats.overallAvgEngagement
+    ? '我方内容整体互动率优于竞品基准，保持当前策略。'
+    : '我方内容整体互动率低于竞品，存在结构性差距，需针对性优化。'}
 
 ---
 
-## 四、高绩效内容特征
+## 2. 高表现规律
 
-${sections.highPerformanceFeatures}
+### 2.1 叙事结构偏好
 
----
-
-## 五、差异化机会建议
-
-${sections.differentialSuggestions}
-
----
-
-## 六、原始数据摘要
-
-### 收藏内容（Top 5）
-
-| 标题 | 平台 | 角度 |
-|------|------|------|
-${favoriteTable}
-
-### 最新抓取（Top 5）
-
-| 标题 | 平台 | 抓取时间 |
+| 结构 | 篇数 | 平均互动率 |
 |------|------|----------|
-${latestTable}
+${structureTable || '| - | - | - |'}
+
+### 2.2 情感调性偏好
+
+| 调性 | 篇数 | 平均互动率 |
+|------|------|----------|
+${toneTable || '| - | - | - |'}
+
+### 2.3 切入角度分布（Top 8）
+
+| 角度 | 篇数 | 平均互动率 |
+|------|------|----------|
+${angleTable || '| - | - | - |'}
+
+### 2.4 标签热度（Top 10）
+
+| 标签 | 篇数 | 平均互动率 |
+|------|------|----------|
+${tagTable || '| - | - | - |'}
+
+---
+
+## 3. 差距缺口
+
+### 3.1 结构差距（我方 vs 竞品）
+
+| 结构 | 我方互动率 | 竞品互动率 | 差距 |
+|------|----------|----------|------|
+${gapTable || '| 暂无重叠数据 | - | - | - |'}
+
+### 3.2 弱势维度分析
+
+${gapData.filter(g => g.myEng > 0 && g.compEng - g.myEng > 0.02)
+    .map(g => `- **${g.structure}**：我方 ${(g.myEng * 100).toFixed(1)}% vs 竞品 ${(g.compEng * 100).toFixed(1)}%，建议优先优化`)
+    .join('\n') || '暂无显著差距（数据样本不足时请继续填充数据）'}
+
+---
+
+## 4. 关键洞察
+
+${nextActions.length > 0
+    ? nextActions.map((a, i) => `${i + 1}. ${a}`)
+    .join('\n')
+    : '（AI 洞察生成失败，请基于 Section 2/3 人工判断）'}
+
+---
+
+## 5. 下一步行动
+
+| 优先级 | 具体动作 | 目标话题 | 预期效果 |
+|--------|----------|----------|----------|
+${nextActions.slice(0, 3).map((a, i) => `| P${i + 1} | ${a} | - | - |`).join('\n') || '| - | - | - | - |'}
+
+---
+
+## 6. 最新竞品记录
+
+| 标题 | 平台 | 叙事结构 | 情感调性 |
+|------|------|----------|----------|
+${latestTable || '| - | - | - | - |'}
+
+---
+
+## 附：数据来源说明
+
+- 竞品数据：飞书竞品素材库（analyzed/stored 状态）
+- 我方数据：飞书反馈数据表（已录入记录）
+- 互动率计算公式：(点赞 + 评论 + 转发) / 阅读量
+- 数据周期：${dateStr}
 `;
 
-  await fs.writeFile(REPORT_PATH, reportContent, 'utf-8');
+  // 7. Write output
+  const outputDir = path.join(process.cwd(), 'output', 'corpus', '竞品库');
+  await fs.mkdir(outputDir, { recursive: true });
 
-  // 7. 写入 meta
-  const newMeta: ReportMeta = {
-    generatedAt: now,
-    recordCount: records.length,
-    recordIds: recordIds,
-  };
-  await fs.writeFile(META_PATH, JSON.stringify(newMeta, null, 2), 'utf-8');
+  const reportFilePath = reportPath(now);
+  await fs.writeFile(reportFilePath, report, 'utf-8');
+  await copyToObsidian(report, now);
+
+  console.log(`竞品分析报告已生成：${reportFilePath}`);
 }
