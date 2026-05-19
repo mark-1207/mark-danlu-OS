@@ -707,6 +707,71 @@ def main():
         result = confirm_title(title)
         _safe_print(result)
 
+    elif command == "ccos":
+        # CCOS v2.0 交互式大纲生成
+        # 用法: python prism_os.py ccos "<命题>" [--platform wechat|xiaohongshu|both] [--skip-alignment]
+        topic = ""
+        platform = "both"
+        skip_alignment = False
+
+        i = 2
+        while i < len(sys.argv):
+            arg = sys.argv[i]
+            if arg == "--platform" and i + 1 < len(sys.argv):
+                platform = sys.argv[i + 1]
+                i += 2
+            elif arg in ("--skip-alignment", "-s"):
+                skip_alignment = True
+                i += 1
+            elif not topic and not arg.startswith("--"):
+                topic = arg
+                i += 1
+            else:
+                i += 1
+
+        if not topic:
+            _safe_print({"error": "请提供命题: python prism_os.py ccos \"<命题>\" [--platform wechat]"})
+            sys.exit(1)
+
+        from cognitive_outline import (
+            generate_alignment_questions,
+            cognitive_outline_workflow,
+            generate_dual_platform_outline
+        )
+
+        # Layer 0: 认知对齐
+        questions = generate_alignment_questions(topic, platform)
+
+        if skip_alignment:
+            alignment_result = {"parsed": {}, "status": "skipped"}
+        else:
+            # 打印七类追问，等待用户输入
+            print("\n━━━ Layer 0 认知对齐 ━━━", file=sys.stderr)
+            for idx, q in enumerate(questions, 1):
+                opts = ", ".join(q["可选方向"]) if q["可选方向"] else ""
+                print(f"  {idx}. {q['内容']}", file=sys.stderr)
+                if opts:
+                    print(f"     快捷方向: {opts}", file=sys.stderr)
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━", file=sys.stderr)
+            print("请回答上述问题（直接输入 / 选项编号+内容 / skip跳过）:", file=sys.stderr)
+
+            # 读取用户输入（从 stdin）
+            try:
+                user_input = input().strip()
+            except EOFError:
+                user_input = "skip"
+
+            from cognitive_outline import parse_user_alignment_response, cognitive_alignment_layer0
+            alignment_result = cognitive_alignment_layer0(topic, platform, user_input)
+
+        # 根据平台选择生成大纲
+        if platform == "both":
+            ccos_result = generate_dual_platform_outline(topic, "reversal")
+        else:
+            ccos_result = cognitive_outline_workflow(topic, "reversal", platform, alignment_result)
+
+        _safe_print({"topic": topic, "platform": platform, "alignment": alignment_result, "ccos_outline": ccos_result})
+
     else:
         _safe_print({"error": f"未知命令: {command}"})
         sys.exit(1)
