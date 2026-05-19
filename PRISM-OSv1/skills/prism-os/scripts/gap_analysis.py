@@ -196,13 +196,14 @@ def analyze_gap(thesis: str, materials: str = "") -> Dict:
 命题：{thesis}
 现有素材：{materials if materials else "无"}
 
-提取证据链：
-1. 数据类型：统计数据、调研报告
-2. 案例类型：真实案例、对比实验
-3. 理论依据：学术理论、专家观点
+任务：
+1. 总结命题的核心论点（一句话）
+2. 提取支撑该论点所需的证据链（数据类型/案例/理论依据）
+3. 评估现有素材就绪度
 
 返回 JSON：
 {{
+  "thesis_summary": "命题的核心论点（一句话总结）",
   "evidence_chain": ["证据1", "证据2", "证据3"],
   "matched_materials": [{{"evidence": "证据1", "source": "来源", "match_score": 0.85}}],
   "missing_evidence": ["证据2", "证据3"],
@@ -214,6 +215,7 @@ def analyze_gap(thesis: str, materials: str = "") -> Dict:
     result = _call_llm_raw(prompt)
     if not result:
         return {
+            "thesis_summary": thesis,
             "evidence_chain": [],
             "matched_materials": [],
             "missing_evidence": [],
@@ -225,6 +227,7 @@ def analyze_gap(thesis: str, materials: str = "") -> Dict:
     parsed = _parse_llm_json(result)
     if not parsed:
         return {
+            "thesis_summary": thesis,
             "evidence_chain": [],
             "matched_materials": [],
             "missing_evidence": [],
@@ -236,7 +239,7 @@ def analyze_gap(thesis: str, materials: str = "") -> Dict:
     return parsed
 
 
-# ============ Phase 4: 双端大纲 ============
+# ============ Phase 4: 双端大纲（已废弃，仅 --legacy 可用） ============
 
 def generate_outlines(title: str, audience: str = "", dimension: str = "") -> Dict:
     """
@@ -459,6 +462,7 @@ def main():
 
     elif command == "outline":
         title = sys.argv[2] if len(sys.argv) > 2 else ""
+        print("[Deprecation] generate_outlines() 已废弃，请使用 cognitive_outline.py outline/dual", file=sys.stderr)
         result = generate_outlines(title)
         _safe_print(result)
 
@@ -466,6 +470,7 @@ def main():
         thesis = sys.argv[2] if len(sys.argv) > 2 else ""
         materials = sys.argv[3] if len(sys.argv) > 3 else ""
         title = sys.argv[4] if len(sys.argv) > 4 else ""
+        print("[Deprecation] gap_analysis() full 已废弃，Phase 4 已迁移至 cognitive_outline.py", file=sys.stderr)
         result = gap_analysis(thesis, materials, title)
         _safe_print(result)
 
