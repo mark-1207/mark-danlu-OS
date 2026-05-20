@@ -286,11 +286,18 @@ class TestGenerateSingleModule(unittest.TestCase):
 
 class TestModificationRecord(unittest.TestCase):
     def setUp(self):
-        # 清空全局记录
         import content_generator
         content_generator._modification_log = []
+        # 清除持久化文件，避免历史数据干扰
+        if content_generator._MOD_LOG_PATH.exists():
+            content_generator._MOD_LOG_PATH.unlink()
 
     def test_record_modification(self):
+        import content_generator
+        # Mock 掉文件 I/O，专注测内存逻辑
+        original_save = content_generator._save_mod_log
+        content_generator._save_mod_log = lambda *a, **k: None
+
         record_modification(
             module="HOOK",
             original="旧钩子",
@@ -304,6 +311,8 @@ class TestModificationRecord(unittest.TestCase):
         self.assertEqual(log[0]["original"], "旧钩子")
         self.assertEqual(log[0]["modified"], "新钩子")
         self.assertIn("timestamp", log[0])
+
+        content_generator._save_mod_log = original_save
 
 
 # ============ T-10 分模块生成流程 ============
