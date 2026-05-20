@@ -923,10 +923,18 @@ def generate_single_module(
     if not builder:
         return {"module": module_type, "draft": "", "status": "unsupported_module"}
 
+    # 加载风格偏好并注入
+    style_prefs = get_style_preferences(platform)
+    style_hints = build_style_hints(style_prefs)
+
     # 小红书可选模块，若无 builder 则跳过
     prompt = builder(topic, ccos_outline, materials, previous_modules, platform)
     if not prompt:
         return {"module": module_type, "draft": "", "status": "skipped_optional"}
+
+    # 追加风格偏好到 prompt
+    if style_hints:
+        prompt = prompt + "\n\n" + style_hints
 
     raw = _call_llm_raw(prompt, temperature=0.6)
     if not raw:
@@ -946,7 +954,29 @@ def generate_single_module(
 
 # ============ 修改记录 ============
 
+_MOD_LOG_PATH = Path(__file__).parent.parent / "data" / "modification_log.json"
 _modification_log: List[Dict] = []
+
+
+def _load_mod_log() -> List[Dict]:
+    """从磁盘加载修改记录"""
+    if not _MOD_LOG_PATH.exists():
+        return []
+    try:
+        with open(_MOD_LOG_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def _save_mod_log(log: List[Dict]) -> None:
+    """持久化修改记录到磁盘"""
+    _MOD_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with open(_MOD_LOG_PATH, "w", encoding="utf-8") as f:
+            json.dump(log, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[Warning] 保存修改记录失败: {e}", file=sys.stderr)
 
 
 def record_modification(
@@ -959,7 +989,10 @@ def record_modification(
 ) -> None:
     """后台静默记录修改（不打断流程）"""
     global _modification_log
-    _modification_log.append({
+    if not _modification_log:
+        _modification_log = _load_mod_log()
+
+    entry = {
         "module": module,
         "original": original,
         "modified": modified,
@@ -967,13 +1000,117 @@ def record_modification(
         "timestamp": datetime.now().isoformat(),
         "platform": platform,
         "topic": topic
-    })
+    }
+    _modification_log.append(entry)
+    _save_mod_log(_modification_log)
 
 
 def get_modification_log() -> List[Dict]:
-    """获取修改记录"""
+    """获取修改记录（含持久化加载）"""
     global _modification_log
+    if not _modification_log:
+        _modification_log = _load_mod_log()
     return _modification_log
+
+
+def get_style_preferences(platform: str, min_samples: int = 3) -> Dict[str, Any]:
+    """
+    从修改记录中学习用户风格偏好
+
+    分析维度：
+    - HOOK 风格：长度、用词特点
+    - CASE 风格：深度/短平快、叙事视角
+    - 共同修改词：高频修改词（可能是用户不喜欢/喜欢替换的词）
+    - 删除词 vs 添加词：对比 original vs modified 差异
+
+    Returns:
+        {
+            "hook_length_avg": float,
+            "case_depth": str,  # "long" / "short"
+            "case_perspective": str,  # "first" / "third"
+            "removed_words": List[str],  # 用户倾向删除的词
+            "added_words": List[str],   # 用户倾向添加的词
+            "sample_count": int
+        }
+    """
+    global _modification_log
+    if not _modification_log:
+        _modification_log = _load_mod_log()
+
+    entries = [e for e in _modification_log if e["platform"] == platform]
+    if len(entries) < min_samples:
+        return {"sample_count": len(entries), "style_summary": ""}
+
+    hook_lengths = []
+    case_depths = []
+    case_perspectives = []
+    removed_words = []
+    added_words = []
+
+    for e in entries:
+        original = e.get("original", "")
+        modified = e.get("modified", "")
+
+        if e["module"] == "HOOK":
+            hook_lengths.append(len(modified))
+        elif e["module"] == "CASE":
+            if len(modified) > 400:
+                case_depths.append("long")
+            else:
+                case_depths.append("short")
+            # 简单视角判断：是否包含"我"
+            case_perspectives.append("first" if "我" in modified else "third")
+
+        # 词级别差异（简单启发式）
+        orig_words = set(original)
+        mod_words = set(modified)
+        for w in orig_words - mod_words:
+            if len(w) > 1:
+                removed_words.append(w)
+        for w in mod_words - orig_words:
+            if len(w) > 1:
+                added_words.append(w)
+
+    from collections import Counter
+    hook_len_avg = sum(hook_lengths) / len(hook_lengths) if hook_lengths else 0
+    case_depth_pref = Counter(case_depths).most_common(1)[0][0] if case_depths else "long"
+    case_persp_pref = Counter(case_perspectives).most_common(1)[0][0] if case_perspectives else "first"
+
+    # 高频差异词（至少出现2次）
+    removed_counter = Counter(removed_words)
+    added_counter = Counter(added_words)
+    frequent_removed = [w for w, c in removed_counter.items() if c >= 2]
+    frequent_added = [w for w, c in added_counter.items() if c >= 2]
+
+    return {
+        "hook_length_avg": round(hook_len_avg, 1),
+        "case_depth": case_depth_pref,
+        "case_perspective": case_persp_pref,
+        "removed_words": frequent_removed[:10],
+        "added_words": frequent_added[:10],
+        "sample_count": len(entries)
+    }
+
+
+def build_style_hints(prefs: Dict[str, Any]) -> str:
+    """将风格偏好转为 prompt hint"""
+    if prefs.get("sample_count", 0) == 0:
+        return ""
+    hints = []
+    if prefs.get("hook_length_avg"):
+        hints.append(f"HOOK 长度参考：约 {prefs['hook_length_avg']:.0f} 字")
+    if prefs.get("case_depth"):
+        depth = "深度叙事（500字+）" if prefs["case_depth"] == "long" else "短平快（200-300字）"
+        hints.append(f"CASE 深度：{depth}")
+    if prefs.get("case_perspective"):
+        persp = "第一人称" if prefs["case_perspective"] == "first" else "第三人称"
+        hints.append(f"CASE 视角：{persp}")
+    if prefs.get("removed_words"):
+        removed_str = "、".join(prefs["removed_words"][:5])
+        hints.append(f"避免用词：{removed_str}")
+    if hints:
+        return "用户风格偏好：" + " | ".join(hints) + "。请参考以上偏好。"
+    return ""
 
 
 # ============ 分模块生成流程 ============
