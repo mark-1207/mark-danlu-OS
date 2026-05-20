@@ -14,6 +14,8 @@ import { backfillCompetitorAnalysis } from '../../scenarios/topic/backfill-analy
 import { analyzePatterns } from '../../scenarios/learning/pattern-analyzer.js';
 import { updateCreativePreferences, loadCreativePreferences, loadCreativePreferencesFromFeishu } from '../../scenarios/learning/creative-preferences.js';
 import type { RevisionManifest } from '../../scenarios/revision/types.js';
+import type { Platform } from '../../scenarios/learning/types.js';
+import { writeFeedbackRecord } from '../../scenarios/feedback/feishu-feedback.js';
 
 export async function runLearn(options: {
   corpusDir?: string;
@@ -31,6 +33,14 @@ export async function runLearn(options: {
   feedbackCompare?: boolean;
   backfillAnalysis?: boolean;
   updatePreferences?: boolean;
+  feedbackEntry?: {
+    runId: string;
+    likes: number;
+    comments: number;
+    shares: number;
+    reads?: number;
+    platform: Platform;
+  };
 }): Promise<void> {
   const config = await loadConfig();
   setCachedConfig(config);
@@ -395,6 +405,68 @@ export async function runLearn(options: {
     return;
   }
 
+  // ── --feedback (快捷录入反馈数据) ─────────────────────────────────
+  if (options.feedbackEntry) {
+    const { runId, likes, comments, shares, reads, platform } = options.feedbackEntry;
+
+    // 1. Find manifest.json by runId under output/
+    const outputDir = path.resolve(options.corpusDir ?? config.output?.dir ?? './output');
+    let manifestPath: string | null = null;
+    let manifestContent: object | null = null;
+
+    try {
+      const entries = await fs.readdir(outputDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const candidate = path.join(outputDir, entry.name, 'manifest.json');
+        try {
+          const content = await fs.readFile(candidate, 'utf-8');
+          const manifest = JSON.parse(content);
+          if (manifest.runId === runId || entry.name.includes(runId)) {
+            manifestPath = candidate;
+            manifestContent = manifest;
+            break;
+          }
+        } catch { /* skip */ }
+      }
+    } catch { /* output dir may not exist */ }
+
+    if (!manifestContent) {
+      console.log(chalk.red(`错误: 未找到 runId="${runId}" 对应的 manifest.json`));
+      return;
+    }
+
+    // 2. Extract article title from manifest
+    const title = (manifestContent as { title?: string }).title ?? runId;
+    const articleId = runId;
+
+    // 3. Compute engagement rate
+    const engagementRate = (likes + comments + shares) / (reads || 1);
+
+    // 4. Write to feedback table
+    try {
+      await writeFeedbackRecord({
+        articleId,
+        title,
+        platform,
+        reads: reads ?? 0,
+        likes,
+        comments,
+        shares,
+        notes: `快速录入 | engagement rate: ${(engagementRate * 100).toFixed(2)}%`,
+      });
+      console.log(chalk.green('\n✅ 反馈数据已写入飞书反馈表\n'));
+      console.log(`  runId: ${runId}`);
+      console.log(`  标题: ${title}`);
+      console.log(`  平台: ${platform}`);
+      console.log(`  阅读: ${reads ?? 0} | 点赞: ${likes} | 评论: ${comments} | 转发: ${shares}`);
+      console.log(`  互动率: ${(engagementRate * 100).toFixed(2)}%\n`);
+    } catch (err) {
+      console.log(chalk.red(`错误: 写入飞书失败: ${err}`));
+    }
+    return;
+  }
+
   // ── Default: run analysis ────────────────────────────────────────────
   const profile = store.getStyleProfile();
   const sentences = store.getAllSentences();
@@ -442,6 +514,13 @@ export function registerLearnCommand(program: Command): void {
     .option('--feedback-compare', '对比我方内容与竞品内容的标签级差距')
     .option('--backfill-analysis', '对竞品表已有记录补填叙事结构/情感调性/内容角度')
     .option('--update-preferences', '从 revision manifests + 反馈数据 + 竞品数据分析创作偏好并更新')
+    .option('--feedback', '快捷录入反馈数据（配合 --run-id/--likes/--comments/--shares/--reads/--platform）')
+    .option('--run-id <id>', '关联的 run ID')
+    .option('--likes <n>', '点赞数')
+    .option('--comments <n>', '评论数')
+    .option('--shares <n>', '转发数')
+    .option('--reads <n>', '阅读数（可选）')
+    .option('--platform <platform>', '平台 wechat/xiaohongshu/douyin')
     .action(async (opts) => {
       try {
         await runLearn({
@@ -460,6 +539,14 @@ export function registerLearnCommand(program: Command): void {
           feedbackCompare: opts.feedbackCompare,
           backfillAnalysis: opts.backfillAnalysis,
           updatePreferences: opts.updatePreferences,
+          feedbackEntry: opts.feedback ? {
+            runId: opts.runId,
+            likes: Number(opts.likes) || 0,
+            comments: Number(opts.comments) || 0,
+            shares: Number(opts.shares) || 0,
+            reads: opts.reads ? Number(opts.reads) : undefined,
+            platform: opts.platform,
+          } : undefined,
         });
       } catch (error) {
         logger.error('learn command failed', { error: String(error) });

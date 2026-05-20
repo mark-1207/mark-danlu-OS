@@ -174,6 +174,60 @@ export async function readCreativePreferences(): Promise<CreativePreferencesReco
 }
 
 /**
+ * Write a feedback record to the Feishu table.
+ * Minimal fields required: 文章ID, 内容标题, 平台, 阅读量, 点赞数, 评论数, 转发数
+ */
+export async function writeFeedbackRecord(record: {
+  articleId: string;
+  title: string;
+  platform: 'wechat' | 'xiaohongshu' | 'douyin';
+  reads: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  tags?: string[];
+  angle?: string;
+  structure?: string;
+  tone?: string;
+  publishDate?: string;
+  dataPeriod?: '7日' | '14日' | '30日';
+  notes?: string;
+}): Promise<void> {
+  if (!FEISHU_FEEDBACK_TABLE_APP_TOKEN || !FEISHU_FEEDBACK_TABLE_ID) {
+    throw new Error('缺少飞书配置: FEISHU_FEEDBACK_TABLE_APP_TOKEN / FEISHU_FEEDBACK_TABLE_ID');
+  }
+
+  const records = [{
+    文章ID: record.articleId,
+    内容标题: record.title,
+    原文链接: '',
+    平台: record.platform,
+    主题标签: record.tags ?? [],
+    内容角度: record.angle ?? '',
+    叙事结构: (record.structure ?? '') as FeedbackRecord['fields']['叙事结构'],
+    情感调性: (record.tone ?? '') as FeedbackRecord['fields']['情感调性'],
+    发布日期: record.publishDate ?? new Date().toISOString().slice(0, 10),
+    数据周期: (record.dataPeriod ?? '7日') as FeedbackRecord['fields']['数据周期'],
+    阅读量: record.reads,
+    点赞数: record.likes,
+    评论数: record.comments,
+    转发数: record.shares,
+    完播率: 0,
+    收藏数: 0,
+    数据备注: record.notes ?? '',
+    下次更新时间: '',
+  }];
+
+  const jsonArg = JSON.stringify({ records });
+  await execLarkCli([
+    'base', '+record-batch-create',
+    '--base-token', FEISHU_FEEDBACK_TABLE_APP_TOKEN,
+    '--table-id', FEISHU_FEEDBACK_TABLE_ID,
+    '--json', jsonArg,
+  ]);
+}
+
+/**
  * Write creative preferences records to Feishu (batch create).
  * Creates 3 rows, one per platform.
  */

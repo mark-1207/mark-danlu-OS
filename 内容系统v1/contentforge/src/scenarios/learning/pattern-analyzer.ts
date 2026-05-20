@@ -50,6 +50,8 @@ function extractRevisionPatterns(manifests: RevisionManifest[]): PatternRecord[]
 
 /**
  * 从 feedback records 计算各维度平均互动率
+ * Future: normalize against competitor baseline per tag
+ * For now: raw engagement rate = (likes + comments + shares) / reads
  */
 function extractFeedbackPatterns(records: FeedbackRecord[]): PatternRecord[] {
   const patterns: PatternRecord[] = [];
