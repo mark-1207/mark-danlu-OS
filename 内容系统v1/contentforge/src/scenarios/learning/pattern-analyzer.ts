@@ -171,6 +171,54 @@ function computeConfidence(count: number): 'low' | 'medium' | 'high' {
   return 'low';
 }
 
+interface CompetitorInsight {
+  structure: { preference: string; avgEngagement: number; sampleSize: number };
+  tone: { preference: string; avgEngagement: number; sampleSize: number };
+}
+
+/**
+ * Analyze competitor records to extract structure/tone preferences with avg engagement
+ */
+export function analyzeCompetitorPatterns(records: FeishuRecord[]): CompetitorInsight {
+  const byStructure = new Map<string, { totalEng: number; count: number }>();
+  const byTone = new Map<string, { totalEng: number; count: number }>();
+
+  for (const r of records) {
+    const reads = r.fields.阅读数 ?? 0;
+    if (!reads) continue;
+    const eng = ((r.fields.点赞数 ?? 0) + (r.fields.评论数 ?? 0) + (r.fields.转发数 ?? 0)) / reads;
+
+    if (r.fields.叙事结构) {
+      const e = byStructure.get(r.fields.叙事结构) ?? { totalEng: 0, count: 0 };
+      byStructure.set(r.fields.叙事结构, { totalEng: e.totalEng + eng, count: e.count + 1 });
+    }
+    if (r.fields.情感调性) {
+      const e = byTone.get(r.fields.情感调性) ?? { totalEng: 0, count: 0 };
+      byTone.set(r.fields.情感调性, { totalEng: e.totalEng + eng, count: e.count + 1 });
+    }
+  }
+
+  // Find top structure by avg engagement
+  let topStructure = { preference: '', avgEngagement: 0, sampleSize: 0 };
+  for (const [structure, data] of byStructure) {
+    const avgEng = data.totalEng / data.count;
+    if (avgEng > topStructure.avgEngagement) {
+      topStructure = { preference: structure, avgEngagement: avgEng, sampleSize: data.count };
+    }
+  }
+
+  // Find top tone by avg engagement
+  let topTone = { preference: '', avgEngagement: 0, sampleSize: 0 };
+  for (const [tone, data] of byTone) {
+    const avgEng = data.totalEng / data.count;
+    if (avgEng > topTone.avgEngagement) {
+      topTone = { preference: tone, avgEngagement: avgEng, sampleSize: data.count };
+    }
+  }
+
+  return { structure: topStructure, tone: topTone };
+}
+
 /**
  * 合并多源数据，计算平台偏好
  */
@@ -287,10 +335,15 @@ export function analyzePatterns(
   // 暂时所有平台用相同的偏好（分开学需要更细粒度的数据）
   const prefs = buildPlatformPreferences(revisionPatterns, feedbackPatterns, competitorPatterns);
 
-  return {
-    wechat: prefs,
-    xiaohongshu: prefs,
-    douyin: prefs,
+  // Analyze competitor patterns for insights
+  const competitorInsights = analyzeCompetitorPatterns(competitorRecords);
+
+  const result: CreativePreferences = {
+    wechat: { ...prefs, competitorInsights },
+    xiaohongshu: { ...prefs, competitorInsights },
+    douyin: { ...prefs, competitorInsights },
     lastUpdated: new Date().toISOString().slice(0, 10),
   };
+
+  return result;
 }

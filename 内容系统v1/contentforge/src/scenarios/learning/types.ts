@@ -58,6 +58,10 @@ export interface PlatformPreferences {
     }>;
     confidence: 'low' | 'medium' | 'high';
   };
+  competitorInsights?: {
+    structure: { preference: string; avgEngagement: number; sampleSize: number };
+    tone: { preference: string; avgEngagement: number; sampleSize: number };
+  };
 }
 
 // 完整创作偏好（按平台分开）

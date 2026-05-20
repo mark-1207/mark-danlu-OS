@@ -191,6 +191,16 @@ export function buildPreferencePrompt(platform: Platform): string {
     parts.push(`情感调性偏好（样本${prefs.tone.sampleSize}条，置信度${prefs.tone.confidence}）：推荐使用「${prefs.tone.preference}」调性`);
   }
 
+  if (prefs.competitorInsights) {
+    const ci = prefs.competitorInsights;
+    if (ci.structure.sampleSize > 0) {
+      parts.push(`竞品高表现洞察：叙事结构「${ci.structure.preference}」平均互动率 ${(ci.structure.avgEngagement * 100).toFixed(1)}%（样本${ci.structure.sampleSize}条）`);
+    }
+    if (ci.tone.sampleSize > 0) {
+      parts.push(`竞品高表现洞察：情感调性「${ci.tone.preference}」平均互动率 ${(ci.tone.avgEngagement * 100).toFixed(1)}%（样本${ci.tone.sampleSize}条）`);
+    }
+  }
+
   if (parts.length > 0) {
     return `\n\n【创作偏好参考】\n${parts.join('\n')}\n（仅供参考，不强制约束）`;
   }
