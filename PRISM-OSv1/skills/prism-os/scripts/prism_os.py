@@ -640,7 +640,8 @@ def main():
                 "run": "python prism_os.py run \"<用户输入>\" [--format] [--no-ext] [--fast] - 完整流程",
                 "classify": "意图识别",
                 "gateway": "苏格拉底网关（熵值计算）",
-                "confirm": "python prism_os.py confirm \"<标题>\" - 确认选题并写入飞书"
+                "confirm": "python prism_os.py confirm \"<标题>\" - 确认选题并写入飞书",
+                "generate": "python prism_os.py generate \"<命题>\" [--platform wechat|xiaohongshu] - Phase 5 内容生成"
             },
             "options": {
                 "--format, -f": "格式化输出（可读报告）",
@@ -771,6 +772,42 @@ def main():
             ccos_result = cognitive_outline_workflow(topic, "reversal", platform, alignment_result)
 
         _safe_print({"topic": topic, "platform": platform, "alignment": alignment_result, "ccos_outline": ccos_result})
+
+    elif command == "generate":
+        # Phase 5: 内容生成
+        # 用法: python prism_os.py generate "<标题>" [--platform wechat|xiaohongshu]
+        topic = ""
+        platform = "wechat"
+
+        i = 2
+        while i < len(sys.argv):
+            arg = sys.argv[i]
+            if arg == "--platform" and i + 1 < len(sys.argv):
+                platform = sys.argv[i + 1]
+                i += 2
+            elif not topic and not arg.startswith("--"):
+                topic = arg
+                i += 1
+            else:
+                i += 1
+
+        if not topic:
+            _safe_print({"error": "请提供命题: python prism_os.py generate \"<命题>\" [--platform wechat]"})
+            sys.exit(1)
+
+        from content_generator import content_generation_workflow, _load_ccos_for_topic
+
+        ccos_outline = _load_ccos_for_topic(topic, platform)
+        if not ccos_outline:
+            _safe_print({
+                "error": f"未找到命题 '{topic}' 的 CCOS 大纲，请先运行: python prism_os.py ccos \"{topic}\"",
+                "topic": topic,
+                "platform": platform
+            })
+            sys.exit(1)
+
+        result = content_generation_workflow(topic, ccos_outline, platform)
+        _safe_print(result)
 
     else:
         _safe_print({"error": f"未知命令: {command}"})
