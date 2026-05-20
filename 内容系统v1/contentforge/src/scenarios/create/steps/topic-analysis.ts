@@ -4,6 +4,7 @@ import { PipelineContext } from '../../../core/context.js';
 import type { LLMProvider } from '../../../llm/types.js';
 import { promptLoader } from '../../../prompts/loader.js';
 import { TopicAnalysisSchema, type TopicAnalysis } from '../types.js';
+import { buildPreferencePrompt } from '../../learning/creative-preferences.js';
 
 const InputSchema = z.object({
   keyword: z.string(),
@@ -92,7 +93,7 @@ ${formatted}
             warning: competitorInsights.warning,
           }
         : undefined,
-    });
+    }) + '\n\n' + buildPreferencePrompt('wechat');
 
     const result = await this.callLLMJson<TopicAnalysis>([
       { role: 'system', content: systemPrompt },

@@ -6,6 +6,7 @@ import { promptLoader } from '../../../prompts/loader.js';
 import { getCachedConfig } from '../../../config/loader.js';
 import { getObsidianReader } from '../../../io/obsidian/reader.js';
 import { logger } from '../../../utils/logger.js';
+import { buildPreferencePrompt } from '../../learning/creative-preferences.js';
 import {
   PlatformAssignmentsSchema,
   TopicCardSchema,
@@ -77,10 +78,11 @@ export class OutlineWechatStep extends PipelineStep<z.infer<typeof WechatInputSc
 
     const template = await promptLoader.load('create', 'outline', 'wechat');
     const systemPrompt = promptLoader.render(template.system, {});
+    const prefPrompt = buildPreferencePrompt('wechat');
     const userPrompt = promptLoader.render(template.user, {
       topicCard: JSON.stringify(topicCard, null, 2),
       materials,
-    });
+    }) + prefPrompt;
 
     return this.callLLMJson<WechatOutline>([
       { role: 'system', content: systemPrompt },
@@ -109,7 +111,8 @@ export class OutlineXiaohongshuStep extends PipelineStep<z.infer<typeof Xiaohong
     const topicCard = { ...assignments.xiaohongshu, title };
     const template = await promptLoader.load('create', 'outline', 'xiaohongshu');
     const systemPrompt = promptLoader.render(template.system, {});
-    const userPrompt = promptLoader.render(template.user, { topicCard: JSON.stringify(topicCard, null, 2) });
+    const prefPrompt = buildPreferencePrompt('xiaohongshu');
+    const userPrompt = promptLoader.render(template.user, { topicCard: JSON.stringify(topicCard, null, 2) }) + prefPrompt;
 
     return this.callLLMJson<XiaohongshuOutline>([
       { role: 'system', content: systemPrompt },
@@ -138,7 +141,8 @@ export class OutlineDouyinStep extends PipelineStep<z.infer<typeof DouyinInputSc
     const topicCard = { ...assignments.douyin, title };
     const template = await promptLoader.load('create', 'outline', 'douyin');
     const systemPrompt = promptLoader.render(template.system, {});
-    const userPrompt = promptLoader.render(template.user, { topicCard: JSON.stringify(topicCard, null, 2) });
+    const prefPrompt = buildPreferencePrompt('douyin');
+    const userPrompt = promptLoader.render(template.user, { topicCard: JSON.stringify(topicCard, null, 2) }) + prefPrompt;
 
     return this.callLLMJson<DouyinOutline>([
       { role: 'system', content: systemPrompt },
