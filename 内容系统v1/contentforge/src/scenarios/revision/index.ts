@@ -7,9 +7,18 @@ import fs from 'fs/promises';
 import chalk from 'chalk';
 import { PipelineContext } from '../../core/context.js';
 import type { LLMProvider } from '../../llm/types.js';
+import { ReviewWechatStep, ReviewXiaohongshuStep, ReviewDouyinStep } from '../create/steps/review-optimization.js';
+
+const ReviewSteps = {
+  wechat: ReviewWechatStep,
+  xiaohongshu: ReviewXiaohongshuStep,
+  douyin: ReviewDouyinStep,
+} as const;
 import { selectRevisionElements } from './steps/element-selector.js';
 import { executeRevisionRewrite } from './steps/rewrite-executor.js';
 import { generateLearningMetadata } from './steps/learning-metadata.js';
+import { directEditParagraphs } from './steps/direct-edit.js';
+import { getObsidianWriter } from '../../io/obsidian/writer.js';
 import type { RevisionSelection, AppliedRevision, RevisionManifest } from './types.js';
 
 export interface RevisionPipelineOptions {
@@ -80,6 +89,28 @@ export class RevisionPipeline {
           return { success: false, runId };
         }
 
+        // Handle __DIRECT_EDIT__ — paragraph-level inline editing
+        if (userInstruction === '__DIRECT_EDIT__') {
+          for (const platform of ['wechat', 'xiaohongshu', 'douyin'] as const) {
+            const original = contents[platform];
+            if (!original) continue;
+            const { updatedContent } = await directEditParagraphs(original, platform);
+            contents[platform] = updatedContent;
+          }
+          // Show results and loop
+          console.log(chalk.green('\n✓ 直接编辑完成\n'));
+          console.log(chalk.green('✓ 已保存\n'));
+          const confirmed = await confirm('还要继续修改其他内容吗？');
+          if (confirmed) {
+            this.revisionCount++;
+            this.currentVersion = `v${this.revisionCount + 1}`;
+            continue;
+          }
+          // Fall through to lineage persist and exit
+          await this.persistFinalContent(context, contents);
+          return { success: true, runId };
+        }
+
         // R1: Execute rewrite
         console.log(chalk.cyan('\n⏳ 正在修订...\n'));
         const result = await executeRevisionRewrite(
@@ -114,6 +145,9 @@ export class RevisionPipeline {
 
         // Trigger review-optimization
         await this.triggerReviewOptimization(context);
+
+        // Sync revised content to Obsidian
+        await this.syncToObsidian(context, contents);
 
         return { success: true, runId };
       } else {
@@ -228,12 +262,94 @@ export class RevisionPipeline {
     await context.persist();
   }
 
-  private async triggerReviewOptimization(_context: PipelineContext): Promise<void> {
-    // TODO(contentforge-revision): Integrate with review-optimization step.
-    // Currently this only logs. After user confirms in revision, we should
-    // run the review step (review-optimization) on the revised content.
-    // This requires bridging from RevisionPipeline back into the create/recreate
-    // pipeline's review step, or making review a standalone step.
+  private async triggerReviewOptimization(context: PipelineContext): Promise<void> {
     console.log(chalk.cyan('\n→ 进入内容审查优化...\n'));
+
+    // Iterate over all platforms
+    for (const platform of ['wechat', 'xiaohongshu', 'douyin'] as const) {
+      const ReviewStep = ReviewSteps[platform];
+      if (!ReviewStep) continue;
+
+      const content = context.get<string>(`content-${platform}`);
+      const assignment = context.get<any>('topic-assignment');
+      if (!content || !assignment) {
+        console.log(chalk.yellow(`⚠ ${platform} 缺少内容或主题分配，跳过审查优化`));
+        continue;
+      }
+
+      try {
+        const reviewStep = new ReviewStep(this.options.provider, this.options.defaultModel);
+        const result = await reviewStep.execute({}, context);
+
+        if (result.success && result.data) {
+          const { recommendedTitle, revisedContent, qualityScores } = result.data;
+          console.log(chalk.bold(`\n╔══ ${platform} 审查结果 ════════════════════════════╗`));
+          if (recommendedTitle) {
+            console.log(`  推荐标题: ${chalk.green(recommendedTitle)}`);
+          }
+          if (qualityScores) {
+            console.log(`  温度: ${qualityScores.temperature}/10  热度: ${qualityScores.hotness}/10`);
+            console.log(`  深度: ${qualityScores.depth}/10   厚度: ${qualityScores.thickness}/10`);
+            console.log(`  情绪曲线: ${qualityScores.emotionCurve}/10  知识迁移: ${qualityScores.knowledgeTransfer}/10`);
+          }
+          console.log(chalk.bold('╚════════════════════════════════════════╝'));
+
+          // Update context with reviewed content
+          if (revisedContent) {
+            context.set(`content-${platform}`, revisedContent);
+          }
+          // Save review result for later reference
+          context.set(`review-${platform}-result`, result.data);
+        } else {
+          console.log(chalk.yellow(`⚠ ${platform} 审查优化失败: ${result.error ?? 'unknown'}`));
+        }
+      } catch (err) {
+        console.warn(chalk.yellow(`警告: ${platform} 审查优化异常: ${err instanceof Error ? err.message : String(err)}`));
+      }
+    }
+  }
+
+  private async syncToObsidian(context: PipelineContext, contents: Record<string, string>): Promise<void> {
+    try {
+      const { getCachedConfig } = await import('../../config/loader.js');
+      const config = getCachedConfig();
+      const obsidianConfig = config.obsidian;
+      if (!obsidianConfig?.vaultPath) return;
+
+      const writer = getObsidianWriter(obsidianConfig.vaultPath, obsidianConfig.writeDir);
+      const topicAnalysis = context.get<any>('topic-analysis');
+      const topicAssignment = context.get<any>('topic-assignment');
+
+      const platforms = ['wechat', 'xiaohongshu', 'douyin'] as const;
+      for (const platform of platforms) {
+        const content = contents[platform];
+        if (!content) continue;
+
+        try {
+          // Use reviewed title if available, otherwise extract from content
+          const reviewResult = context.get<any>(`review-${platform}-result`);
+          let title = '';
+          if (reviewResult?.recommendedTitle) {
+            title = reviewResult.recommendedTitle;
+          } else {
+            title = content.split('\n').find((l: string) => l.startsWith('#'))?.replace(/^#+\s*/, '').trim() ?? '未命名';
+          }
+
+          const filePath = await writer.writeArticle({
+            title,
+            content,
+            platform,
+            topics: topicAnalysis?.subTopics?.map((s: any) => s.name) ?? [],
+            keyword: topicAnalysis?.keyword,
+            runDir: context.runId,
+          });
+          console.log(chalk.green(`  ✓ ${platform} 已同步: ${path.basename(filePath)}`));
+        } catch (err) {
+          console.warn(chalk.yellow(`  ⚠ ${platform} 同步 Obsidian 失败: ${String(err)}`));
+        }
+      }
+    } catch (err) {
+      console.warn(chalk.yellow(`警告: Obsidian 同步失败: ${err instanceof Error ? err.message : String(err)}`));
+    }
   }
 }
