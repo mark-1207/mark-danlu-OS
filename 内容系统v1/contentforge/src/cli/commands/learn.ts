@@ -12,7 +12,7 @@ import { buildFeedbackSignal, computeFeedbackStats, compareWithCompetitor } from
 import { readFeishuRecords } from '../../scenarios/topic/feishu-sync.js';
 import { backfillCompetitorAnalysis } from '../../scenarios/topic/backfill-analysis.js';
 import { analyzePatterns } from '../../scenarios/learning/pattern-analyzer.js';
-import { updateCreativePreferences, loadCreativePreferences } from '../../scenarios/learning/creative-preferences.js';
+import { updateCreativePreferences, loadCreativePreferences, loadCreativePreferencesFromFeishu } from '../../scenarios/learning/creative-preferences.js';
 import type { RevisionManifest } from '../../scenarios/revision/types.js';
 
 export async function runLearn(options: {
@@ -352,6 +352,9 @@ export async function runLearn(options: {
   if (options.updatePreferences) {
     const outputDir = options.corpusDir ?? config.output?.dir ?? './output';
     const corpusDir = path.join(outputDir, 'corpus');
+
+    // Load latest preferences from Feishu first
+    await loadCreativePreferencesFromFeishu();
 
     // Collect all revision manifests
     const manifests: RevisionManifest[] = [];

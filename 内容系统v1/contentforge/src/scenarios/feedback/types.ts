@@ -59,3 +59,12 @@ export interface FeedbackStats {
   byTone: Record<string, { avgReads: number; avgEngagement: number; count: number }>;
   byAngle: Record<string, { avgReads: number; avgEngagement: number; count: number }>;
 }
+
+export interface CreativePreferencesRecord {
+  record_id: string;
+  fields: {
+    platform: 'wechat' | 'xiaohongshu' | 'douyin';
+    preferences_json: string;
+    last_updated: string;
+  };
+}

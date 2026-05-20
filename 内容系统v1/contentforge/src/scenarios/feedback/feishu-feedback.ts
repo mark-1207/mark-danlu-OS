@@ -2,10 +2,11 @@ import 'dotenv/config';
 import { execSync } from 'child_process';
 import { writeFile, unlink } from 'fs/promises';
 import { randomUUID } from 'crypto';
-import type { FeedbackRecord } from './types.js';
+import type { FeedbackRecord, CreativePreferencesRecord } from './types.js';
 
 const FEISHU_FEEDBACK_TABLE_APP_TOKEN = process.env.FEISHU_FEEDBACK_TABLE_APP_TOKEN ?? '';
 const FEISHU_FEEDBACK_TABLE_ID = process.env.FEISHU_FEEDBACK_TABLE_ID ?? '';
+const FEISHU_CREATIVE_PREFERENCES_SHEET_ID = process.env.FEISHU_CREATIVE_PREFERENCES_SHEET_ID ?? '';
 
 async function writeJsonTemp(jsonValue: string): Promise<string> {
   const tempFile = `lark-temp-${randomUUID()}.json`;
@@ -116,4 +117,87 @@ function normalizeTags(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.map(String);
   if (typeof raw === 'string') return raw.split(',').map(t => t.trim()).filter(Boolean);
   return [];
+}
+
+/**
+ * Read all creative preferences records from the Feishu sheet.
+ */
+export async function readCreativePreferences(): Promise<CreativePreferencesRecord[]> {
+  if (!FEISHU_FEEDBACK_TABLE_APP_TOKEN || !FEISHU_FEEDBACK_TABLE_ID || !FEISHU_CREATIVE_PREFERENCES_SHEET_ID) {
+    throw new Error('缺少飞书配置: FEISHU_FEEDBACK_TABLE_APP_TOKEN / FEISHU_FEEDBACK_TABLE_ID / FEISHU_CREATIVE_PREFERENCES_SHEET_ID');
+  }
+
+  const records: CreativePreferencesRecord[] = [];
+  let offset = 0;
+  const limit = 200;
+
+  while (true) {
+    const output = await execLarkCli([
+      'base', '+record-list',
+      '--base-token', FEISHU_FEEDBACK_TABLE_APP_TOKEN,
+      '--table-id', FEISHU_FEEDBACK_TABLE_ID,
+      '--sheet-id', FEISHU_CREATIVE_PREFERENCES_SHEET_ID,
+      '--offset', String(offset),
+      '--limit', String(limit),
+    ]);
+
+    const data = JSON.parse(output);
+    const items: unknown[][] = data?.data?.data ?? [];
+    const fieldNames: string[] = data?.data?.fields ?? [];
+    const recordIds: string[] = data?.data?.record_id_list ?? [];
+
+    if (items.length === 0) break;
+
+    for (let i = 0; i < items.length; i++) {
+      const row = items[i];
+      const recordId = recordIds[i];
+      const fields: Record<string, unknown> = {};
+      for (let j = 0; j < fieldNames.length; j++) {
+        fields[fieldNames[j]] = row[j];
+      }
+
+      records.push({
+        record_id: recordId,
+        fields: {
+          platform: (fields['platform'] as 'wechat' | 'xiaohongshu' | 'douyin') ?? 'wechat',
+          preferences_json: (fields['preferences_json'] as string) ?? '{}',
+          last_updated: (fields['last_updated'] as string) ?? '',
+        },
+      });
+    }
+
+    if (items.length < limit) break;
+    offset += limit;
+  }
+
+  return records;
+}
+
+/**
+ * Write creative preferences records to Feishu (batch create).
+ * Creates 3 rows, one per platform.
+ */
+export async function writeCreativePreferences(
+  wechatPrefs: object,
+  xiaohongshuPrefs: object,
+  douyinPrefs: object,
+): Promise<void> {
+  if (!FEISHU_FEEDBACK_TABLE_APP_TOKEN || !FEISHU_FEEDBACK_TABLE_ID || !FEISHU_CREATIVE_PREFERENCES_SHEET_ID) {
+    throw new Error('缺少飞书配置: FEISHU_FEEDBACK_TABLE_APP_TOKEN / FEISHU_FEEDBACK_TABLE_ID / FEISHU_CREATIVE_PREFERENCES_SHEET_ID');
+  }
+
+  const records = [
+    { platform: 'wechat', preferences_json: JSON.stringify(wechatPrefs), last_updated: new Date().toISOString().slice(0, 10) },
+    { platform: 'xiaohongshu', preferences_json: JSON.stringify(xiaohongshuPrefs), last_updated: new Date().toISOString().slice(0, 10) },
+    { platform: 'douyin', preferences_json: JSON.stringify(douyinPrefs), last_updated: new Date().toISOString().slice(0, 10) },
+  ];
+
+  const jsonArg = JSON.stringify({ records });
+  await execLarkCli([
+    'base', '+record-batch-create',
+    '--base-token', FEISHU_FEEDBACK_TABLE_APP_TOKEN,
+    '--table-id', FEISHU_FEEDBACK_TABLE_ID,
+    '--sheet-id', FEISHU_CREATIVE_PREFERENCES_SHEET_ID,
+    '--json', jsonArg,
+  ]);
 }

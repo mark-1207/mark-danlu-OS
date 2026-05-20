@@ -2,12 +2,13 @@
 
 import type { CreativePreferences, PlatformPreferences } from './types.js';
 import type { Platform } from './types.js';
+import { readCreativePreferences, writeCreativePreferences } from '../feedback/feishu-feedback.js';
 
 // TODO: Replace with actual Feishu table for creative preferences
 // For now, use a local cache in memory
 let cachedPreferences: CreativePreferences | null = null;
 
-const DEFAULT_PREFERENCES: CreativePreferences = {
+export const DEFAULT_PREFERENCES: CreativePreferences = {
   wechat: {
     structure: { preference: '对比型', weight: 1.0, engagementRate: 0, sampleSize: 0, confidence: 'low' },
     tone: { preference: '励志', weight: 1.0, engagementRate: 0, sampleSize: 0, confidence: 'low' },
@@ -40,6 +41,53 @@ export function loadCreativePreferences(): CreativePreferences {
     cachedPreferences = { ...DEFAULT_PREFERENCES, lastUpdated: '' };
   }
   return cachedPreferences;
+}
+
+/**
+ * Load creative preferences from Feishu sheet.
+ * Populates the in-memory cache and falls back to DEFAULT_PREFERENCES if empty/error.
+ */
+export async function loadCreativePreferencesFromFeishu(): Promise<CreativePreferences> {
+  try {
+    const records = await readCreativePreferences();
+
+    if (records.length === 0) {
+      cachedPreferences = { ...DEFAULT_PREFERENCES, lastUpdated: '' };
+      return cachedPreferences;
+    }
+
+    const prefsFromFeishu: CreativePreferences = {
+      wechat: DEFAULT_PREFERENCES.wechat,
+      xiaohongshu: DEFAULT_PREFERENCES.xiaohongshu,
+      douyin: DEFAULT_PREFERENCES.douyin,
+      lastUpdated: '',
+    };
+
+    for (const record of records) {
+      const platform = record.fields.platform;
+      const jsonStr = record.fields.preferences_json;
+      if (!jsonStr) continue;
+
+      try {
+        const parsed = JSON.parse(jsonStr);
+        if (platform === 'wechat' || platform === 'xiaohongshu' || platform === 'douyin') {
+          prefsFromFeishu[platform] = parsed;
+          if (record.fields.last_updated) {
+            prefsFromFeishu.lastUpdated = record.fields.last_updated;
+          }
+        }
+      } catch {
+        // If parsing fails, keep default for this platform
+      }
+    }
+
+    cachedPreferences = prefsFromFeishu;
+    return cachedPreferences;
+  } catch (error) {
+    console.warn(`[creative-preferences] Failed to load from Feishu, using defaults: ${error}`);
+    cachedPreferences = { ...DEFAULT_PREFERENCES, lastUpdated: '' };
+    return cachedPreferences;
+  }
 }
 
 /**
@@ -106,7 +154,7 @@ export function getEffectiveHookPatterns(platform: Platform): string[] {
 }
 
 /**
- * Update creative preferences (in memory cache + future Feishu write)
+ * Update creative preferences (in memory cache + Feishu write)
  */
 export async function updateCreativePreferences(prefs: CreativePreferences): Promise<void> {
   cachedPreferences = {
@@ -114,9 +162,12 @@ export async function updateCreativePreferences(prefs: CreativePreferences): Pro
     lastUpdated: new Date().toISOString().slice(0, 10),
   };
 
-  // TODO: Write to Feishu table when available
-  // For now, just update cache
-  console.log(`[creative-preferences] Updated preferences, lastUpdated: ${cachedPreferences.lastUpdated}`);
+  try {
+    await writeCreativePreferences(prefs.wechat, prefs.xiaohongshu, prefs.douyin);
+    console.log(`[creative-preferences] Updated preferences and wrote to Feishu, lastUpdated: ${cachedPreferences.lastUpdated}`);
+  } catch (error) {
+    console.warn(`[creative-preferences] Failed to write to Feishu, updated cache only: ${error}`);
+  }
 }
 
 /**
