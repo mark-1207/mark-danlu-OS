@@ -1102,6 +1102,141 @@ def content_generation_workflow(
     return result
 
 
+# ============ 逐模块交互生成 ============
+
+def interactive_content_generation_workflow(
+    topic: str,
+    ccos_outline: Dict,
+    platform: str,
+    vault_path: Path = None
+) -> Dict:
+    """
+    Phase 5.5 逐模块交互生成流程
+
+    流程：
+    1. 展示缺口检测结果
+    2. 逐模块生成 → 显示草稿 → 用户选择：确认/重写/手动修改
+    3. 重写最多 2 次，仍不满意提示手动修改
+    4. 确认后进入下一模块
+    5. 全部完成后输出完整草稿
+    """
+    if vault_path is None:
+        vault_path = Path(r"D:\软件\obsidian笔记\内容素材库")
+
+    gaps = detect_material_gaps(topic, ccos_outline, vault_path)
+    modules_to_generate = PLATFORM_MODULE_CONFIG.get(platform, PLATFORM_MODULE_CONFIG["wechat"])
+    module_flow = ccos_outline.get("认知模块流", [])
+    previous_modules = []
+    confirmed_modules = []
+
+    print(f"\n{'='*60}")
+    print(f"命题：{topic}  |  平台：{platform}")
+    print(f"{'='*60}")
+
+    # 展示缺口概览
+    print("\n【素材缺口检测】")
+    for mod_type in modules_to_generate:
+        gap = gaps.get(mod_type, {})
+        if gap.get("has_gap"):
+            print(f"  ⚠ {mod_type}: {gap.get('gap_description', '缺素材')}")
+        else:
+            print(f"  ✅ {mod_type}: 已召回 {gap.get('recalled_count', 0)} 条素材")
+
+    print("\n【开始逐模块生成】输入 q 随时退出\n")
+
+    for mod_info in module_flow:
+        mod_type = mod_info.get("模块", "")
+        if mod_type not in modules_to_generate:
+            continue
+
+        gap = gaps.get(mod_type, {})
+        print(f"\n{'─'*50}")
+        print(f"▶ 模块 {mod_type}")
+        if gap.get("has_gap"):
+            print(f"  缺口：{gap.get('gap_description', '')}")
+        if gap.get("recalled_materials"):
+            mats = gap["recalled_materials"]
+            print(f"  素材：{', '.join(m['name'] for m in mats[:3])}")
+
+        rewrite_count = 0
+        while True:
+            materials = recall_materials_by_module(topic, mod_type, vault_path)
+            result = generate_single_module(
+                topic, mod_type, ccos_outline,
+                materials, previous_modules, platform,
+                rewrite_count=rewrite_count
+            )
+
+            if result["status"] != "success":
+                print(f"  [生成失败: {result['status']}]")
+                break
+
+            print(f"\n  【{mod_type} 草稿】")
+            print(f"  {result['draft'][:500]}")
+            if len(result['draft']) > 500:
+                print(f"  ...(共 {len(result['draft'])} 字)")
+
+            # 询问用户
+            if rewrite_count >= 2:
+                print("  [已达最大重写次数，建议手动修改]")
+                action = input("  操作：[回车]确认 [e]编辑 [r]重写 → ").strip().lower()
+            else:
+                action = input("  操作：[回车]确认 [r]重写 [e]编辑 → ").strip().lower()
+
+            if action == "q":
+                print("\n退出。已确认模块：", [m["module"] for m in confirmed_modules])
+                return {
+                    "status": "interrupted",
+                    "topic": topic,
+                    "platform": platform,
+                    "confirmed_modules": confirmed_modules,
+                    "previous_modules": previous_modules
+                }
+            elif action == "r" and rewrite_count < 2:
+                rewrite_count += 1
+                continue
+            elif action == "e":
+                print("  请输入修改后的内容（空行结束输入）：")
+                lines = []
+                while True:
+                    line = input()
+                    if line == "":
+                        break
+                    lines.append(line)
+                edited = "\n".join(lines)
+                if edited.strip():
+                    record_modification(mod_type, result["draft"], edited, platform, topic)
+                    result = {**result, "draft": edited, "status": "manually_edited"}
+                break
+            else:
+                # 确认
+                record_modification(mod_type, result["draft"], result["draft"], platform, topic)
+                break
+
+        confirmed_modules.append(result)
+        if result["status"] in ("success", "manually_edited"):
+            previous_modules.append(result)
+
+    # 拼接完整草稿
+    full_parts = []
+    for m in confirmed_modules:
+        if m.get("draft"):
+            full_parts.append(f"【{m['module']}】\n{m['draft']}")
+
+    print(f"\n{'='*60}")
+    print("【完整草稿】")
+    print(f"{'='*60}")
+    print("\n\n---\n\n".join(full_parts))
+
+    return {
+        "status": "completed",
+        "topic": topic,
+        "platform": platform,
+        "confirmed_modules": confirmed_modules,
+        "full_draft": "\n\n---\n\n".join(full_parts)
+    }
+
+
 # ============ CLI 入口 ============
 
 def _safe_print(obj: Any) -> None:
@@ -1148,8 +1283,14 @@ def _load_ccos_for_topic(topic: str, platform: str) -> Optional[Dict]:
 def main():
     if len(sys.argv) < 3:
         _safe_print({
-            "error": "用法: python content_generator.py generate <标题> [--platform wechat|xiaohongshu]",
-            "example": "python content_generator.py generate 'AI让内容创作更容易' --platform wechat"
+            "error": "用法: python content_generator.py <命令> <标题> [--platform wechat|xiaohongshu]",
+            "commands": {
+                "generate": "批量生成完整草稿（无交互）",
+                "interactive": "逐模块交互生成（确认/重写/编辑）",
+                "recall": "测试素材召回",
+                "gaps": "测试缺口检测"
+            },
+            "example": "python content_generator.py interactive 'AI让内容创作更容易' --platform wechat"
         })
         sys.exit(1)
 
@@ -1174,6 +1315,15 @@ def main():
 
         result = content_generation_workflow(topic, ccos_outline, platform)
         _safe_print(result)
+
+    elif cmd == "interactive":
+        ccos_outline = _load_ccos_for_topic(topic, platform)
+        if not ccos_outline:
+            print(f"[错误] 未找到命题 '{topic}' 的 CCOS 大纲，请先运行: python prism_os.py ccos '{topic}'")
+            sys.exit(1)
+        result = interactive_content_generation_workflow(topic, ccos_outline, platform)
+        # interactive 函数自己 print 结果，返回 dict 给自动化调用
+        _safe_print({"status": result["status"], "topic": topic, "platform": platform})
 
     elif cmd == "recall":
         # 单独测试素材召回
