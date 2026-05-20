@@ -9,6 +9,7 @@ import { PipelineContext } from '../../core/context.js';
 import type { LLMProvider } from '../../llm/types.js';
 import { selectRevisionElements } from './steps/element-selector.js';
 import { executeRevisionRewrite } from './steps/rewrite-executor.js';
+import { generateLearningMetadata } from './steps/learning-metadata.js';
 import type { RevisionSelection, AppliedRevision, RevisionManifest } from './types.js';
 
 export interface RevisionPipelineOptions {
@@ -106,7 +107,7 @@ export class RevisionPipeline {
       const confirmed = await confirm('这版可以吗？');
       if (confirmed) {
         // Persist lineage to parent runId
-        await this.persistLineage(result.appliedTriggers, userInstruction, selections, contents);
+        await this.persistLineage(result.appliedTriggers, userInstruction, selections, contents, context);
 
         // Persist final content to new runId
         await this.persistFinalContent(context, contents);
@@ -157,6 +158,7 @@ export class RevisionPipeline {
     userInstruction: string,
     selections: RevisionSelection[],
     contents: Record<string, string>,
+    _context: PipelineContext,
   ): Promise<void> {
     const parentDir = path.join(this.options.outputDir, this.options.parentRunId, 'revisions');
     const manifestPath = path.join(parentDir, 'manifest.json');
@@ -174,12 +176,33 @@ export class RevisionPipeline {
       };
     }
 
+    // Determine context (create vs recreate) from parentRunId
+    const ctx = this.options.parentRunId.startsWith('recreate') ? 'recreate' : 'create';
+
+    // Generate learning metadata
+    let learningMetadata;
+    try {
+      learningMetadata = await generateLearningMetadata({
+        selections,
+        userInstruction,
+        appliedTriggers,
+        platform: 'wechat', // default, selections contain platform info
+        context: ctx,
+        feedbackTrigger: 'self',
+        provider: this.options.provider,
+        defaultModel: this.options.defaultModel,
+      });
+    } catch (err) {
+      console.warn(chalk.yellow(`警告: learningMetadata 生成失败: ${err instanceof Error ? err.message : String(err)}`));
+    }
+
     const revision: AppliedRevision = {
       version: this.currentVersion,
       timestamp: new Date().toISOString(),
       selections,
       userInstruction,
       appliedTriggers,
+      learningMetadata,
     };
 
     manifest.versions.push(revision);
