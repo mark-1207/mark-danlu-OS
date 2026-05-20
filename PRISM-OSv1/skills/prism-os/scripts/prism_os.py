@@ -641,7 +641,7 @@ def main():
                 "classify": "意图识别",
                 "gateway": "苏格拉底网关（熵值计算）",
                 "confirm": "python prism_os.py confirm \"<标题>\" - 确认选题并写入飞书",
-                "generate": "python prism_os.py generate \"<命题>\" [--platform wechat|xiaohongshu] - Phase 5 内容生成"
+                "generate": "python prism_os.py generate \"<命题>\" [--platform wechat|xiaohongshu] [--interactive] - Phase 5 内容生成"
             },
             "options": {
                 "--format, -f": "格式化输出（可读报告）",
@@ -775,9 +775,10 @@ def main():
 
     elif command == "generate":
         # Phase 5: 内容生成
-        # 用法: python prism_os.py generate "<标题>" [--platform wechat|xiaohongshu]
+        # 用法: python prism_os.py generate "<标题>" [--platform wechat|xiaohongshu] [--interactive]
         topic = ""
         platform = "wechat"
+        interactive = False
 
         i = 2
         while i < len(sys.argv):
@@ -785,6 +786,9 @@ def main():
             if arg == "--platform" and i + 1 < len(sys.argv):
                 platform = sys.argv[i + 1]
                 i += 2
+            elif arg == "--interactive":
+                interactive = True
+                i += 1
             elif not topic and not arg.startswith("--"):
                 topic = arg
                 i += 1
@@ -792,10 +796,14 @@ def main():
                 i += 1
 
         if not topic:
-            _safe_print({"error": "请提供命题: python prism_os.py generate \"<命题>\" [--platform wechat]"})
+            _safe_print({"error": "请提供命题: python prism_os.py generate \"<命题>\" [--platform wechat] [--interactive]"})
             sys.exit(1)
 
-        from content_generator import content_generation_workflow, _load_ccos_for_topic
+        from content_generator import (
+            content_generation_workflow,
+            interactive_content_generation_workflow,
+            _load_ccos_for_topic
+        )
 
         ccos_outline = _load_ccos_for_topic(topic, platform)
         if not ccos_outline:
@@ -806,8 +814,12 @@ def main():
             })
             sys.exit(1)
 
-        result = content_generation_workflow(topic, ccos_outline, platform)
-        _safe_print(result)
+        if interactive:
+            result = interactive_content_generation_workflow(topic, ccos_outline, platform)
+            _safe_print({"status": result["status"], "topic": topic, "platform": platform})
+        else:
+            result = content_generation_workflow(topic, ccos_outline, platform)
+            _safe_print(result)
 
     else:
         _safe_print({"error": f"未知命令: {command}"})
