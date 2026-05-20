@@ -12,7 +12,7 @@ import { buildFeedbackSignal, computeFeedbackStats, compareWithCompetitor } from
 import { readFeishuRecords } from '../../scenarios/topic/feishu-sync.js';
 import { backfillCompetitorAnalysis } from '../../scenarios/topic/backfill-analysis.js';
 import { analyzePatterns } from '../../scenarios/learning/pattern-analyzer.js';
-import { updateCreativePreferences, loadCreativePreferences, loadCreativePreferencesFromFeishu } from '../../scenarios/learning/creative-preferences.js';
+import { updateCreativePreferences, loadCreativePreferences, loadCreativePreferencesFromFeishu, formatPreferencesReport } from '../../scenarios/learning/creative-preferences.js';
 import type { RevisionManifest } from '../../scenarios/revision/types.js';
 import type { Platform } from '../../scenarios/learning/types.js';
 import { writeFeedbackRecord } from '../../scenarios/feedback/feishu-feedback.js';
@@ -33,6 +33,8 @@ export async function runLearn(options: {
   feedbackCompare?: boolean;
   backfillAnalysis?: boolean;
   updatePreferences?: boolean;
+  showPreferences?: boolean;
+  showPreferencesJson?: boolean;
   feedbackEntry?: {
     runId: string;
     likes: number;
@@ -63,6 +65,15 @@ export async function runLearn(options: {
 
   const store = getFragmentStore(resolvedCorpusDir);
   await store.ensureLoaded();
+
+  // ── --show-preferences ─────────────────────────────────────────
+  if (options.showPreferences) {
+    await loadCreativePreferencesFromFeishu(); // ensure cache populated
+    const prefs = loadCreativePreferences();
+    const report = formatPreferencesReport(prefs, options.showPreferencesJson);
+    console.log(report);
+    return;
+  }
 
   // ── --stats ──────────────────────────────────────────────────────────
   if (options.stats) {
@@ -514,6 +525,8 @@ export function registerLearnCommand(program: Command): void {
     .option('--feedback-compare', '对比我方内容与竞品内容的标签级差距')
     .option('--backfill-analysis', '对竞品表已有记录补填叙事结构/情感调性/内容角度')
     .option('--update-preferences', '从 revision manifests + 反馈数据 + 竞品数据分析创作偏好并更新')
+    .option('--show-preferences', '展示当前创作偏好（从飞书读取）')
+    .option('--json', '输出原始 JSON 格式（配合 --show-preferences）')
     .option('--feedback', '快捷录入反馈数据（配合 --run-id/--likes/--comments/--shares/--reads/--platform）')
     .option('--run-id <id>', '关联的 run ID')
     .option('--likes <n>', '点赞数')
@@ -539,6 +552,8 @@ export function registerLearnCommand(program: Command): void {
           feedbackCompare: opts.feedbackCompare,
           backfillAnalysis: opts.backfillAnalysis,
           updatePreferences: opts.updatePreferences,
+          showPreferences: opts.showPreferences,
+          showPreferencesJson: opts.json,
           feedbackEntry: opts.feedback ? {
             runId: opts.runId,
             likes: Number(opts.likes) || 0,

@@ -1,5 +1,6 @@
 // Creative preferences — load/update/query creative preferences from Feishu
 
+import chalk from 'chalk';
 import type { CreativePreferences, PlatformPreferences } from './types.js';
 import type { Platform } from './types.js';
 import { readCreativePreferences, writeCreativePreferences } from '../feedback/feishu-feedback.js';
@@ -206,4 +207,48 @@ export function buildPreferencePrompt(platform: Platform): string {
   }
 
   return '';
+}
+
+/**
+ * Format preferences as a readable report or raw JSON
+ */
+export function formatPreferencesReport(prefs: CreativePreferences, json?: boolean): string {
+  if (json) return JSON.stringify(prefs, null, 2);
+
+  const lines: string[] = [];
+  lines.push(chalk.bold('\n📊 创作偏好报告\n'));
+
+  for (const platform of ['wechat', 'xiaohongshu', 'douyin'] as const) {
+    const p = prefs[platform];
+    lines.push(chalk.bold(`\n【${platform}】`));
+
+    // Structure
+    const structIcon = p.structure.confidence === 'high' ? '✓' : p.structure.confidence === 'medium' ? '⚠️' : '✗';
+    lines.push(`  ${structIcon} 叙事结构: ${p.structure.preference} (样本${p.structure.sampleSize}, 置信度 ${p.structure.confidence})`);
+
+    // Tone
+    const toneIcon = p.tone.confidence === 'high' ? '✓' : p.tone.confidence === 'medium' ? '⚠️' : '✗';
+    lines.push(`  ${toneIcon} 情感调性: ${p.tone.preference} (样本${p.tone.sampleSize}, 置信度 ${p.tone.confidence})`);
+
+    // Angle
+    const angleIcon = p.angle.confidence === 'high' ? '✓' : p.angle.confidence === 'medium' ? '⚠️' : '✗';
+    lines.push(`  ${angleIcon} 内容角度: ${p.angle.preference || '(未设置)'} (样本${p.angle.sampleSize}, 置信度 ${p.angle.confidence})`);
+
+    // Competitor insights
+    if (p.competitorInsights) {
+      lines.push(chalk.gray(`  竞品结构偏好: ${p.competitorInsights.structure.preference} (${(p.competitorInsights.structure.avgEngagement * 100).toFixed(1)}%, n=${p.competitorInsights.structure.sampleSize})`));
+      lines.push(chalk.gray(`  竞品调性偏好: ${p.competitorInsights.tone.preference} (${(p.competitorInsights.tone.avgEngagement * 100).toFixed(1)}%, n=${p.competitorInsights.tone.sampleSize})`));
+    }
+
+    // Effective patterns
+    if (p.title.effectivePatterns.length > 0) {
+      lines.push(chalk.gray(`  有效标题模式: ${p.title.effectivePatterns.map(x => x.pattern).join(', ')}`));
+    }
+    if (p.hook.effectivePatterns.length > 0) {
+      lines.push(chalk.gray(`  有效钩子模式: ${p.hook.effectivePatterns.map(x => x.pattern).join(', ')}`));
+    }
+  }
+
+  lines.push(chalk.green(`\n最后更新: ${prefs.lastUpdated || '从未'}\n`));
+  return lines.join('\n');
 }
