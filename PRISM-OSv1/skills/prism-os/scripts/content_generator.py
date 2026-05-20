@@ -218,6 +218,136 @@ def detect_material_gaps(
     return gaps
 
 
+# ============ 文章抓取（autocli）============
+
+AUTOCLI_PATH = r"D:\myproject\内容系统v1\contentforge\autocli.exe"
+
+
+def _run_autocli(args: List[str], timeout: int = 60) -> str:
+    """运行 autocli 命令"""
+    import subprocess
+    cmd = [AUTOCLI_PATH] + args
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            encoding="utf-8",
+            errors="replace"
+        )
+        return result.stdout + result.stderr
+    except subprocess.TimeoutExpired:
+        return ""
+    except Exception as e:
+        return f"[autocli error] {e}"
+
+
+def scrape_article(url: str, format: str = "json") -> Optional[Dict]:
+    """
+    用 autocli 抓取文章内容
+
+    Args:
+        url: 文章 URL
+        format: 输出格式 (json/text/markdown)
+
+    Returns:
+        {"title": str, "content": str, "url": str} 或 None
+    """
+    # 微信公众号用专用命令
+    if "mp.weixin.qq.com" in url:
+        output = _run_autocli(["weixin", "download", url, "--format", "json"])
+        if not output or output.startswith("[autocli error]"):
+            return None
+        try:
+            parsed = json.loads(output)
+            if isinstance(parsed, list):
+                parsed = parsed[0]
+            if parsed.get("status") != "ok":
+                return None
+            title = parsed.get("title", "")
+            md_path = parsed.get("path", "")
+            if md_path:
+                try:
+                    with open(md_path, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    content = re.sub(r"^---[\s\S]*?---\n", "", content).strip()
+                    import os
+                    os.remove(md_path)
+                except Exception:
+                    content = ""
+            else:
+                content = parsed.get("content", "")
+            return {"title": title, "content": content, "url": url}
+        except Exception:
+            return None
+
+    # 其他 URL 用通用 read 命令
+    output = _run_autocli(["read", url, "--format", format])
+    if not output or output.startswith("[autocli error]"):
+        return None
+
+    if format == "json":
+        try:
+            return json.loads(output)
+        except Exception:
+            return None
+    else:
+        # text/markdown: 返回 title 和 content
+        lines = output.strip().split("\n", 1)
+        title = lines[0] if lines else ""
+        content = lines[1] if len(lines) > 1 else ""
+        return {"title": title, "content": content, "url": url}
+
+
+def extract_key_content(scrape_result: Dict, module_type: str) -> Dict:
+    """
+    从抓取结果中提取关键段落用于素材库
+
+    Args:
+        scrape_result: scrape_article 返回结果
+        module_type: 模块类型（决定提取策略）
+
+    Returns:
+        {"summary": str, "key_paragraphs": List[str], "suggested_type": str}
+    """
+    content = scrape_result.get("content", "")
+    if not content:
+        return {"summary": "", "key_paragraphs": [], "suggested_type": "case"}
+
+    # 用 LLM 提取关键内容
+    prompt = f"""从以下文章内容中提取适合素材库的关键段落。
+
+文章标题：{scrape_result.get('title', '')}
+
+内容：
+{content[:3000]}
+
+模块类型：{module_type}
+- HOOK：需要反直觉案例、冲突性数据
+- CASE：需要具体场景、人物故事、决策过程
+- MODEL：需要分析框架、因果解释
+- ACTION：需要操作步骤、清单
+- EXPLAIN：需要深度解读、维度分析
+
+提取 2-3 个关键段落（每个 100-300 字），返回 JSON：
+{{
+  "summary": "200字以内的内容摘要",
+  "key_paragraphs": ["段落1", "段落2", "段落3"],
+  "suggested_type": "case/atom/insight"
+}}"""
+
+    raw = _call_llm_raw(prompt, temperature=0.3)
+    if not raw:
+        return {"summary": content[:500], "key_paragraphs": [content[:1000]], "suggested_type": "case"}
+
+    parsed = _parse_llm_json(raw)
+    if not parsed:
+        return {"summary": content[:500], "key_paragraphs": [content[:1000]], "suggested_type": "case"}
+
+    return parsed
+
+
 # ============ 素材缺口提示 → 搜索推荐 ============
 
 def generate_gap_search_query(
@@ -311,6 +441,109 @@ def search_gap_articles(
         }]
 
     return results[:max_results]
+
+
+# ============ 抓取并入库完整流程 ============
+
+def scrape_and_import_material(
+    url: str,
+    module_type: str,
+    topic: str,
+    vault_path: Path = None
+) -> Dict:
+    """
+    抓取文章 → 提取关键内容 → 入库 Obsidian
+
+    Args:
+        url: 文章 URL
+        module_type: 模块类型（决定提取策略）
+        topic: 命题（用于关联）
+        vault_path: Obsidian vault 路径
+
+    Returns:
+        {"status": str, "title": str, "material_type": str, "path": str, "error": str}
+    """
+    if vault_path is None:
+        vault_path = Path(r"D:\软件\obsidian笔记\内容素材库")
+
+    # 1. 抓取
+    scrape_result = scrape_article(url, format="json")
+    if not scrape_result:
+        return {"status": "scrape_failed", "title": "", "material_type": "case", "path": "", "error": "抓取失败"}
+
+    title = scrape_result.get("title", "未命名")
+    content = scrape_result.get("content", "")
+
+    # 2. 提取关键内容
+    extracted = extract_key_content(scrape_result, module_type)
+
+    # 3. 写入 Obsidian
+    obsidian = _get_obsidian_module()
+    if not obsidian:
+        return {"status": "obsidian_module_not_found", "title": title, "material_type": "case", "path": "", "error": "无法加载 obsidian_knowledge"}
+
+    # 判断素材类型
+    suggested_type = extracted.get("suggested_type", "case")
+    if module_type == "HOOK":
+        subdir = "洞察库"
+        material_type = "insight"
+    elif suggested_type == "insight":
+        subdir = "洞察库"
+        material_type = "insight"
+    elif suggested_type in ("case", "viewpoint"):
+        subdir = "原子库"
+        material_type = "atom"
+    else:
+        subdir = "原子库"
+        material_type = "atom"
+
+    # 写入文件
+    from datetime import datetime
+    import re
+
+    safe_title = re.sub(r'[<>:"/\\|?*]', '', title)[:80] or "untitled"
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    if material_type == "insight":
+        file_path = vault_path / f"40_知识库/{subdir}/rss-cracks/{safe_title}.md"
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        frontmatter_lines = ["---",
+            f"type: insight",
+            "status: active",
+            f"topics: [{topic}]",
+            f"source_url: {url}",
+            f"created: {today}",
+            f"updated: {today}",
+            "---"]
+        body = f"# {title}\n\n## 核心观点\n{extracted.get('summary', '')}\n\n## 关键段落\n" + "\n\n".join(f"- {p}" for p in extracted.get("key_paragraphs", []))
+        content_full = "\n".join(frontmatter_lines) + "\n" + body
+    else:
+        file_path = vault_path / f"40_知识库/{subdir}/rss-items/{safe_title}.md"
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        frontmatter_lines = ["---",
+            "type: atom",
+            "subtype: case",
+            "status: active",
+            f"topics: [{topic}]",
+            f"source_url: {url}",
+            f"source_note: {title}",
+            f"created: {today}",
+            f"updated: {today}",
+            "---"]
+        body = f"# {title}\n\n## 原子内容\n> {extracted.get('summary', '')}\n\n## 来源\n- 链接：[{title}]({url})\n\n## 关键段落\n" + "\n\n".join(f"- {p}" for p in extracted.get("key_paragraphs", []))
+        content_full = "\n".join(frontmatter_lines) + "\n" + body
+
+    try:
+        file_path.write_text(content_full, encoding="utf-8")
+        return {
+            "status": "success",
+            "title": title,
+            "material_type": material_type,
+            "path": str(file_path),
+            "error": ""
+        }
+    except Exception as e:
+        return {"status": "write_failed", "title": title, "material_type": material_type, "path": "", "error": str(e)}
 
 
 # ============ 用户手写润色 ============
