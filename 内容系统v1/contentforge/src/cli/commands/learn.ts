@@ -11,6 +11,9 @@ import { readFeedbackRecords } from '../../scenarios/feedback/feishu-feedback.js
 import { buildFeedbackSignal, computeFeedbackStats, compareWithCompetitor } from '../../scenarios/feedback/analyzer.js';
 import { readFeishuRecords } from '../../scenarios/topic/feishu-sync.js';
 import { backfillCompetitorAnalysis } from '../../scenarios/topic/backfill-analysis.js';
+import { analyzePatterns } from '../../scenarios/learning/pattern-analyzer.js';
+import { updateCreativePreferences, loadCreativePreferences } from '../../scenarios/learning/creative-preferences.js';
+import type { RevisionManifest } from '../../scenarios/revision/types.js';
 
 export async function runLearn(options: {
   corpusDir?: string;
@@ -27,6 +30,7 @@ export async function runLearn(options: {
   feedbackSummary?: boolean;
   feedbackCompare?: boolean;
   backfillAnalysis?: boolean;
+  updatePreferences?: boolean;
 }): Promise<void> {
   const config = await loadConfig();
   setCachedConfig(config);
@@ -320,20 +324,15 @@ export async function runLearn(options: {
     const competitorRecords = await readFeishuRecords();
     const analyzed = competitorRecords.filter(r => r.fields.状态 === 'analyzed' || r.fields.状态 === 'stored');
 
-    // Build competitor engagement map by tag (mock: from interaction data if available)
-    // In real use, competitor records may not have engagement data — skip if unavailable
+    // Build competitor engagement map by tag (from structured number fields)
     const competitorEngByTag: Record<string, number> = {};
     for (const r of analyzed) {
-      if (!r.fields.互动数据) continue;
-      const parts = r.fields.互动数据.split(/[,/]/).map(Number);
-      const likes = parts[0] || 0;
-      const reads = parts[1] || 0;
-      if (reads > 0) {
-        const eng = likes / reads;
-        for (const tag of (r.fields.标签 ?? [])) {
-          if (!competitorEngByTag[tag]) competitorEngByTag[tag] = 0;
-          competitorEngByTag[tag] = Math.max(competitorEngByTag[tag], eng);
-        }
+      const reads = r.fields.阅读数 ?? 0;
+      if (!reads) continue;
+      const eng = ((r.fields.点赞数 ?? 0) + (r.fields.评论数 ?? 0) + (r.fields.转发数 ?? 0)) / reads;
+      for (const tag of (r.fields.标签 ?? [])) {
+        if (!competitorEngByTag[tag]) competitorEngByTag[tag] = 0;
+        competitorEngByTag[tag] = Math.max(competitorEngByTag[tag], eng);
       }
     }
 
@@ -346,6 +345,50 @@ export async function runLearn(options: {
       console.log(`   → ${g.recommendation}`);
     }
     console.log(chalk.green('\n✅ 差距分析完成\n'));
+    return;
+  }
+
+  // ── --update-preferences ─────────────────────────────────────
+  if (options.updatePreferences) {
+    const outputDir = options.corpusDir ?? config.output?.dir ?? './output';
+    const corpusDir = path.join(outputDir, 'corpus');
+
+    // Collect all revision manifests
+    const manifests: RevisionManifest[] = [];
+    try {
+      const revDir = path.join(outputDir);
+      const entries = await fs.readdir(revDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory() || !entry.name.startsWith('create_') && !entry.name.startsWith('recreate_')) continue;
+        const manifestPath = path.join(revDir, entry.name, 'revisions', 'manifest.json');
+        try {
+          const content = await fs.readFile(manifestPath, 'utf-8');
+          manifests.push(JSON.parse(content));
+        } catch { /* skip */ }
+      }
+    } catch { /* no revisions yet */ }
+
+    const feedbackRecords = await readFeedbackRecords().catch(() => []);
+    const competitorRecords = await readFeishuRecords().catch(() => []);
+    const analyzedCompetitors = competitorRecords.filter(r => r.fields.状态 === 'analyzed' || r.fields.状态 === 'stored');
+
+    console.log(chalk.bold('\n🧠 创作偏好更新中...\n'));
+    console.log(`Revision manifests: ${manifests.length}`);
+    console.log(`Feedback records: ${feedbackRecords.length}`);
+    console.log(`Competitor records: ${analyzedCompetitors.length}`);
+
+    const prefs = analyzePatterns(manifests, feedbackRecords, analyzedCompetitors);
+    await updateCreativePreferences(prefs);
+
+    console.log(chalk.bold('\n📊 当前创作偏好\n'));
+    const current = loadCreativePreferences();
+    for (const platform of ['wechat', 'xiaohongshu', 'douyin'] as const) {
+      const p = current[platform];
+      console.log(`\n【${platform}】`);
+      console.log(`  结构: ${p.structure.preference} (样本${p.structure.sampleSize}, 置信度 ${p.structure.confidence})`);
+      console.log(`  调性: ${p.tone.preference} (样本${p.tone.sampleSize}, 置信度 ${p.tone.confidence})`);
+    }
+    console.log(chalk.green('\n✅ 创作偏好已更新\n'));
     return;
   }
 
@@ -395,6 +438,7 @@ export function registerLearnCommand(program: Command): void {
     .option('--feedback-summary', '分析反馈数据，输出表现最佳的平台/结构/调性/角度')
     .option('--feedback-compare', '对比我方内容与竞品内容的标签级差距')
     .option('--backfill-analysis', '对竞品表已有记录补填叙事结构/情感调性/内容角度')
+    .option('--update-preferences', '从 revision manifests + 反馈数据 + 竞品数据分析创作偏好并更新')
     .action(async (opts) => {
       try {
         await runLearn({
@@ -412,6 +456,7 @@ export function registerLearnCommand(program: Command): void {
           feedbackSummary: opts.feedbackSummary,
           feedbackCompare: opts.feedbackCompare,
           backfillAnalysis: opts.backfillAnalysis,
+          updatePreferences: opts.updatePreferences,
         });
       } catch (error) {
         logger.error('learn command failed', { error: String(error) });
