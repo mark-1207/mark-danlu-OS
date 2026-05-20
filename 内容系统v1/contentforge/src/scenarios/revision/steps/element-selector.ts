@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import readline from 'readline';
 import { type RevisionSelection, type RevisionElement } from '../../revision/types.js';
+import { getRevisionSuggestions, formatSuggestions } from './revision-suggestions.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -18,7 +19,7 @@ function consoleClear(): void {
 // ─── Element metadata ────────────────────────────────────────────────────────
 
 interface ElementMeta {
-  key: RevisionElement;
+  key: RevisionElement | 'direct-edit' | 'custom-instruction';
   label: string;
   sublabel: string;
 }
@@ -30,6 +31,8 @@ const ELEMENTS: ElementMeta[] = [
   { key: 'cta', label: 'CTA', sublabel: '结尾召唤' },
   { key: 'example', label: '案例', sublabel: 'example' },
   { key: 'power-sentence', label: '金句', sublabel: 'power-sentence' },
+  { key: 'direct-edit', label: '直接编辑', sublabel: '选段改字' },
+  { key: 'custom-instruction', label: '自定义指令', sublabel: '自由指令' },
 ];
 
 // ─── Main export ─────────────────────────────────────────────────────────────
@@ -52,7 +55,10 @@ export async function selectRevisionElements(): Promise<ElementSelectorResult> {
 
   // State
   let cursor = 0;
-  const selected = new Set<RevisionElement>();
+  const selected = new Set<ELEMENT_KEY>();
+
+  // Union type for all selectable keys
+  type ELEMENT_KEY = RevisionElement | 'direct-edit' | 'custom-instruction';
 
   const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
   readline.emitKeypressEvents(process.stdin);
@@ -86,6 +92,22 @@ export async function selectRevisionElements(): Promise<ElementSelectorResult> {
     console.log(chalk.bold('╠════════════════════════════════════════╣'));
     console.log(chalk.bold('║') + chalk.dim('  ↑↓ 移动  空格 选中  回车 确认      ') + chalk.bold('║'));
     console.log(chalk.bold('╚════════════════════════════════════════╝'));
+
+    // Show suggestions for selected element(s)
+    if (selected.size > 0) {
+      const firstSelected = Array.from(selected)[0];
+      if (firstSelected && ELEMENTS.find(e => e.key === firstSelected)) {
+        const el = ELEMENTS.find(e => e.key === firstSelected)!;
+        if (el && typeof el.key === 'string') {
+          const suggestions = getRevisionSuggestions(el.key as RevisionElement);
+          if (suggestions.length > 0) {
+            console.log(chalk.bold('\n╔══ 推荐改法 ════════════════════════════╗'));
+            console.log(formatSuggestions(suggestions));
+            console.log(chalk.bold('╚════════════════════════════════════════╝'));
+          }
+        }
+      }
+    }
   }
 
   return new Promise((resolve) => {
@@ -94,12 +116,45 @@ export async function selectRevisionElements(): Promise<ElementSelectorResult> {
 
       if (keyName === 'return' || keyName === 'enter') {
         cleanup();
+
+        // Separate normal elements from special types
+        const normalSelections = Array.from(selected).filter(
+          (el): el is RevisionElement => el !== 'direct-edit' && el !== 'custom-instruction'
+        );
+        const hasDirectEdit = selected.has('direct-edit');
+        const hasCustomInstruction = selected.has('custom-instruction');
+
+        if (normalSelections.length === 0 && !hasDirectEdit && !hasCustomInstruction) {
+          resolve({
+            selections: [],
+            userInstruction: '',
+          });
+          return;
+        }
+
         // Build selection summary for prompt
         const selSummary = buildSelectionSummary(selected);
-        rl.question(chalk.cyan('\n已选中：') + selSummary + chalk.cyan('\n\n请说明要怎么改（直接描述，比如"标题更有冲击力，hook 更短更有劲"）：\n> '), (answer) => {
+
+        if (hasDirectEdit) {
+          // Direct edit mode — return a special marker, handled by caller
+          resolve({
+            selections: [{ element: 'body', platforms: ['wechat', 'xiaohongshu', 'douyin'] as const }],
+            userInstruction: '__DIRECT_EDIT__',
+          });
+          return;
+        }
+
+        let question = '\n已选中：' + selSummary;
+        if (hasCustomInstruction) {
+          question += chalk.cyan('\n\n请输入修改指令（会应用到所有选中的元素）：\n> ');
+        } else {
+          question += chalk.cyan('\n\n请说明要怎么改（直接描述，比如"标题更有冲击力，hook 更短更有劲"）：\n> ');
+        }
+
+        rl.question(chalk.cyan(question), (answer) => {
           const trimmed = answer.trim();
           resolve({
-            selections: Array.from(selected).map((el) => ({
+            selections: normalSelections.map((el) => ({
               element: el,
               platforms: ['wechat', 'xiaohongshu', 'douyin'] as const,
             })),
@@ -142,19 +197,11 @@ export async function selectRevisionElements(): Promise<ElementSelectorResult> {
       console.log('');
     }
 
-    function buildSelectionSummary(selectedSet: Set<RevisionElement>): string {
-      const platformLabels: Record<string, string> = {
-        wechat: 'wechat',
-        xiaohongshu: 'xiaohongshu',
-        douyin: 'douyin',
-      };
+    function buildSelectionSummary(selectedSet: Set<ELEMENT_KEY>): string {
       const parts: string[] = [];
       for (const el of ELEMENTS) {
-        if (selectedSet.has(el.key)) {
-          const platforms = ['wechat', 'xiaohongshu', 'douyin']
-            .map((p) => platformLabels[p])
-            .join('、');
-          parts.push(`${el.label}(${platforms})`);
+        if (selectedSet.has(el.key as ELEMENT_KEY)) {
+          parts.push(`${el.label}(3平台)`);
         }
       }
       return parts.length > 0 ? parts.join('、') : chalk.dim('无');
