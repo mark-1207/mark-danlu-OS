@@ -378,8 +378,26 @@ def _parallel_layer2(topic: str) -> Dict:
 # ============ T-9~T-12: Layer 2 选题解析 ============
 
 def classify_topic_type(topic: str) -> Dict:
-    """识别5类选题类型（规则版 Phase 4.7）"""
-    return classify_topic_type_rule(topic)
+    """识别5类选题类型"""
+    prompt = f"""分析命题类型。
+
+命题：{topic}
+
+五类选题类型：
+1. 趋势型：关注新事物/新变化
+2. 方法型：提供解决方案/步骤
+3. 观点型：表达立场/看法
+4. 情绪型：建立共鸣/情感连接
+5. 行业型：分析某个领域/行业
+
+返回 JSON：
+{{"类型": "类型名", "置信度": 0.0-1.0}}"""
+
+    raw = _call_llm_raw(prompt)
+    if not raw:
+        return {"类型": "观点型", "置信度": 0.5}
+    parsed = _parse_llm_json(raw)
+    return parsed if parsed else {"类型": "观点型", "置信度": 0.5}
 
 
 def extract_core_problem(topic: str) -> Dict:
@@ -476,8 +494,30 @@ def select_main_structure(topic_type: str, alignment_result: Dict) -> Dict:
 
 
 def decide_progression_method(structure: str, topic: str, alignment_result: Optional[Dict] = None) -> Dict:
-    """决定6种推进方式中的一种或组合（规则版 Phase 4.7）"""
-    return decide_progression_method_rule(structure, topic, alignment_result)
+    """决定6种推进方式中的一种或组合"""
+    prompt = f"""根据主结构选择推进方式。
+
+主结构：{structure}
+命题：{topic}
+
+六种推进方式：
+1. 递进推进：层层深入
+2. 拆解推进：模块化拆解
+3. 情绪推进：情绪曲线驱动
+4. 对比推进：强反差
+5. 冲突推进：认知碰撞
+6. 案例推进：从案例抽象
+
+返回 JSON：
+{{"推进方式": "方式名", "描述": "方式说明"}}"""
+
+    raw = _call_llm_raw(prompt)
+    if not raw:
+        return {"推进方式": "冲突推进", "描述": "制造认知落差"}
+    parsed = _parse_llm_json(raw)
+    if not parsed:
+        return {"推进方式": "冲突推进", "描述": "制造认知落差"}
+    return parsed
 
 
 # ============ T-15~T-16: Layer 4 认知模块编排 ============
