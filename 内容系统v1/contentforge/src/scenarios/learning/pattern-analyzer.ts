@@ -5,8 +5,22 @@ import type { RevisionManifest } from '../revision/types.js';
 import type { FeedbackRecord } from '../feedback/types.js';
 import type { FeishuRecord } from '../topic/types.js';
 
+const DEFAULT_LAMBDA = 0.01;
+
+function timeWeight(daysAgo: number, lambda: number = DEFAULT_LAMBDA): number {
+  return Math.exp(-lambda * daysAgo);
+}
+
+function daysAgo(dateStr: string): number {
+  if (!dateStr) return 999; // treat missing date as very old
+  const date = new Date(dateStr);
+  const now = new Date();
+  return Math.max(0, Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)));
+}
+
 interface AnalyzeOptions {
   minSampleSize?: number; // 最小样本量阈值
+  lambda?: number; // decay constant, default 0.01 (~100 days to 36%)
 }
 
 /**
@@ -52,36 +66,46 @@ function extractRevisionPatterns(manifests: RevisionManifest[]): PatternRecord[]
  * 从 feedback records 计算各维度平均互动率
  * Future: normalize against competitor baseline per tag
  * For now: raw engagement rate = (likes + comments + shares) / reads
+ * Uses time-decay weighting when sample size > 30
  */
-function extractFeedbackPatterns(records: FeedbackRecord[]): PatternRecord[] {
+function extractFeedbackPatterns(records: FeedbackRecord[], lambda: number = DEFAULT_LAMBDA): PatternRecord[] {
   const patterns: PatternRecord[] = [];
 
+  // Use time decay only when sample size > 30
+  const useTimeDecay = records.length > 30;
+
   // 按叙事结构分组
-  const byStructure = new Map<string, { totalEng: number; count: number }>();
-  const byTone = new Map<string, { totalEng: number; count: number }>();
-  const byAngle = new Map<string, { totalEng: number; count: number }>();
-  const byTag = new Map<string, { totalEng: number; count: number }>();
+  const byStructure = new Map<string, { totalEng: number; count: number; totalWeight: number }>();
+  const byTone = new Map<string, { totalEng: number; count: number; totalWeight: number }>();
+  const byAngle = new Map<string, { totalEng: number; count: number; totalWeight: number }>();
+  const byTag = new Map<string, { totalEng: number; count: number; totalWeight: number }>();
 
   for (const r of records) {
     const reads = r.fields.阅读量 ?? 0;
     if (!reads) continue;
     const eng = ((r.fields.点赞数 ?? 0) + (r.fields.评论数 ?? 0) + (r.fields.转发数 ?? 0)) / reads;
 
+    let weight = 1.0;
+    if (useTimeDecay) {
+      const days = daysAgo(r.fields.发布日期);
+      weight = timeWeight(days, lambda) * 1.5; // feedback has 1.5x weight
+    }
+
     if (r.fields.叙事结构) {
-      const e = byStructure.get(r.fields.叙事结构) ?? { totalEng: 0, count: 0 };
-      byStructure.set(r.fields.叙事结构, { totalEng: e.totalEng + eng, count: e.count + 1 });
+      const e = byStructure.get(r.fields.叙事结构) ?? { totalEng: 0, count: 0, totalWeight: 0 };
+      byStructure.set(r.fields.叙事结构, { totalEng: e.totalEng + eng * weight, count: e.count + 1, totalWeight: e.totalWeight + weight });
     }
     if (r.fields.情感调性) {
-      const e = byTone.get(r.fields.情感调性) ?? { totalEng: 0, count: 0 };
-      byTone.set(r.fields.情感调性, { totalEng: e.totalEng + eng, count: e.count + 1 });
+      const e = byTone.get(r.fields.情感调性) ?? { totalEng: 0, count: 0, totalWeight: 0 };
+      byTone.set(r.fields.情感调性, { totalEng: e.totalEng + eng * weight, count: e.count + 1, totalWeight: e.totalWeight + weight });
     }
     if (r.fields.内容角度) {
-      const e = byAngle.get(r.fields.内容角度) ?? { totalEng: 0, count: 0 };
-      byAngle.set(r.fields.内容角度, { totalEng: e.totalEng + eng, count: e.count + 1 });
+      const e = byAngle.get(r.fields.内容角度) ?? { totalEng: 0, count: 0, totalWeight: 0 };
+      byAngle.set(r.fields.内容角度, { totalEng: e.totalEng + eng * weight, count: e.count + 1, totalWeight: e.totalWeight + weight });
     }
     for (const tag of (r.fields.主题标签 ?? [])) {
-      const e = byTag.get(tag) ?? { totalEng: 0, count: 0 };
-      byTag.set(tag, { totalEng: e.totalEng + eng, count: e.count + 1 });
+      const e = byTag.get(tag) ?? { totalEng: 0, count: 0, totalWeight: 0 };
+      byTag.set(tag, { totalEng: e.totalEng + eng * weight, count: e.count + 1, totalWeight: e.totalWeight + weight });
     }
   }
 
@@ -90,7 +114,7 @@ function extractFeedbackPatterns(records: FeedbackRecord[]): PatternRecord[] {
       type: 'structure',
       pattern: structure,
       source: 'feedback',
-      engagementRate: data.totalEng / data.count,
+      engagementRate: data.totalWeight > 0 ? data.totalEng / data.totalWeight : data.totalEng / data.count,
       count: data.count,
     });
   }
@@ -99,7 +123,7 @@ function extractFeedbackPatterns(records: FeedbackRecord[]): PatternRecord[] {
       type: 'tone',
       pattern: tone,
       source: 'feedback',
-      engagementRate: data.totalEng / data.count,
+      engagementRate: data.totalWeight > 0 ? data.totalEng / data.totalWeight : data.totalEng / data.count,
       count: data.count,
     });
   }
@@ -108,7 +132,7 @@ function extractFeedbackPatterns(records: FeedbackRecord[]): PatternRecord[] {
       type: 'angle',
       pattern: angle,
       source: 'feedback',
-      engagementRate: data.totalEng / data.count,
+      engagementRate: data.totalWeight > 0 ? data.totalEng / data.totalWeight : data.totalEng / data.count,
       count: data.count,
     });
   }
@@ -118,25 +142,35 @@ function extractFeedbackPatterns(records: FeedbackRecord[]): PatternRecord[] {
 
 /**
  * 从 competitor records 计算市场基准
+ * Uses time-decay weighting when sample size > 30
  */
-function extractCompetitorPatterns(records: FeishuRecord[]): PatternRecord[] {
+function extractCompetitorPatterns(records: FeishuRecord[], lambda: number = DEFAULT_LAMBDA): PatternRecord[] {
   const patterns: PatternRecord[] = [];
 
-  const byStructure = new Map<string, { totalEng: number; count: number }>();
-  const byTone = new Map<string, { totalEng: number; count: number }>();
+  // Use time decay only when sample size > 30
+  const useTimeDecay = records.length > 30;
+
+  const byStructure = new Map<string, { totalEng: number; count: number; totalWeight: number }>();
+  const byTone = new Map<string, { totalEng: number; count: number; totalWeight: number }>();
 
   for (const r of records) {
     const reads = r.fields.阅读数 ?? 0;
     if (!reads) continue;
     const eng = ((r.fields.点赞数 ?? 0) + (r.fields.评论数 ?? 0) + (r.fields.转发数 ?? 0)) / reads;
 
+    let weight = 1.0;
+    if (useTimeDecay && r.fields.发布时间) {
+      const days = daysAgo(r.fields.发布时间);
+      weight = timeWeight(days, lambda);
+    }
+
     if (r.fields.叙事结构) {
-      const e = byStructure.get(r.fields.叙事结构) ?? { totalEng: 0, count: 0 };
-      byStructure.set(r.fields.叙事结构, { totalEng: e.totalEng + eng, count: e.count + 1 });
+      const e = byStructure.get(r.fields.叙事结构) ?? { totalEng: 0, count: 0, totalWeight: 0 };
+      byStructure.set(r.fields.叙事结构, { totalEng: e.totalEng + eng * weight, count: e.count + 1, totalWeight: e.totalWeight + weight });
     }
     if (r.fields.情感调性) {
-      const e = byTone.get(r.fields.情感调性) ?? { totalEng: 0, count: 0 };
-      byTone.set(r.fields.情感调性, { totalEng: e.totalEng + eng, count: e.count + 1 });
+      const e = byTone.get(r.fields.情感调性) ?? { totalEng: 0, count: 0, totalWeight: 0 };
+      byTone.set(r.fields.情感调性, { totalEng: e.totalEng + eng * weight, count: e.count + 1, totalWeight: e.totalWeight + weight });
     }
   }
 
@@ -145,7 +179,7 @@ function extractCompetitorPatterns(records: FeishuRecord[]): PatternRecord[] {
       type: 'structure',
       pattern: structure,
       source: 'competitor',
-      engagementRate: data.totalEng / data.count,
+      engagementRate: data.totalWeight > 0 ? data.totalEng / data.totalWeight : data.totalEng / data.count,
       count: data.count,
     });
   }
@@ -154,7 +188,7 @@ function extractCompetitorPatterns(records: FeishuRecord[]): PatternRecord[] {
       type: 'tone',
       pattern: tone,
       source: 'competitor',
-      engagementRate: data.totalEng / data.count,
+      engagementRate: data.totalWeight > 0 ? data.totalEng / data.totalWeight : data.totalEng / data.count,
       count: data.count,
     });
   }
@@ -326,11 +360,12 @@ export function analyzePatterns(
   revisionManifests: RevisionManifest[],
   feedbackRecords: FeedbackRecord[],
   competitorRecords: FeishuRecord[],
-  _options?: AnalyzeOptions,
+  options?: AnalyzeOptions,
 ): CreativePreferences {
+  const lambda = options?.lambda ?? DEFAULT_LAMBDA;
   const revisionPatterns = extractRevisionPatterns(revisionManifests);
-  const feedbackPatterns = extractFeedbackPatterns(feedbackRecords);
-  const competitorPatterns = extractCompetitorPatterns(competitorRecords);
+  const feedbackPatterns = extractFeedbackPatterns(feedbackRecords, lambda);
+  const competitorPatterns = extractCompetitorPatterns(competitorRecords, lambda);
 
   // 暂时所有平台用相同的偏好（分开学需要更细粒度的数据）
   const prefs = buildPlatformPreferences(revisionPatterns, feedbackPatterns, competitorPatterns);
