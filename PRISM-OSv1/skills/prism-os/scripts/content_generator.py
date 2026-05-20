@@ -497,7 +497,7 @@ def scrape_and_import_material(
         subdir = "原子库"
         material_type = "atom"
 
-    # 写入文件
+    # 写入文件（直接写入父目录，方便 scan_vault 递归发现）
     from datetime import datetime
     import re
 
@@ -505,7 +505,7 @@ def scrape_and_import_material(
     today = datetime.now().strftime("%Y-%m-%d")
 
     if material_type == "insight":
-        file_path = vault_path / f"40_知识库/{subdir}/rss-cracks/{safe_title}.md"
+        file_path = vault_path / f"40_知识库/{subdir}/{safe_title}.md"
         file_path.parent.mkdir(parents=True, exist_ok=True)
         frontmatter_lines = ["---",
             f"type: insight",
@@ -518,7 +518,7 @@ def scrape_and_import_material(
         body = f"# {title}\n\n## 核心观点\n{extracted.get('summary', '')}\n\n## 关键段落\n" + "\n\n".join(f"- {p}" for p in extracted.get("key_paragraphs", []))
         content_full = "\n".join(frontmatter_lines) + "\n" + body
     else:
-        file_path = vault_path / f"40_知识库/{subdir}/rss-items/{safe_title}.md"
+        file_path = vault_path / f"40_知识库/{subdir}/{safe_title}.md"
         file_path.parent.mkdir(parents=True, exist_ok=True)
         frontmatter_lines = ["---",
             "type: atom",
