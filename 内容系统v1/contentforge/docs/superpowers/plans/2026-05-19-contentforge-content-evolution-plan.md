@@ -466,5 +466,5 @@ export function applyPreferences(context: PipelineContext): void
 
 | 版本 | 日期 | 状态 |
 |------|------|------|
-| v0.1 | 2026-05-19 | 提案待讨论 |
-| v0.2 | 2026-05-20 | 方案确认，待实现 |
+| v0.1 | 2026-05-19 | 提案 |
+| v0.2 | 2026-05-20 | Phase 1-4 实现完成 ✅ |
