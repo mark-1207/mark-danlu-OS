@@ -35,9 +35,10 @@
 
 | Phase | 内容 | 状态 |
 |-------|------|------|
-| A | crack_queue v2.0 + RSS-Hunter 输出改造 | 待开发 |
-| B | `--from-queue` 入口 | 待开发 |
-| C | `--match-queue` + 被动提示 | 待开发 |
+| A | crack_queue v2.0 + RSS-Hunter 输出改造 | ✅ 已完成 |
+| B | `--from-queue` 入口 | ✅ 已完成 |
+| C | `--match-queue` + 被动提示 | ✅ 已完成 |
+| D | 数字分身扩展 + 归档功能 | 待开发 |
 | D | 数字分身扩展 + 归档功能 | 待开发 |
 
 方案文档：`docs/development/RSS-Hunter-PRISM-OS-Integration-Plan.md`
