@@ -4,6 +4,108 @@
 
 ---
 
+### v1.0.9 (2026-05-21)
+
+**状态**：开发中
+
+#### 新增（RSS-Hunter × PRISM-OS 深度整合 → 选题情报员）
+
+- **crack_queue v2.0 数据结构**：
+  - 新增 `signals`（trend/emotion/contradiction/homogenization_alert）
+  - 新增 `expression_angles`（创作者类型 + 表达入口 + 匹配度）
+  - 新增 `creator_match`（growth_stage/sensitive_directions/match_score）
+  - `priority_score` 增加 homogenization_penalty 因子
+
+- **crack_hunter_wrapper prompt 升级**：
+  - 从"判断裂缝"升级为"提炼 5 类认知信号"
+  - signals：趋势/情绪/矛盾/同质化预警
+  - expression_angles：为不同类型创作者生成表达入口
+
+- **RSS-Hunter 输出改造**：
+  - 不再写入 Obsidian，改为写入 crack_queue
+  - 终端推送降级为每日简洁汇总
+  - 新增 `prism_os.py queue` 子命令（--list/--tag/--dismiss）
+
+- **PRISM-OS 接入层**：
+  - `--from-queue`：队列浏览 + 多选合并进入主流程
+  - `--match-queue`：输入时匹配队列，展示 signals/expression_angles
+  - 正常输入被动提示：队列有相关裂缝时提示
+
+#### 实施计划
+
+| Phase | 内容 | 状态 |
+|-------|------|------|
+| A | crack_queue v2.0 + RSS-Hunter 输出改造 | 待开发 |
+| B | `--from-queue` 入口 | 待开发 |
+| C | `--match-queue` + 被动提示 | 待开发 |
+| D | 数字分身扩展 + 归档功能 | 待开发 |
+
+方案文档：`docs/development/RSS-Hunter-PRISM-OS-Integration-Plan.md`
+
+---
+
+### v1.0.8 (2026-05-20)
+
+**状态**：当前版本
+
+#### 新增（Phase 5.5）
+
+- **文章抓取方案**：集成 autocli（`D:\myproject\内容系统v1\contentforge\autocli.exe`）
+  - `scrape_article()` 支持微信公众号（`weixin download`）和通用网页（`read`）
+  - `extract_key_content()` 用 LLM 提取关键段落和摘要
+  - `scrape_and_import_material()` 完整抓取→入库流程
+- **Obsidian 入库自动召回**：
+  - `scan_vault` glob 改为 `**/*.md` 递归扫描子目录
+  - 素材写入 `洞察库/`、`原子库/`（直接目录，非 rss-cracks 子目录）
+  - 入库后下次 `recall_materials_by_module` 自动发现新文件
+- **逐模块交互确认界面**：
+  - `interactive_content_generation_workflow()` 逐模块生成流程
+  - 支持 [回车]确认 / [r]重写(最多2次) / [e]编辑 / [q]退出
+  - CLI 入口：`python prism_os.py generate "<标题>" --platform wechat --interactive`
+- **修改记录用于风格学习**：
+  - `record_modification` 持久化到 `data/modification_log.json`
+  - `get_style_preferences()` 从修改记录学习：HOOK长度、CASE深度/视角、高频删/添词
+  - `build_style_hints()` 将偏好转为 prompt hint
+  - `generate_single_module` 每次生成自动注入风格偏好
+
+#### 修复
+
+- `scan_vault` 只扫描单层 `*.md`，改为递归 `**/*.md` 以发现子目录素材
+
+---
+
+### v1.0.7 (2026-05-19)
+
+**状态**：已发布
+
+- **Phase 4.5 CCOS v2.0**：认知推进流动态大纲（Layer 0-8，14项输出）
+  - 新增 `cognitive_outline.py` — 认知模块流 + 势能曲线 + 双平台差异化
+  - 新增 `ccos` CLI 命令：`python prism_os.py ccos "<标题>" --platform both`
+  - Layer 0 认知对齐追问（七类追问）
+  - 支持公众号/小红书双平台分别生成
+- **Phase 4.6 Gap Analysis 增强**：新增 `thesis_summary` 字段，`generate_outlines()` 标记废弃
+
+#### 优化
+
+- **Phase 4.7 LLM 优化**：
+  - Layer 2 三个 LLM 调用改为并行化（extract_core_problem / extract_cognitive_tension / infer_potential_directions）
+  - `generate_dual_platform_outline` 双平台共享 Layer 2 结果（18次→12次）
+  - `calculate_entropy` 熵值计算改为纯公式实现（1次→0次）
+  - `recognize_content_goal` / `recognize_user_motivation` 规则版（扩充关键词表）
+  - `_call_llm_raw` 修复 scene bug（设置 GATEWAY_SCENE=writing-cn）
+  - 回退 `classify_topic_type` / `decide_progression_method` 到 LLM（规则版覆盖率不足）
+
+#### 修复
+
+- 修复 `cognitive_outline.py` 9个 LLM 调用无 Scene 的 bug
+- 修复 `gap_analysis.py` 缺少 `thesis_summary` 字段问题
+
+#### 测试
+
+- 53项单元测试全部通过
+
+---
+
 ### v1.0.6 (2026-05-14)
 
 **状态**：当前版本
@@ -200,12 +302,12 @@ major.minor.patch
 
 | 版本 | 目标 | 状态 |
 |------|------|------|
-| v1.0.5 | LLM 三级 Fallback + 意图识别增强 | 待发布 |
-| v1.0.6 | 用户手册完善 | 待发布 |
-| v1.1.0 | V3 刺客机制优化 | 待开发 |
-| v1.2.0 | V4 数字分身完善 | 待开发 |
+| v1.0.7 | Phase 4.5-4.7 CCOS + LLM优化 | ✅ 已完成 |
+| v1.1.0 | Phase 5 内容生成（模块级生成，素材先行） | 开发中 |
+| v1.2.0 | Phase 5.5 小红书版本 | 待开发 |
+| v1.3.0 | Phase 6.0 互动数据闭环 | 待开发 |
 | v2.0.0 | Web UI 界面 | 规划中 |
 
 ---
 
-**最后更新**：2026-05-08
+**最后更新**：2026-05-20

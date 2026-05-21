@@ -61,7 +61,7 @@
 <div class="container">
 
 <h1>PRISM-OS 用户场景全流程</h1>
-<p class="subtitle">共 5 个场景，覆盖完整能力和边界 &nbsp;|&nbsp; 版本 1.3 &nbsp;|&nbsp; 2026-05-21</p>
+<p class="subtitle">共 5 个场景，覆盖完整能力和边界 &nbsp;|&nbsp; 版本 1.4 &nbsp;|&nbsp; 2026-05-21</p>
 
 <!-- 导航 -->
 <div class="nav">
@@ -630,13 +630,13 @@ decision: "clarify"   # 1.5 ≤ 0.0 < 2.5 → clarify</div>
 <div class="scenario" id="s3">
 <div class="scenario-header">
   <div class="scenario-num">场景三</div>
-  <div class="scenario-title">RSS-Hunter 自动抓取 → 认知裂缝检测 → 写入 Obsidian</div>
-  <div class="scenario-desc">用户运行 rss_hunter.py hunt，系统自动从 15 个信源抓取 RSS，检测认知裂缝，发现裂缝则写入洞察库，无裂缝写入原子库</div>
+  <div class="scenario-title">RSS-Hunter × PRISM-OS 深度整合 → 选题情报员</div>
+  <div class="scenario-desc">RSS-Hunter 升级为选题情报员：抓取 RSS → 提炼认知信号（trend/emotion/矛盾/同质化预警）→ 写入 crack_queue，PRISM-OS 通过 --from-queue / --match-queue 接入</div>
 </div>
 <div class="scenario-summary">
-  <p><strong>模块：</strong>RSS-Hunter（独立 skill）</p>
-  <p><strong>用户痛点：</strong><span class="pain-point">每天花大量时间刷新闻和社交媒体找选题灵感，刷了半天感觉都是同质化内容，找不到能写的认知裂缝</span></p>
-  <p><strong>场景方案：</strong><span class="solution">配置好信源后一键启动，系统自动抓取 + 去重 + AI 检测认知裂缝，高价值裂缝直接写入 Obsidian 洞察库</span></p>
+  <p><strong>模块：</strong>RSS-Hunter（升级为选题情报员）</p>
+  <p><strong>用户痛点：</strong><span class="pain-point">RSS-Hunter 发现裂缝后只推送到终端，用户不会回来查看；裂缝写入 Obsidian 但结构不对，无法被 PRISM-OS 有效召回</span></p>
+  <p><strong>场景方案：</strong><span class="solution">裂缝进入 crack_queue（包含 signals + expression_angles）→ PRISM-OS 通过 --from-queue / --match-queue 接入 → 人工校准优先级</span></p>
 </div>
 <div class="scenario-body">
 
@@ -650,9 +650,9 @@ decision: "clarify"   # 1.5 ≤ 0.0 < 2.5 → clarify</div>
   <span class="flow-arrow">→</span>
   <div class="flow-node">MD5去重<br><small>rss_dedup.json</small></div>
   <span class="flow-arrow">→</span>
-  <div class="flow-node">裂缝检测<br><small>LLM调用</small></div>
+  <div class="flow-node">信号提炼<br><small>LLM 5类信号</small></div>
   <span class="flow-arrow">→</span>
-  <div class="flow-node">Obsidian写入</div>
+  <div class="flow-node">crack_queue</div>
 </div>
 
 <h3>Step 1 — 配置加载</h3>
@@ -703,123 +703,136 @@ is_duplicate("AI导致程序员失业率上升30%", "2026-05-14")
 → true  ← 已处理过，跳过</div>
 </div>
 
-<h3>Step 4 — 裂缝检测</h3>
+<h3>Step 4 — 信号提炼（升级）</h3>
 <div class="step">
   <span class="step-num">4</span>
-  <span class="step-title">analyze_content() — 5 种认知裂缝检测</span>
+  <span class="step-title">analyze_content() — 5 类认知信号提炼</span>
   <div class="step-detail">
-    调用 LLM 分析内容是否包含认知裂缝：<br>
-    <b>数据裂缝</b>：共识认为 X，但数据显示 Y<br>
-    <b>逻辑裂缝</b>：前提假设被证伪<br>
-    <b>时效裂缝</b>：旧结论已不适用<br>
-    <b>视角裂缝</b>：不同群体有不同看法<br>
-    <b>因果裂缝</b>：表面因果是虚假的<br>
-    置信度阈值 0.75，高于此值才认为存在裂缝
+    调用 LLM 从内容中提炼认知信号，不只是判断裂缝存在：
+    <b>trend</b>：趋势变化（50字内）<br>
+    <b>emotion</b>：读者情绪类型（焦虑/兴奋/替代感/身份危机/阶层焦虑）<br>
+    <b>contradiction</b>：最值得表达的矛盾（50字内）<br>
+    <b>homogenization_alert</b>：是否已同质化（是/否/不确定）<br>
+    <b>expression_angles</b>：不同类型创作者的切入角度 + 匹配度
   </div>
-  <div class="step-code"># 裂缝检测返回
-has_crack: true
-crack_type: "数据裂缝"
-consensus: "AI会创造更多就业机会"
-reality: "AI导致程序员失业率上升30%"
-confidence: 0.85
-title_suggestions: [
-  "为什么AI创造就业的数据是错的？",
-  "程序员失业潮：被忽视的真相"
-]</div>
+  <div class="step-code"># 信号提炼返回
+{
+  "has_crack": true,
+  "crack_type": "数据裂缝",
+  "consensus": "AI会创造更多就业机会",
+  "reality": "AI导致程序员失业率上升30%",
+  "confidence": 0.85,
+
+  "signals": {
+    "trend": "程序员职业安全感正在崩塌",
+    "emotion": ["替代焦虑", "身份危机"],
+    "contradiction": "AI 提高生产力，但降低普通内容价值",
+    "homogenization_alert": "否"
+  },
+
+  "expression_angles": [
+    {"type": "认知型创作者", "angle": "AI对普通程序员的影响：身份危机", "resonance": 0.9},
+    {"type": "商业型创作者", "angle": "AI 时代人力结构变化", "resonance": 0.7}
+  ],
+
+  "title_suggestions": ["为什么AI创造就业的数据是错的？"]
+}</div>
 </div>
 
-<h3>Step 5 — Obsidian 写入</h3>
+<h3>Step 5 — crack_queue 写入（改造）</h3>
 <div class="step">
   <span class="step-num">5</span>
-  <span class="step-title">write_crack() / write_item()</span>
+  <span class="step-title">写入 crack_queue.json（替代 Obsidian）</span>
   <div class="step-detail">
-    有裂缝 → 写入 <b>洞察库</b>（40_知识库/洞察库/rss-cracks/）<br>
-    无裂缝 → 写入 <b>原子库</b>（40_知识库/原子库/rss-items/）<br>
-    严格遵循 Obsidian 模板格式，包含 YAML frontmatter 和标准 body 结构
+    有裂缝 → 写入 crack_queue（包含 signals、expression_angles、creator_match）<br>
+    不再写入 Obsidian，Obsidian 历史条目保留但不再主动依赖
   </div>
-  <div class="step-code"># 有裂缝 → write_crack() → 洞察库
-40_知识库/洞察库/rss-cracks/
-└── AI导致程序员失业率上升30%.md
-
-# 无裂缝 → write_item() → 原子库
-40_知识库/原子库/rss-items/
-└── 普通文章标题.md
-
-# frontmatter 示例（洞察库）
----
-type: insight
-status: active
-topics: [AI, 科技]
-sub_topics: [数据裂缝]
-source_file: 36氪
-confidence: 8
-created: 2026-05-14
----</div>
+  <div class="step-code"># crack_queue 条目结构
+data/crack_queue.json
+{
+  "id": "uuid-v4",
+  "title": "AI让程序员失业率上升30%",
+  "source": "36氪",
+  "crack_type": "数据裂缝",
+  "signals": { "trend": "...", "emotion": [...], ... },
+  "expression_angles": [...],
+  "creator_match": { "growth_stage": "系统型", "match_score": 0.75 },
+  "status": "new",
+  "priority_score": 0.85
+}</div>
 </div>
 
-<h3>Step 6 — 终端推送</h3>
+<h3>Step 6 — 队列管理（替代终端推送）</h3>
 <div class="step">
   <span class="step-num">6</span>
-  <span class="step-title">_build_push_message() — 裂缝终端显示</span>
+  <span class="step-title">prism_os.py queue 子命令</span>
   <div class="step-detail">
-    高置信度裂缝在终端打印推送消息，包含裂缝摘要和建议选题方向。<br>
-    用户可选择是否基于裂缝调用 prism_os.py 生成标题（交互式确认）。
+    不再逐条推送，改为每日汇总。队列管理通过 CLI 完成：
   </div>
-  <div class="step-code">========================================
-【PRISM-OS 认知裂缝发现】
-========================================
+  <div class="step-code"># 查看队列
+python prism_os.py queue --list
 
-共识：AI会创造更多就业机会
-现实：AI导致程序员失业率上升30%
+# 标记/打标
+python prism_os.py queue --tag <id> "战略级"
 
-裂缝类型：数据裂缝 | 置信度：85%
-来源：36氪
-原文：AI导致程序员失业率上升30%
+# 调整优先级
+python prism_os.py queue --priority <id> --up
 
-建议选题方向：
-  1. 为什么AI创造就业的数据是错的？
-  2. 程序员失业潮：被忽视的真相
+# 标记已读/清除
+python prism_os.py queue --status <id> reviewed
+python prism_os.py queue --dismiss <id></div>
+</div>
 
-是否基于这个裂缝生成标题？（yes/no）
-========================================</div>
+<h3>Step 7 — PRISM-OS 接入（新增）</h3>
+<div class="step">
+  <span class="step-num">7</span>
+  <span class="step-title">--from-queue / --match-queue 入口</span>
+  <div class="step-detail">
+    用户通过 PRISM-OS 消费队列中的裂缝：
+  </div>
+  <div class="step-code"># 从队列选择（多选合并进入主流程）
+python prism_os.py run --from-queue
+
+# 输入时匹配队列
+python prism_os.py run "AI程序员发展" --match-queue
+
+# 正常输入时被动提示
+python prism_os.py run "AI程序员发展"
+# → [队列中有 2 条相关裂缝，使用 --match-queue 查看详情]</div>
 </div>
 
 <h3>最终输出</h3>
 <div class="output-box">> python skills/rss-hunter/scripts/rss_hunter.py hunt
 
-[抓取] 36氪...
-  ✓ 新条目: 3, 跳过: 12
-[抓取] 知乎热榜...
-  ✓ 新条目: 5, 跳过: 8
+[抓取] 36氪... ✓ 新条目: 3, 跳过: 12
+[抓取] 知乎热榜... ✓ 新条目: 5, 跳过: 8
 ...
-[检查] 36氪...
-[写入] 裂缝 → AI导致程序员失业率上升30%.md
-========================================
-【PRISM-OS 认知裂缝发现】
-========================================
-共识：AI会创造更多就业机会
-现实：AI导致程序员失业率上升30%
-裂缝类型：数据裂缝 | 置信度：85%
-========================================
-[完成] 裂缝: 1, 普通: 5, 错误: 0</div>
+[RSS-Hunter] 完成：新增 2 条认知裂缝，队列当前共 12 条
+  - [数据裂缝] AI让程序员失业率上升30%
+    信号：替代焦虑 / 教育崩塌前兆
+    表达入口：认知型→身份危机视角 商业型→人力结构视角
+  - [视角裂缝] 程序员不需要学算法了？
+    信号：技术教育正在被重新定义
+    表达入口：技术型→重新定义学习路径</div>
 
 <table>
   <tr><th>组件</th><th>来源</th><th>说明</th></tr>
-  <tr><td>feed_parser.py</td><td>.claude/</td><td>RSS/Atom XML 解析 + MD5 去重</td></tr>
-  <tr><td>crack_hunter_wrapper.py</td><td>.claude/</td><td>认知裂缝 LLM 检测（5种类型）</td></tr>
+  <tr><td>crack_queue.json</td><td>data/</td><td>裂缝队列（signals + expression_angles + creator_match）</td></tr>
+  <tr><td>crack_hunter_wrapper.py</td><td>.claude/</td><td>信号提炼（trend/emotion/矛盾/homogenization_alert）</td></tr>
   <tr><td>rss_monitor.py</td><td>.claude/</td><td>HTTP 抓取（SSL bypass、超时）</td></tr>
   <tr><td>call_llm.py</td><td>skills/prism-os/scripts/</td><td>LLM 调用（3层 fallback）</td></tr>
-  <tr><td>obsidian_writer.py</td><td>skills/rss-hunter/scripts/</td><td>Obsidian markdown 写入</td></tr>
+  <tr><td>prism_os.py queue</td><td>skills/prism-os/scripts/</td><td>队列管理（--list/--tag/--dismiss）</td></tr>
 </table>
 
 <div class="tip">
-  <strong>已知限制：</strong>
+  <strong>实施计划：</strong>
   <ul style="margin-top:8px">
-    <li>rsshub.app 依赖外部服务，不稳定时返回 403，需自建 rsshub 或等恢复</li>
-    <li>每个新条目调用一次 LLM，15 个信源 × 条目数 = LLM 消耗成本</li>
-    <li>Obsidian vault 路径默认 D:\软件\obsidian笔记\内容素材库，可通过 OBSIDIAN_VAULT_PATH 环境变量修改</li>
-    <li>去重记录存在 .claude/logs/rss_dedup.json，需保留该文件否则会重复处理</li>
+    <li><strong>Phase A</strong>：crack_queue v2.0 + RSS-Hunter 输出改造（hunt → 写队列）</li>
+    <li><strong>Phase B</strong>：--from-queue 入口（队列浏览 + 多选合并）</li>
+    <li><strong>Phase C</strong>：--match-queue + 被动提示</li>
+    <li><strong>Phase D</strong>：数字分身扩展 + 归档功能</li>
   </ul>
+  详细方案：<code>docs/development/RSS-Hunter-PRISM-OS-Integration-Plan.md</code>
 </div>
 
 </div>
