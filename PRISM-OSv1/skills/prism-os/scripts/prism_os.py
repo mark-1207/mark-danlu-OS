@@ -659,6 +659,8 @@ def main():
         include_ext = True
         use_format = False
         skip_gateway = False
+        from_queue = False
+        match_queue = False
 
         for arg in sys.argv[2:]:
             if arg == "--format" or arg == "-f":
@@ -667,10 +669,133 @@ def main():
                 include_ext = False
             elif arg == "--fast" or arg == "-F":
                 skip_gateway = True
+            elif arg == "--from-queue":
+                from_queue = True
+            elif arg == "--match-queue":
+                match_queue = True
             elif not user_input:
                 user_input = arg
 
-        if not user_input:
+        if from_queue:
+            # 从队列选择
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from crack_queue import CrackQueue
+            q = CrackQueue()
+            entries = q.list_active()
+
+            if not entries:
+                _safe_print({"error": "队列为空，没有待消费的裂缝"})
+                sys.exit(1)
+
+            # 显示队列供选择
+            print(f"\n=== 队列选择（{len(entries)} 条待消费）===\n")
+            for i, e in enumerate(entries[:20], 1):
+                signals = e.get("signals", {})
+                emotions = signals.get("emotion", [])
+                crack_type = e.get("crack_type", "")
+                confidence = e.get("confidence", 0)
+                priority = e.get("priority_score", 0)
+
+                print(f"[{i}] {e.get('title', '')[:50]}")
+                print(f"    类型: {crack_type} | 置信: {confidence:.0%} | 优先级: {priority:.2f}")
+                if emotions:
+                    print(f"    情绪: {'/'.join(emotions)}")
+                if signals.get("trend"):
+                    print(f"    趋势: {signals['trend'][:40]}...")
+                if e.get("expression_angles"):
+                    angles = e["expression_angles"]
+                    print(f"    表达入口: {angles[0].get('type','')}→{angles[0].get('angle','')[:30]}...")
+                print()
+
+            print("请输入数字选择（多选用空格分隔，如 1 3 5）：")
+            try:
+                choice = input("> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\n取消")
+                sys.exit(0)
+
+            if not choice:
+                print("取消")
+                sys.exit(0)
+
+            # 解析选择
+            try:
+                indices = [int(x) - 1 for x in choice.split()]
+            except ValueError:
+                _safe_print({"error": "无效的选择，请输入数字"})
+                sys.exit(1)
+
+            # 合并选中的裂缝 consensus/reality 作为 user_input
+            selected = []
+            for idx in indices:
+                if 0 <= idx < len(entries):
+                    selected.append(entries[idx])
+
+            if not selected:
+                _safe_print({"error": "没有选中任何条目"})
+                sys.exit(1)
+
+            # 构建合并输入
+            consensus_parts = []
+            reality_parts = []
+            signals_parts = []
+            for e in selected:
+                c = e.get("consensus", "")
+                r = e.get("reality", "")
+                if c and c != "无":
+                    consensus_parts.append(c)
+                if r and r != "无":
+                    reality_parts.append(r)
+                sig = e.get("signals", {})
+                if sig:
+                    trend = sig.get("trend", "")
+                    if trend:
+                        signals_parts.append(trend)
+
+            # 合并为一个输入
+            parts = []
+            if consensus_parts:
+                parts.append(f"共识：{'；'.join(consensus_parts)}")
+            if reality_parts:
+                parts.append(f"现实：{'；'.join(reality_parts)}")
+            if signals_parts:
+                parts.append(f"趋势：{'；'.join(signals_parts)}")
+
+            user_input = "选题方向：" + " | ".join(parts)
+
+            # 标记选中条目为 consumed
+            for e in selected:
+                q.mark_consumed(e.get("id", ""), "run_from_queue")
+
+            print(f"\n已选择 {len(selected)} 条裂缝，合并输入：")
+            print(f"  {user_input[:100]}...\n")
+
+        if match_queue and user_input:
+            # 匹配队列并展示相关裂缝
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from crack_queue import CrackQueue
+            q = CrackQueue()
+            results = q.search(user_input)
+
+            if results:
+                print(f"\n=== 队列匹配（找到 {len(results)} 条相关裂缝）===\n")
+                for i, e in enumerate(results[:5], 1):
+                    signals = e.get("signals", {})
+                    crack_type = e.get("crack_type", "")
+                    confidence = e.get("confidence", 0)
+                    creator_match = e.get("creator_match", {})
+                    match_score = creator_match.get("match_score", 0)
+
+                    marker = " ← AI推荐" if i == 1 and match_score > 0.7 else ""
+                    print(f"[{i}] {e.get('title', '')[:50]}{marker}")
+                    print(f"    类型: {crack_type} | 置信: {confidence:.0%}")
+                    if signals.get("trend"):
+                        print(f"    趋势: {signals['trend'][:50]}...")
+                    print()
+            else:
+                print(f"\n队列中未找到与 '{user_input}' 相关的裂缝\n")
+
+        if not user_input and not from_queue:
             _safe_print({"error": "请提供用户输入"})
             sys.exit(1)
 
@@ -820,6 +945,55 @@ def main():
         else:
             result = content_generation_workflow(topic, ccos_outline, platform)
             _safe_print(result)
+
+    elif command == "queue":
+        # 队列管理命令
+        # 用法: python prism_os.py queue [--list] [--tag <id> <label>] [--dismiss <id>]
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from crack_queue import CrackQueue
+
+        q = CrackQueue()
+        args = sys.argv[2:]
+
+        if not args or "--list" in args or "-l" in args:
+            # 列出所有 new/reviewed 条目
+            status_filter = None
+            if "--status" in args:
+                idx = args.index("--status")
+                if idx + 1 < len(args):
+                    status_filter = args[idx + 1]
+            entries = q.list_all(status_filter) if status_filter else q.list_active()
+            if not entries:
+                _safe_print({"status": "empty", "message": "队列为空"})
+            else:
+                _safe_print({"status": "ok", "total": len(entries), "entries": entries[:20]})
+
+        elif "--tag" in args or "-t" in args:
+            idx = args.index("--tag") if "--tag" in args else args.index("-t")
+            if idx + 2 <= len(args):
+                entry_id, label = args[idx + 1], args[idx + 2]
+                if q.tag(entry_id, label):
+                    _safe_print({"status": "ok", "action": "tagged", "id": entry_id, "label": label})
+                else:
+                    _safe_print({"status": "error", "message": f"未找到条目: {entry_id}"})
+
+        elif "--dismiss" in args or "-d" in args:
+            idx = args.index("--dismiss") if "--dismiss" in args else args.index("-d")
+            if idx + 1 < len(args):
+                entry_id = args[idx + 1]
+                if q.dismiss(entry_id):
+                    _safe_print({"status": "ok", "action": "dismissed", "id": entry_id})
+                else:
+                    _safe_print({"status": "error", "message": f"未找到条目: {entry_id}"})
+
+        elif "--stats" in args:
+            active, total = q.count()
+            _safe_print({"status": "ok", "active": active, "total": total})
+
+        else:
+            _safe_print({
+                "usage": "python prism_os.py queue [--list] [--tag <id> <label>] [--dismiss <id>] [--stats]"
+            })
 
     else:
         _safe_print({"error": f"未知命令: {command}"})
