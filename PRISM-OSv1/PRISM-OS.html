@@ -337,6 +337,8 @@
         .reveal { opacity: 0; transform: translateY(30px); transition: all 0.8s cubic-bezier(0.16,1,0.3,1); }
         .reveal.visible { opacity: 1; transform: none; }
 
+        button { border: none; background: none; font-family: inherit; cursor: pointer; }
+
         /* ── RESPONSIVE ── */
         @media (max-width: 900px) {
             .process-grid { grid-template-columns: 1fr; gap: 3rem; }
@@ -598,6 +600,252 @@
 
     <hr class="section-divider">
 
+    <!-- OUTPUT EXAMPLES: 真实输出展示 -->
+    <section class="section" id="outputs" style="padding:7rem 3rem;background:rgba(0,242,255,0.02);">
+        <div class="section-inner">
+            <div class="cat-label reveal">
+                <h2 class="label-cyan" style="color:var(--cyan);">输出示例</h2>
+                <div class="line"></div>
+            </div>
+            <p class="reveal" style="color:var(--text-dim);font-size:1rem;font-weight:300;margin-bottom:3.5rem;max-width:640px;line-height:1.8;">
+                以下是系统处理命题<span style="color:var(--text-bright);font-weight:600;">「AI让内容创作更容易」</span>时的真实输出。点击各模块可查看完整结构。
+            </p>
+
+            <!-- Tab navigation -->
+            <div class="reveal" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:2.5rem;">
+                <button class="tab-btn active" data-tab="tab-ccos" style="background:rgba(0,242,255,0.12);border:1px solid rgba(0,242,255,0.3);color:var(--cyan);padding:0.6rem 1.4rem;border-radius:100px;font-size:0.88rem;font-weight:600;cursor:pointer;transition:all 0.2s;">CCOS 认知大纲</button>
+                <button class="tab-btn" data-tab="tab-prism" style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);color:var(--purple);padding:0.6rem 1.4rem;border-radius:100px;font-size:0.88rem;font-weight:600;cursor:pointer;transition:all 0.2s;">棱镜标题</button>
+                <button class="tab-btn" data-tab="tab-gap" style="background:rgba(244,63,94,0.08);border:1px solid rgba(244,63,94,0.2);color:var(--red);padding:0.6rem 1.4rem;border-radius:100px;font-size:0.88rem;font-weight:600;cursor:pointer;transition:all 0.2s;">素材缺口</button>
+                <button class="tab-btn" data-tab="tab-crack" style="background:rgba(0,242,255,0.08);border:1px solid rgba(0,242,255,0.15);color:var(--cyan);padding:0.6rem 1.4rem;border-radius:100px;font-size:0.88rem;font-weight:600;cursor:pointer;transition:all 0.2s;">认知裂缝</button>
+            </p>
+
+            <!-- TAB: CCOS 认知大纲 -->
+            <div class="tab-panel" id="tab-ccos" style="display:block;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;">
+                    <!-- 公众号 -->
+                    <div style="background:var(--bg-card);border:1px solid rgba(0,242,255,0.15);border-radius:20px;overflow:hidden;">
+                        <div style="padding:1.2rem 1.5rem;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:0.7rem;">
+                            <span style="width:8px;height:8px;border-radius:50%;background:var(--cyan);flex-shrink:0;"></span>
+                            <span style="font-weight:700;font-size:0.95rem;color:var(--text-bright);">公众号</span>
+                            <span style="font-size:0.78rem;color:var(--text-dim);margin-left:auto;">认知升级型</span>
+                        </div>
+                        <div style="padding:1.5rem;display:flex;flex-direction:column;gap:0.8rem;">
+                            <div style="display:flex;gap:0.8rem;align-items:flex-start;">
+                                <span style="font-size:0.72rem;color:var(--text-dim);min-width:72px;padding-top:0.2rem;">内容目标</span>
+                                <span style="font-size:0.88rem;color:var(--text-bright);font-weight:500;">认知升级</span>
+                            </div>
+                            <div style="display:flex;gap:0.8rem;align-items:flex-start;">
+                                <span style="font-size:0.72rem;color:var(--text-dim);min-width:72px;padding-top:0.2rem;">推进方式</span>
+                                <span style="font-size:0.88rem;color:var(--red);font-weight:600;">冲突推进</span>
+                            </div>
+                            <div style="display:flex;gap:0.8rem;align-items:flex-start;">
+                                <span style="font-size:0.72rem;color:var(--text-dim);min-width:72px;padding-top:0.2rem;">模块流</span>
+                                <div style="display:flex;align-items:center;gap:0.3rem;flex-wrap:wrap;">
+                                    <span style="background:rgba(0,242,255,0.12);color:var(--cyan);font-size:0.75rem;padding:0.2rem 0.6rem;border-radius:6px;font-weight:600;">HOOK</span>
+                                    <span style="color:var(--text-dim);">→</span>
+                                    <span style="background:rgba(0,242,255,0.12);color:var(--cyan);font-size:0.75rem;padding:0.2rem 0.6rem;border-radius:6px;font-weight:600;">CASE</span>
+                                    <span style="color:var(--text-dim);">→</span>
+                                    <span style="background:rgba(0,242,255,0.12);color:var(--cyan);font-size:0.75rem;padding:0.2rem 0.6rem;border-radius:6px;font-weight:600;">EXPLAIN</span>
+                                    <span style="color:var(--text-dim);">→</span>
+                                    <span style="background:rgba(0,242,255,0.12);color:var(--cyan);font-size:0.75rem;padding:0.2rem 0.6rem;border-radius:6px;font-weight:600;">MODEL</span>
+                                </div>
+                            </div>
+                            <div style="display:flex;gap:0.8rem;align-items:flex-start;">
+                                <span style="font-size:0.72rem;color:var(--text-dim);min-width:72px;padding-top:0.2rem;">势能曲线</span>
+                                <div style="display:flex;align-items:center;gap:0.4rem;">
+                                    <span style="font-size:0.8rem;color:var(--text-dim);">好奇</span>
+                                    <span style="color:var(--cyan);">→</span>
+                                    <span style="font-size:0.8rem;color:var(--purple);font-weight:600;">震惊</span>
+                                    <span style="color:var(--cyan);">→</span>
+                                    <span style="font-size:0.8rem;color:var(--text-bright);font-weight:600;">清晰</span>
+                                </div>
+                            </div>
+                            <div style="margin-top:0.3rem;padding:1rem;background:rgba(0,0,0,0.2);border-radius:10px;border:1px solid rgba(255,255,255,0.04);">
+                                <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:0.5rem;">Anti-AI 要求</div>
+                                <div style="font-size:0.82rem;color:var(--text-bright);line-height:1.7;">禁止模板感 / 套话 / 平均化表达 / AI式升华</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 小红书 -->
+                    <div style="background:var(--bg-card);border:1px solid rgba(244,63,94,0.2);border-radius:20px;overflow:hidden;">
+                        <div style="padding:1.2rem 1.5rem;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:0.7rem;">
+                            <span style="width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0;"></span>
+                            <span style="font-weight:700;font-size:0.95rem;color:var(--text-bright);">小红书</span>
+                            <span style="font-size:0.78rem;color:var(--text-dim);margin-left:auto;">故事驱动型</span>
+                        </div>
+                        <div style="padding:1.5rem;display:flex;flex-direction:column;gap:0.8rem;">
+                            <div style="display:flex;gap:0.8rem;align-items:flex-start;">
+                                <span style="font-size:0.72rem;color:var(--text-dim);min-width:72px;padding-top:0.2rem;">内容目标</span>
+                                <span style="font-size:0.88rem;color:var(--text-bright);font-weight:500;">情绪共鸣</span>
+                            </div>
+                            <div style="display:flex;gap:0.8rem;align-items:flex-start;">
+                                <span style="font-size:0.72rem;color:var(--text-dim);min-width:72px;padding-top:0.2rem;">推进方式</span>
+                                <span style="font-size:0.88rem;color:var(--red);font-weight:600;">情绪推进</span>
+                            </div>
+                            <div style="display:flex;gap:0.8rem;align-items:flex-start;">
+                                <span style="font-size:0.72rem;color:var(--text-dim);min-width:72px;padding-top:0.2rem;">模块流</span>
+                                <div style="display:flex;align-items:center;gap:0.3rem;flex-wrap:wrap;">
+                                    <span style="background:rgba(244,63,94,0.12);color:var(--red);font-size:0.75rem;padding:0.2rem 0.6rem;border-radius:6px;font-weight:600;">HOOK</span>
+                                    <span style="color:var(--text-dim);">→</span>
+                                    <span style="background:rgba(244,63,94,0.12);color:var(--red);font-size:0.75rem;padding:0.2rem 0.6rem;border-radius:6px;font-weight:600;">CASE</span>
+                                    <span style="color:var(--text-dim);">→</span>
+                                    <span style="background:rgba(244,63,94,0.12);color:var(--red);font-size:0.75rem;padding:0.2rem 0.6rem;border-radius:6px;font-weight:600;">ACTION</span>
+                                    <span style="color:var(--text-dim);">→</span>
+                                    <span style="background:rgba(244,63,94,0.12);color:var(--red);font-size:0.75rem;padding:0.2rem 0.6rem;border-radius:6px;font-weight:600;">BOUNDARY</span>
+                                </div>
+                            </div>
+                            <div style="display:flex;gap:0.8rem;align-items:flex-start;">
+                                <span style="font-size:0.72rem;color:var(--text-dim);min-width:72px;padding-top:0.2rem;">势能曲线</span>
+                                <div style="display:flex;align-items:center;gap:0.4rem;">
+                                    <span style="font-size:0.8rem;color:var(--text-dim);">焦虑</span>
+                                    <span style="color:var(--red);">→</span>
+                                    <span style="font-size:0.8rem;color:var(--purple);font-weight:600;">共鸣</span>
+                                    <span style="color:var(--red);">→</span>
+                                    <span style="font-size:0.8rem;color:var(--text-bright);font-weight:600;">清晰</span>
+                                    <span style="color:var(--red);">→</span>
+                                    <span style="font-size:0.8rem;color:var(--cyan);font-weight:600;">行动</span>
+                                </div>
+                            </div>
+                            <div style="margin-top:0.3rem;padding:1rem;background:rgba(0,0,0,0.2);border-radius:10px;border:1px solid rgba(255,255,255,0.04);">
+                                <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:0.5rem;">Anti-AI 要求</div>
+                                <div style="font-size:0.82rem;color:var(--text-bright);line-height:1.7;">禁止平均化表达，强制可操作</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: 棱镜标题 -->
+            <div class="tab-panel" id="tab-prism" style="display:none;">
+                <div style="display:flex;flex-direction:column;gap:1rem;">
+                    <div style="background:var(--bg-card);border:1px solid rgba(139,92,246,0.2);border-radius:16px;padding:1.3rem 1.5rem;display:flex;align-items:center;gap:1rem;">
+                        <div style="width:36px;height:36px;border-radius:10px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <span style="color:var(--purple);font-size:0.85rem;font-weight:800;">①</span>
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-size:1rem;color:var(--text-bright);font-weight:600;margin-bottom:0.3rem;">为什么"努力就能成功"是当今社会最大陷阱？</div>
+                            <div style="font-size:0.78rem;color:var(--text-dim);">逆向拆解 · 蓝海赛道 · 新颖度 <span style="color:var(--cyan);font-weight:700;">82%</span></div>
+                        </div>
+                        <div style="width:48px;height:48px;border-radius:50%;border:2px solid var(--cyan);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <span style="font-size:0.78rem;font-weight:700;color:var(--cyan);">82</span>
+                        </div>
+                    </div>
+                    <div style="background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:1.3rem 1.5rem;display:flex;align-items:center;gap:1rem;">
+                        <div style="width:36px;height:36px;border-radius:10px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <span style="color:var(--purple);font-size:0.85rem;font-weight:800;">②</span>
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-size:1rem;color:var(--text-bright);font-weight:600;margin-bottom:0.3rem;">某大厂裁员现场：一个程序员的中年危机</div>
+                            <div style="font-size:0.78rem;color:var(--text-dim);">微观切片 · 蓝海赛道 · 新颖度 <span style="color:var(--cyan);font-weight:700;">79%</span></div>
+                        </div>
+                        <div style="width:48px;height:48px;border-radius:50%;border:2px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <span style="font-size:0.78rem;font-weight:700;color:var(--text-dim);">79</span>
+                        </div>
+                    </div>
+                    <div style="background:var(--bg-card);border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:1.3rem 1.5rem;display:flex;align-items:center;gap:1rem;">
+                        <div style="width:36px;height:36px;border-radius:10px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <span style="color:var(--purple);font-size:0.85rem;font-weight:800;">③</span>
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-size:1rem;color:var(--text-bright);font-weight:600;margin-bottom:0.3rem;">程序员失业潮的根源：不是AI，是商业模式缺陷</div>
+                            <div style="font-size:0.78rem;color:var(--text-dim);">系统归因 · 黄海赛道 · 新颖度 <span style="color:var(--text-dim);font-weight:700;">68%</span></div>
+                        </div>
+                        <div style="width:48px;height:48px;border-radius:50%;border:2px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <span style="font-size:0.78rem;font-weight:700;color:var(--text-dim);">68</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: 素材缺口 -->
+            <div class="tab-panel" id="tab-gap" style="display:none;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:start;">
+                    <!-- 就绪度 -->
+                    <div style="background:var(--bg-card);border:1px solid rgba(244,63,94,0.2);border-radius:20px;padding:2rem;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;">
+                            <div style="font-weight:700;font-size:1rem;color:var(--text-bright);">素材就绪度</div>
+                            <div style="font-size:2rem;font-weight:800;color:var(--red);">45%</div>
+                        </div>
+                        <div style="height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;margin-bottom:1.2rem;">
+                            <div style="height:100%;width:45%;background:var(--red);border-radius:3px;"></div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:0.6rem;">
+                            <div style="font-size:0.82rem;color:var(--text-dim);">当前缺口</div>
+                            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+                                <span style="background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.2);color:var(--red);font-size:0.78rem;padding:0.3rem 0.8rem;border-radius:100px;">具体数据支撑</span>
+                                <span style="background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.2);color:var(--red);font-size:0.78rem;padding:0.3rem 0.8rem;border-radius:100px;">成功案例细节</span>
+                            </div>
+                            <div style="margin-top:0.5rem;font-size:0.82rem;color:var(--text-dim);">建议补充</div>
+                            <div style="font-size:0.88rem;color:var(--text-bright);line-height:1.7;">具体数据报告 + 一个有深度的真实案例</div>
+                        </div>
+                    </div>
+                    <!-- 认知模块流 -->
+                    <div style="background:var(--bg-card);border:1px solid rgba(0,242,255,0.15);border-radius:20px;padding:2rem;">
+                        <div style="font-weight:700;font-size:1rem;color:var(--text-bright);margin-bottom:1.5rem;">认知模块流</div>
+                        <div style="display:flex;flex-direction:column;gap:0.8rem;">
+                            <div style="display:flex;gap:1rem;align-items:flex-start;">
+                                <span style="background:rgba(0,242,255,0.12);color:var(--cyan);font-size:0.72rem;padding:0.3rem 0.7rem;border-radius:6px;font-weight:700;flex-shrink:0;margin-top:0.1rem;">HOOK</span>
+                                <div><div style="font-size:0.88rem;color:var(--text-bright);font-weight:500;">开场钩子</div><div style="font-size:0.78rem;color:var(--text-dim);">制造停留</div></div>
+                            </div>
+                            <div style="display:flex;gap:1rem;align-items:flex-start;">
+                                <span style="background:rgba(0,242,255,0.12);color:var(--cyan);font-size:0.72rem;padding:0.3rem 0.7rem;border-radius:6px;font-weight:700;flex-shrink:0;margin-top:0.1rem;">CASE</span>
+                                <div><div style="font-size:0.88rem;color:var(--text-bright);font-weight:500;">一个创业者的真实故事</div><div style="font-size:0.78rem;color:var(--text-dim);">建立代入感</div></div>
+                            </div>
+                            <div style="display:flex;gap:1rem;align-items:flex-start;">
+                                <span style="background:rgba(0,242,255,0.12);color:var(--cyan);font-size:0.72rem;padding:0.3rem 0.7rem;border-radius:6px;font-weight:700;flex-shrink:0;margin-top:0.1rem;">EXPLAIN</span>
+                                <div><div style="font-size:0.88rem;color:var(--text-bright);font-weight:500;">为什么会出现这种情况</div><div style="font-size:0.78rem;color:var(--text-dim);">建立理解</div></div>
+                            </div>
+                            <div style="display:flex;gap:1rem;align-items:flex-start;">
+                                <span style="background:rgba(0,242,255,0.12);color:var(--cyan);font-size:0.72rem;padding:0.3rem 0.7rem;border-radius:6px;font-weight:700;flex-shrink:0;margin-top:0.1rem;">MODEL</span>
+                                <div><div style="font-size:0.88rem;color:var(--text-bright);font-weight:500;">认知升级模型</div><div style="font-size:0.78rem;color:var(--text-dim);">提升认知密度</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: 认知裂缝 -->
+            <div class="tab-panel" id="tab-crack" style="display:none;">
+                <div style="background:linear-gradient(135deg,rgba(244,63,94,0.08),rgba(139,92,246,0.08));border:1px solid rgba(244,63,94,0.25);border-radius:20px;padding:2rem 2.5rem;">
+                    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:2rem;">
+                        <div style="width:48px;height:48px;border-radius:14px;background:rgba(244,63,94,0.12);border:1px solid rgba(244,63,94,0.2);display:flex;align-items:center;justify-content:center;">
+                            <i class="fas fa-bolt" style="color:var(--red);font-size:1.1rem;"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight:800;font-size:1.05rem;color:var(--text-bright);">认知裂缝已发现</div>
+                            <div style="font-size:0.82rem;color:var(--text-dim);">数据裂缝 · 置信度 <span style="color:var(--red);font-weight:700;">85%</span></div>
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:auto 1fr;gap:1rem;margin-bottom:1.5rem;align-items:center;">
+                        <div style="padding:0.8rem 1.2rem;background:rgba(0,0,0,0.25);border-radius:12px;text-align:center;min-width:80px;">
+                            <div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:0.3rem;">共识</div>
+                            <div style="font-size:0.9rem;color:var(--text-bright);font-weight:600;line-height:1.4;">AI会创造<br>更多就业</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                            <div style="display:flex;align-items:center;gap:0.5rem;">
+                                <div style="width:20px;height:20px;border-radius:50%;background:rgba(244,63,94,0.2);border:1px solid rgba(244,63,94,0.3);display:flex;align-items:center;justify-content:center;">
+                                    <i class="fas fa-arrow-right" style="color:var(--red);font-size:0.6rem;"></i>
+                                </div>
+                                <div style="height:2px;flex:1;background:linear-gradient(90deg,rgba(244,63,94,0.4),rgba(244,63,94,0.1));border-radius:1px;"></div>
+                            </div>
+                        </div>
+                        <div style="padding:0.8rem 1.2rem;background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.2);border-radius:12px;text-align:center;min-width:80px;">
+                            <div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:0.3rem;">现实</div>
+                            <div style="font-size:0.9rem;color:var(--red);font-weight:700;line-height:1.4;">AI导致失业<br>上升30%</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+                        <span style="background:rgba(244,63,94,0.08);border:1px solid rgba(244,63,94,0.15);color:var(--red);font-size:0.75rem;padding:0.3rem 0.8rem;border-radius:100px;">数据裂缝</span>
+                        <span style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.15);color:var(--purple);font-size:0.75rem;padding:0.3rem 0.8rem;border-radius:100px;">置信度 85%</span>
+                        <span style="background:rgba(0,242,255,0.06);border:1px solid rgba(0,242,255,0.12);color:var(--cyan);font-size:0.75rem;padding:0.3rem 0.8rem;border-radius:100px;">已写入素材库</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <hr class="section-divider">
+
     <!-- PROCESS & COMPARE -->
     <section class="section" style="background:rgba(255,255,255,0.015);padding:7rem 3rem;">
         <div class="section-inner">
@@ -737,6 +985,34 @@
             { threshold: 0.1 }
         );
         document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const target = btn.dataset.tab;
+                document.querySelectorAll('.tab-btn').forEach(b => {
+                    b.classList.remove('active');
+                    b.style.background = 'rgba(255,255,255,0.04)';
+                    b.style.borderColor = 'rgba(255,255,255,0.08)';
+                    b.style.color = 'var(--text-dim)';
+                });
+                btn.classList.add('active');
+                btn.style.background = btn.dataset.tab === 'tab-ccos' ? 'rgba(0,242,255,0.12)' :
+                                     btn.dataset.tab === 'tab-prism' ? 'rgba(139,92,246,0.08)' :
+                                     btn.dataset.tab === 'tab-gap' ? 'rgba(244,63,94,0.08)' :
+                                     'rgba(0,242,255,0.08)';
+                btn.style.borderColor = btn.dataset.tab === 'tab-ccos' ? 'rgba(0,242,255,0.3)' :
+                                         btn.dataset.tab === 'tab-prism' ? 'rgba(139,92,246,0.2)' :
+                                         btn.dataset.tab === 'tab-gap' ? 'rgba(244,63,94,0.2)' :
+                                         'rgba(0,242,255,0.15)';
+                btn.style.color = btn.dataset.tab === 'tab-ccos' ? 'var(--cyan)' :
+                                  btn.dataset.tab === 'tab-prism' ? 'var(--purple)' :
+                                  btn.dataset.tab === 'tab-gap' ? 'var(--red)' :
+                                  'var(--cyan)';
+                document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+                document.getElementById(target).style.display = 'block';
+            });
+        });
     </script>
 
 </body>
