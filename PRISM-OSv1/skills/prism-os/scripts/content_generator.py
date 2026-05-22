@@ -1005,14 +1005,6 @@ def record_modification(
     _save_mod_log(_modification_log)
 
 
-def get_modification_log() -> List[Dict]:
-    """获取修改记录（含持久化加载）"""
-    global _modification_log
-    if not _modification_log:
-        _modification_log = _load_mod_log()
-    return _modification_log
-
-
 def get_style_preferences(platform: str, min_samples: int = 3) -> Dict[str, Any]:
     """
     从修改记录中学习用户风格偏好
@@ -1172,6 +1164,16 @@ def content_generation_workflow(
     gaps = detect_material_gaps(topic, ccos_outline, vault_path)
     result["material_gaps"] = gaps
 
+    # 1.5 缺口补货：对有缺口的模块搜索外部素材
+    for mod_type, gap_info in gaps.items():
+        if gap_info.get("has_gap"):
+            gap_desc = gap_info.get("gap_description", "")
+            try:
+                search_results = search_gap_articles(topic, mod_type, gap_desc, max_results=3)
+                gap_info["search_results"] = search_results
+            except Exception:
+                gap_info["search_results"] = []
+
     # 2. 确定要生成的模块列表
     modules_to_generate = PLATFORM_MODULE_CONFIG.get(platform, PLATFORM_MODULE_CONFIG["wechat"])
     module_flow = ccos_outline.get("认知模块流", [])
@@ -1261,6 +1263,17 @@ def interactive_content_generation_workflow(
         vault_path = Path(r"D:\软件\obsidian笔记\内容素材库")
 
     gaps = detect_material_gaps(topic, ccos_outline, vault_path)
+
+    # 缺口补货：对有缺口的模块搜索外部素材
+    for mod_type, gap_info in gaps.items():
+        if gap_info.get("has_gap"):
+            gap_desc = gap_info.get("gap_description", "")
+            try:
+                search_results = search_gap_articles(topic, mod_type, gap_desc, max_results=3)
+                gap_info["search_results"] = search_results
+            except Exception:
+                gap_info["search_results"] = []
+
     modules_to_generate = PLATFORM_MODULE_CONFIG.get(platform, PLATFORM_MODULE_CONFIG["wechat"])
     module_flow = ccos_outline.get("认知模块流", [])
     previous_modules = []
