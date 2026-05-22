@@ -638,15 +638,21 @@ def main():
             "error": "用法: python prism_os.py <命令> [选项]",
             "commands": {
                 "run": "python prism_os.py run \"<用户输入>\" [--format] [--no-ext] [--fast] - 完整流程",
+                "run --from-queue": "从队列选择裂缝（多选）进入主流程",
+                "run --match-queue": "输入时匹配队列中的相关裂缝",
+                "queue": "队列管理：--list/--tag/--dismiss/--stats",
                 "classify": "意图识别",
                 "gateway": "苏格拉底网关（熵值计算）",
                 "confirm": "python prism_os.py confirm \"<标题>\" - 确认选题并写入飞书",
-                "generate": "python prism_os.py generate \"<命题>\" [--platform wechat|xiaohongshu] [--interactive] - Phase 5 内容生成"
+                "generate": "python prism_os.py generate \"<命题>\" [--platform wechat|xiaohongshu] [--interactive] - Phase 5 内容生成",
+                "ccos": "CCOS v2.0 认知推进流大纲生成"
             },
             "options": {
                 "--format, -f": "格式化输出（可读报告）",
                 "--no-ext": "跳过 Phase 4-8（仅 Phase 0-3）",
-                "--fast, -F": "跳过 Phase 1 熵值判断（快速模式）"
+                "--fast, -F": "跳过 Phase 1 熵值判断（快速模式）",
+                "--from-queue": "从 crack_queue 选择裂缝进入主流程",
+                "--match-queue": "输入时匹配 crack_queue 中的相关裂缝"
             }
         })
         sys.exit(1)
