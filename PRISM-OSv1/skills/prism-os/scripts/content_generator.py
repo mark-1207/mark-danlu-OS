@@ -567,6 +567,33 @@ def scrape_and_import_material(
         return {"status": "write_failed", "title": title, "material_type": material_type, "path": "", "error": str(e)}
 
 
+def scrape_gap_results(search_results: List[Dict], topic: str, vault_path: Path = None) -> List[Dict]:
+    """
+    对 search_gap_articles 返回的结果列表批量抓取入库
+
+    Args:
+        search_results: search_gap_articles 返回的 [{"url": ..., "title": ..., "source": ...}, ...]
+        topic: 命题
+        vault_path: Obsidian vault 路径
+
+    Returns:
+        [{"url": str, "title": str, "status": str, "path": str}, ...]
+    """
+    imported = []
+    for r in search_results:
+        url = r.get("url", "")
+        if not url:
+            continue
+        result = scrape_and_import_material(url, "CASE", topic, vault_path)
+        imported.append({
+            "url": url,
+            "title": r.get("title", ""),
+            "status": result.get("status", ""),
+            "path": result.get("path", "")
+        })
+    return imported
+
+
 # ============ 用户手写润色 ============
 
 def polish_user_material(
@@ -1132,7 +1159,8 @@ def content_generation_workflow(
     topic: str,
     ccos_outline: Dict,
     platform: str,
-    vault_path: Path = None
+    vault_path: Path = None,
+    auto_scrape: bool = False
 ) -> Dict:
     """
     Phase 5 核心流程：分模块生成
@@ -1142,6 +1170,7 @@ def content_generation_workflow(
         ccos_outline: CCOS 14项输出
         platform: wechat / xiaohongshu
         vault_path: Obsidian vault 路径
+        auto_scrape: 是否自动抓取搜索结果入库（默认 False）
 
     Returns:
         {
@@ -1192,8 +1221,14 @@ def content_generation_workflow(
             try:
                 search_results = search_gap_articles(topic, mod_type, gap_desc, max_results=3)
                 gap_info["search_results"] = search_results
+                if auto_scrape and search_results:
+                    imported = scrape_gap_results(search_results, topic, vault_path)
+                    gap_info["imported"] = imported
+                else:
+                    gap_info["imported"] = []
             except Exception:
                 gap_info["search_results"] = []
+                gap_info["imported"] = []
 
     # 2. 确定要生成的模块列表
     modules_to_generate = PLATFORM_MODULE_CONFIG.get(platform, PLATFORM_MODULE_CONFIG["wechat"])
@@ -1310,6 +1345,12 @@ def interactive_content_generation_workflow(
         gap = gaps.get(mod_type, {})
         if gap.get("has_gap"):
             print(f"  ⚠ {mod_type}: {gap.get('gap_description', '缺素材')}")
+            # 展示搜索结果
+            sr = gap.get("search_results", [])
+            if sr:
+                for i, r in enumerate(sr[:3], 1):
+                    print(f"     [{i}] {r.get('title', '')[:40]} — {r.get('source', '')}")
+                print(f"     输入编号抓取入库（如 1 3），或直接回车跳过")
         else:
             print(f"  ✅ {mod_type}: 已召回 {gap.get('recalled_count', 0)} 条素材")
 
@@ -1325,6 +1366,23 @@ def interactive_content_generation_workflow(
         print(f"▶ 模块 {mod_type}")
         if gap.get("has_gap"):
             print(f"  缺口：{gap.get('gap_description', '')}")
+            # 展示搜索结果供抓取
+            sr = gap.get("search_results", [])
+            if sr:
+                for i, r in enumerate(sr[:3], 1):
+                    print(f"     [{i}] {r.get('title', '')[:50]} — {r.get('source', '')}")
+                try:
+                    import_opt = input("  抓取编号入库（如 1 3）或回车跳过 → ").strip()
+                    if import_opt:
+                        indices = [int(x) - 1 for x in import_opt.split() if x.isdigit()]
+                        to_scrape = [sr[i] for i in indices if 0 <= i < len(sr)]
+                        if to_scrape:
+                            imported = scrape_gap_results(to_scrape, topic, vault_path)
+                            gap["imported"] = imported
+                            ok = [x for x in imported if x.get("status") == "success"]
+                            print(f"  已入库 {len(ok)} 条")
+                except (EOFError, KeyboardInterrupt):
+                    pass
         if gap.get("recalled_materials"):
             mats = gap["recalled_materials"]
             print(f"  素材：{', '.join(m['name'] for m in mats[:3])}")
