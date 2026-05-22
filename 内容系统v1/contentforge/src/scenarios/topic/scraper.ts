@@ -38,7 +38,7 @@ function inferPlatform(url: string): Platform {
 }
 
 /**
- * 抓取单篇文章 — 微信用 weixin download（绕过验证码），其他用 read
+ * 抓取单篇文章 — 优先 autocli，失败时降级到 wechat-article-extractor skill
  */
 export async function scrapeArticle(url: string): Promise<ScrapeResult> {
   console.log(chalk.cyan(`正在抓取: ${url}`));
@@ -48,40 +48,59 @@ export async function scrapeArticle(url: string): Promise<ScrapeResult> {
   let content: string;
 
   if (isWechat) {
-    // weixin download 写入文件，输出到临时目录
-    const output = execAutocli(['weixin', 'download', url, '--format', 'json']);
-    let parsed: { title: string; path: string; status: string };
+    // 优先 autocli weixin download
     try {
-      const arr = JSON.parse(output);
-      parsed = Array.isArray(arr) ? arr[0] : arr;
-    } catch {
-      throw new Error(`weixin download 解析失败: ${output.slice(0, 200)}`);
+      const output = execAutocli(['weixin', 'download', url, '--format', 'json']);
+      let parsed: { title: string; path: string; status: string };
+      try {
+        const arr = JSON.parse(output);
+        parsed = Array.isArray(arr) ? arr[0] : arr;
+      } catch {
+        throw new Error(`weixin download 解析失败: ${output.slice(0, 200)}`);
+      }
+      if (parsed.status !== 'ok') {
+        throw new Error(`weixin download 失败: ${output}`);
+      }
+      title = parsed.title;
+      const mdPath = parsed.path;
+      const raw = await readFile(mdPath, 'utf-8');
+      content = raw.replace(/^---[\s\S]*?---\n/, '').trim();
+      try {
+        await rm(dirname(mdPath), { recursive: true, force: true });
+      } catch { /* ignore */ }
+    } catch (autocliError) {
+      // 降级到 wechat-article-extractor skill
+      console.log(chalk.yellow(`autocli 失败，降级到 wechat-article-extractor: ${autocliError}`));
+      const { extract } = await import(
+        'C:\\Users\\admin\\.claude\\skills\\wechat-article-extractor\\scripts\\extract.js'
+      );
+      const result = await extract(url, { shouldReturnContent: true });
+      if (!result.done) {
+        throw new Error(`wechat-article-extractor 也失败: code=${result.code} msg=${result.msg}`);
+      }
+      title = result.data.msg_title;
+      // 提取纯文本（去掉HTML标签）
+      content = result.data.msg_content.replace(/<[^>]+>/g, '').trim();
     }
-    if (parsed.status !== 'ok') {
-      throw new Error(`weixin download 失败: ${output}`);
-    }
-    title = parsed.title;
-    const mdPath = parsed.path;
-    const raw = await readFile(mdPath, 'utf-8');
-    // 去掉 frontmatter（---...---之间的元数据）
-    content = raw.replace(/^---[\s\S]*?---\n/, '').trim();
-    // 清理下载临时目录
-    try {
-      await rm(dirname(mdPath), { recursive: true, force: true });
-    } catch { /* ignore */ }
   } else {
-    const output = execAutocli(['read', url, '--format', 'json']);
-    let parsed: { title: string; byline?: string; content: string };
     try {
-      parsed = JSON.parse(output);
-    } catch {
-      throw new Error(`autocli 解析失败: ${output.slice(0, 200)}`);
+      const output = execAutocli(['read', url, '--format', 'json']);
+      let parsed: { title: string; byline?: string; content: string };
+      try {
+        parsed = JSON.parse(output);
+      } catch {
+        throw new Error(`autocli 解析失败: ${output.slice(0, 200)}`);
+      }
+      if (!parsed.title || !parsed.content) {
+        throw new Error(`抓取结果缺少 title 或 content: ${output.slice(0, 200)}`);
+      }
+      title = parsed.title;
+      content = parsed.content;
+    } catch (autocliError) {
+      console.log(chalk.yellow(`autocli 失败，降级到通用抓取: ${autocliError}`));
+      // 非微信平台暂无降级 skill，直接抛错
+      throw autocliError;
     }
-    if (!parsed.title || !parsed.content) {
-      throw new Error(`抓取结果缺少 title 或 content: ${output.slice(0, 200)}`);
-    }
-    title = parsed.title;
-    content = parsed.content;
   }
 
   return {
