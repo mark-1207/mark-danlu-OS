@@ -366,7 +366,7 @@ def search_gap_articles(
     max_results: int = 5
 ) -> List[Dict]:
     """
-    搜索缺口相关文章（Tavily / DuckDuckGo 多源）
+    搜索缺口相关文章（Tavily / DuckDuckGo / SerpAPI 三源备份）
 
     Args:
         topic: 命题
@@ -430,6 +430,27 @@ def search_gap_articles(
                         })
         except Exception as e:
             print(f"[Warning] DuckDuckGo 搜索失败: {e}", file=sys.stderr)
+
+    # 尝试 SerpAPI（第三备份）
+    if len(results) < 3:
+        serpapi_key = os.environ.get("SERPAPI_API_KEY")
+        if serpapi_key:
+            try:
+                import urllib.request
+                encoded_query = urllib.request.quote(query)
+                serp_url = f"https://serpapi.com/search.json?q={encoded_query}&api_key={serpapi_key}&num={max_results}"
+                req = urllib.request.Request(serp_url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    for item in data.get("organic_results", [])[:max_results]:
+                        results.append({
+                            "title": item.get("title", ""),
+                            "url": item.get("link", ""),
+                            "snippet": item.get("snippet", "")[:200],
+                            "source": "serpapi"
+                        })
+            except Exception as e:
+                print(f"[Warning] SerpAPI 搜索失败: {e}", file=sys.stderr)
 
     # 如果都失败，返回 LLM 推荐的搜索词
     if not results:

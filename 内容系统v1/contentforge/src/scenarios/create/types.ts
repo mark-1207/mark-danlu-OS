@@ -61,6 +61,11 @@ export type TopicAnalysis = z.infer<typeof TopicAnalysisSchema>;
 
 // ─── Step 2: Topic Assignment ──────────────────────────────────────
 
+export const CognitiveTensionSchema = z.object({
+  popularBelief: z.string().describe('大众以为'),
+  reality: z.string().describe('现实是'),
+});
+
 export const TopicCardSchema = z.object({
   platform: z.enum(['wechat', 'xiaohongshu', 'douyin']),
   angle: z.string(),
@@ -71,6 +76,11 @@ export const TopicCardSchema = z.object({
   wordCountRange: z.tuple([z.number(), z.number()]),
   contentType: z.string(),
   emotionalGoal: z.string(),
+  // CCOS-inspired: cognitive tension for outline guidance
+  cognitiveTension: CognitiveTensionSchema.optional(),
+  // CCOS-inspired: recommended structure and progression
+  structureType: z.enum(['认知升级型', '问题拆解型', '故事驱动型', '信息重构型']).optional(),
+  progressionMode: z.array(z.enum(['冲突推进', '递进推进', '案例推进', '对比推进', '拆解推进', '情绪推进'])).max(2).optional(),
 });
 
 export const PlatformAssignmentsSchema = z.object({
@@ -84,11 +94,18 @@ export type PlatformAssignments = z.infer<typeof PlatformAssignmentsSchema>;
 
 // ─── Step 3: Outline Generation ────────────────────────────────────
 
+export const CognitiveModuleSchema = z.enum(['HOOK', 'CASE', 'EXPLAIN', 'MODEL', 'COUNTER', 'EVIDENCE', 'ACTION', 'BOUNDARY']);
+
 export const WechatOutlineSchema = z.object({
   hook: z.object({
     technique: z.string(),
     content: z.string(),
   }),
+  // CCOS-inspired: cognitive tension that drives the outline
+  cognitiveTension: z.object({
+    popularBelief: z.string(),
+    reality: z.string(),
+  }).optional(),
   emotionalArc: z.object({
     hook: z.string().describe('钩子：极速拉升唤醒度，3秒抓住注意力'),
     context: z.string().describe('铺垫：效价平稳，建立"跟我有关"的预期'),
@@ -104,6 +121,8 @@ export const WechatOutlineSchema = z.object({
     wordCount: z.number(),
     emotionTarget: z.string(),
     arcPosition: z.enum(['hook', 'context', 'twist', 'resonance', 'action']).describe('该段落在情绪曲线中的位置'),
+    // CCOS-inspired: cognitive module tag to guide content generation
+    cognitiveModule: CognitiveModuleSchema.optional().describe('认知模块类型：HOOK制造停留/CASE建立真实感/EXPLAIN建立理解/MODEL提升认知密度/COUNTER制造记忆点/EVIDENCE增强可信度/ACTION提供落地行动/BOUNDARY提升高级感'),
     knowledgeTransfer: z.object({
       materialName: z.string().describe('引用的知识库素材名称'),
       usage: z.string().describe('如何将该素材融入本段落的写作指令'),

@@ -14,6 +14,21 @@
 
 **峰终定律**：中间允许低谷，但必须有情绪"极点"。结尾平均情绪质量 > 过程平均值。
 
+## 认知模块设计（CCOS 启发）
+
+每个 section 必须标注认知模块类型，指导后续内容生成：
+
+| 模块 | 作用 | 要求 |
+|------|------|------|
+| HOOK | 制造停留，激发好奇 | 必须有 |
+| CASE | 建立真实感 | 至少有 1 个 |
+| EXPLAIN | 建立理解 | 每篇必备 |
+| MODEL | 提升认知密度 | 建议有认知模型 |
+| COUNTER | 制造记忆点，反直觉 | 建议有 |
+| EVIDENCE | 增强可信度 | 数据/案例支撑 |
+| ACTION | 提供落地行动 | 实操类必须有 |
+| BOUNDARY | 提升高级感 | 建议有 |
+
 ## 公众号结构规范
 
 - 不用功能标签标题（如"认知升级""行动启示"），用场景/问题/人物/一句话洞察作为标题
@@ -43,6 +58,10 @@
 
 输出格式：JSON，严格遵循以下 Schema:
 {
+  "cognitiveTension": {
+    "popularBelief": "string — 大众以为的默认观点",
+    "reality": "string — 反直觉的现实或真相"
+  },
   "hook": {
     "technique": "string",
     "content": "string"
@@ -62,6 +81,7 @@
     "wordCount": number,
     "emotionTarget": "string",
     "arcPosition": "hook|context|twist|resonance|action",
+    "cognitiveModule": "HOOK|CASE|EXPLAIN|MODEL|COUNTER|EVIDENCE|ACTION|BOUNDARY",
     "knowledgeTransfer": { "materialName": "string", "usage": "string" }  // optional
   }],
   "conclusion": {

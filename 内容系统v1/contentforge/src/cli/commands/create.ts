@@ -135,7 +135,7 @@ function buildTopicAnalysisReview(ta: TopicAnalysis): TopicAnalysisReview {
 
 export async function runCreate(
   keyword: string,
-  options: { platforms?: string; context?: string; interactive?: boolean },
+  options: { platforms?: string; context?: string; interactive?: boolean; keepArtifacts?: boolean },
 ): Promise<void> {
   // Parse and validate platforms
   let selectedPlatforms: PlatformSelection | undefined;
@@ -416,8 +416,10 @@ export async function runCreate(
         await fs.writeFile(path.join(runDir, `${safeTitle}.${ext}`), revisedContent, 'utf-8');
       }
 
-      // Cleanup: keep only final .md files and run-meta.json
-      await cleanupIntermediateFiles(runDir);
+      // Cleanup: keep only final .md files and run-meta.json (skip if --keep-artifacts)
+      if (!options.keepArtifacts) {
+        await cleanupIntermediateFiles(runDir);
+      }
 
       // Sync articles to Obsidian (if configured)
       await writeArticlesToObsidian(context, platformsToRun);
@@ -451,7 +453,10 @@ export async function runCreate(
         });
         await revisionPipeline.run();
       }
-      // decision === 'accept' → continue to review (fall through to releaseLock)
+      // decision === 'save' → content already saved + cleaned up above; fall through to exit
+      if (decision === 'save') {
+        console.log(chalk.green('\n✓ 已保存\n'));
+      }
     } finally {
       await releaseRunLock(runId, outputDir);
     }
@@ -490,8 +495,10 @@ export async function runCreate(
       await fs.writeFile(path.join(runDir, `${safeTitle}.${ext}`), revisedContent, 'utf-8');
     }
 
-    // Cleanup: keep only final .md files and run-meta.json
-    await cleanupIntermediateFiles(runDir);
+    // Cleanup: keep only final .md files and run-meta.json (skip if --keep-artifacts)
+    if (!options.keepArtifacts) {
+      await cleanupIntermediateFiles(runDir);
+    }
 
     // Sync articles to Obsidian (if configured)
     await writeArticlesToObsidian(finalContext, [...platformNames]);
@@ -526,7 +533,10 @@ export async function runCreate(
         });
         await revisionPipeline.run();
       }
-      // decision === 'accept' → continue (fall through)
+      // decision === 'save' → content already saved + cleaned up above; fall through to exit
+      if (decision === 'save') {
+        console.log(chalk.green('\n✓ 已保存\n'));
+      }
     }
   }
 }
@@ -541,6 +551,7 @@ export function registerCreateCommand(program: Command): void {
     .option('-p, --platforms <list>', `平台列表 (逗号分隔，可选: wechat,xiaohongshu,douyin，默认全部)`)
     .option('-c, --context <text>', '用户补充说明')
     .option('--no-interactive', '跳过选题确认，直接全自动生成')
+    .option('--keep-artifacts', '保留中间产物（用于调试 CCOS 输出）')
     .action(async (opts) => {
       try {
         // interactive defaults to true unless --no-interactive is passed
@@ -549,6 +560,7 @@ export function registerCreateCommand(program: Command): void {
           platforms: opts.platforms,
           context: opts.context,
           interactive,
+          keepArtifacts: opts.keepArtifacts,
         });
       } catch (error) {
         logger.error('create command failed', { error: String(error) });

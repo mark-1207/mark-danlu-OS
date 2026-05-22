@@ -28,34 +28,30 @@ export async function interactiveSelect<T>(
   });
 }
 
-export type RevisionChoice = 'accept' | 'revise' | 'abort';
+export type PostGenChoice = 'save' | 'revise' | 'abort';
 
-/**
- * Ask user if they are satisfied with the generated content and want to proceed
- * to review, revise, or abort.
- */
-export async function confirmRevision(): Promise<RevisionChoice> {
+export async function confirmRevision(): Promise<PostGenChoice> {
   console.log('\n这版满意吗？\n');
-  console.log('  [1] ✓ 满意，进入审查');
-  console.log('  [2] ↺ 修订一下');
-  console.log('  [3] ✗ 不满意，退出');
+  console.log('  [1] ✓ 直接保存输出');
+  console.log('  [2] ↺ 进入初稿修订');
+  console.log('  [3] ✗ 放弃');
   console.log('');
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
 
-  return new Promise<RevisionChoice>((resolve) => {
+  return new Promise<PostGenChoice>((resolve) => {
     rl.question('请选择 (输入数字): ', (answer) => {
       rl.close();
       const index = parseInt(answer, 10) - 1;
-      // 0 = accept, 1 = revise, 2 = abort
+      // 0 = save, 1 = revise, 2 = abort
       if (index === 0) {
-        resolve('accept');
+        resolve('save');
       } else if (index === 1) {
         resolve('revise');
       } else if (index === 2) {
         resolve('abort');
       } else {
-        resolve('accept'); // default
+        resolve('save'); // default
       }
     });
   });

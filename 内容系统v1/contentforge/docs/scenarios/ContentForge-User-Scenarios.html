@@ -114,7 +114,8 @@
   <span class="step-title">parseIntent() — 判断 intent 类型</span>
   <div class="step-detail">
     从用户输入提取关键词 + 目标平台。<br>
-    有 .md 文件路径 → recreate；否则 → create。<br>
+    有 .md 文件路径 OR 有意图词（二创/改写/爆款/rewrite）→ recreate<br>
+    否则 → create。<br>
     自动识别平台词（公众号/小红书/抖音）。
   </div>
   <div class="step-code">输入: "帮我写一篇关于AI时代的职场人文章 发公众号"
@@ -227,7 +228,7 @@ d:\软件\obsidian笔记\内容素材库\50_资源\生成文章\
 <div class="scenario-body">
 
 <div class="scenario-summary">
-  <p><strong>触发方式：</strong>`skill 二创：d:/文章.md` 或 `node dist/index.js recreate -i d:/文章.md`</p>
+  <p><strong>触发方式：</strong>`skill 二创：d:/文章.md` 或 `skill 帮我改写这篇文章` 或 `node dist/index.js recreate -i d:/文章.md`</p>
   <p><strong>用户痛点：</strong><span class="pain-point">有一篇好文章，想以不同角度/受众/风格改写，但没有思路</span></p>
   <p><strong>场景方案：</strong><span class="solution">系统先解剖原文爆款要素，再生成 3 个差异化方向，用户选择后生成新内容，最后审查原创性</span></p>
 </div>
@@ -691,7 +692,7 @@ Obsidian 原子库（再次入库）
   <tr>
     <td><code>skill "需求描述"</code></td>
     <td>自然语言触发，解析为 create/recreate</td>
-    <td>需要包含明确意图词（帮我写/二创）</td>
+    <td>有路径或意图词（二创/改写/爆款）即触发二创，无需同时满足</td>
   </tr>
   <tr>
     <td><code>recreate -i &lt;file&gt;</code></td>

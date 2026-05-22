@@ -82,6 +82,9 @@ export class OutlineWechatStep extends PipelineStep<z.infer<typeof WechatInputSc
     const userPrompt = promptLoader.render(template.user, {
       topicCard: JSON.stringify(topicCard, null, 2),
       materials,
+      cognitiveTension: topicCard.cognitiveTension,
+      structureType: topicCard.structureType,
+      progressionMode: topicCard.progressionMode,
     }) + prefPrompt;
 
     return this.callLLMJson<WechatOutline>([

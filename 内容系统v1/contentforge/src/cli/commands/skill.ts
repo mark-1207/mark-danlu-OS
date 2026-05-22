@@ -11,6 +11,13 @@ export interface IntentResult {
   direction?: 'auto' | 'interactive';
 }
 
+const RECREATE_INTENT_PATTERNS: Array<{ pattern: RegExp; platform?: string }> = [
+  { pattern: /二创/i },
+  { pattern: /改写/i },
+  { pattern: /爆款/i },
+  { pattern: /rewrite/i },
+];
+
 const PLATFORM_PATTERNS: Array<{ pattern: RegExp; platform: string }> = [
   { pattern: /公众号|微信(?![豪])|wechat/i, platform: 'wechat' },
   { pattern: /小红书|xhs|种草/i, platform: 'xiaohongshu' },
@@ -47,8 +54,19 @@ function hasFilePath(text: string): boolean {
 }
 
 /**
+ * Check if text contains recreation intent keywords
+ */
+function hasRecreateIntent(text: string): boolean {
+  return RECREATE_INTENT_PATTERNS.some(({ pattern }) => pattern.test(text));
+}
+
+/**
  * Parse natural language input to determine intent.
  * No LLM needed — pure pattern matching.
+ *
+ * Recreation is triggered if EITHER:
+ * - text contains a .md file path, OR
+ * - text contains recreation intent keywords (二创/改写/爆款/rewrite)
  */
 export function parseIntent(text: string): IntentResult {
   const trimmed = text.trim();
@@ -64,23 +82,22 @@ export function parseIntent(text: string): IntentResult {
   // Extract file path
   const inputPath = extractFilePath(trimmed);
   const hasFile = hasFilePath(trimmed);
+  const hasIntent = hasRecreateIntent(trimmed);
 
   // Detect direction
   const isInteractive = /手动|自己选|选择/i.test(trimmed);
   const direction: 'auto' | 'interactive' = isInteractive ? 'interactive' : 'auto';
 
-  // Intent logic:
-  // - Has .md file path → recreate
-  // - No file path, has topic keyword → create
-  if (inputPath) {
+  // Intent logic: OR condition — path OR intent keyword triggers recreate
+  if (inputPath || hasIntent) {
     // recreate
     const result: IntentResult = {
       type: 'recreate',
-      inputPath,
+      inputPath: inputPath ?? undefined,
       platforms: platforms.length > 0 ? platforms : ALL_PLATFORMS,
       direction,
     };
-    logger.debug(`[skill] intent: recreate, path=${inputPath}, platforms=${result.platforms.join(',')}`);
+    logger.debug(`[skill] intent: recreate, path=${inputPath}, hasIntent=${hasIntent}, platforms=${result.platforms.join(',')}`);
     return result;
   }
 

@@ -348,7 +348,10 @@ export async function runRecreate(
       });
       await revisionPipeline.run();
     }
-    // decision === 'accept' → fall through to exit
+    // decision === 'save' → content already saved + cleaned up above; fall through to exit
+    if (decision === 'save') {
+      console.log(chalk.green('\n✓ 已保存\n'));
+    }
   }
 }
 

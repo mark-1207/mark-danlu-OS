@@ -33,7 +33,13 @@
     "tone": "string — 语气风格",
     "wordCountRange": [2000, 3000],
     "contentType": "string — 内容类型",
-    "emotionalGoal": "string — 情绪目标"
+    "emotionalGoal": "string — 情绪目标",
+    "cognitiveTension": {
+      "popularBelief": "string — 大众以为的默认观点（30字内）",
+      "reality": "string — 反直觉的现实或真相（30字内）"
+    },
+    "structureType": "认知升级型|问题拆解型|故事驱动型|信息重构型",
+    "progressionMode": ["冲突推进"] // 最多2个，如["冲突推进","递进推进"]
   },
   "xiaohongshu": {
     "platform": "xiaohongshu",
@@ -44,7 +50,13 @@
     "tone": "string",
     "wordCountRange": [500, 800],
     "contentType": "string",
-    "emotionalGoal": "string"
+    "emotionalGoal": "string",
+    "cognitiveTension": {
+      "popularBelief": "string",
+      "reality": "string"
+    },
+    "structureType": "认知升级型|问题拆解型|故事驱动型|信息重构型",
+    "progressionMode": ["冲突推进"]
   },
   "douyin": {
     "platform": "douyin",
@@ -55,7 +67,13 @@
     "tone": "string",
     "wordCountRange": [150, 300],
     "contentType": "string",
-    "emotionalGoal": "string"
+    "emotionalGoal": "string",
+    "cognitiveTension": {
+      "popularBelief": "string",
+      "reality": "string"
+    },
+    "structureType": "认知升级型|问题拆解型|故事驱动型|信息重构型",
+    "progressionMode": ["冲突推进"]
   },
   "overlapAnalysis": "string — 三个选题的差异化分析"
 }
