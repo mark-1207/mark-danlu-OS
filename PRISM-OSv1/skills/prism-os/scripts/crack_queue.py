@@ -30,6 +30,10 @@ MAX_QUEUE_SIZE = 100
 MAX_QUEUE_DAYS = 60
 ARCHIVE_AFTER_DAYS = 60
 
+# creator_model 缓存（避免每次 add 都调 LLM）
+_CREATOR_MODEL_CACHE: Optional[Dict] = None
+_CREATOR_MODEL_CACHE_TTL = 300  # 5分钟内复用
+
 # ============ 优先级计算 ============
 
 TAG_MULTIPLIERS = {
@@ -123,6 +127,8 @@ class CrackQueue:
 
     def add(self, entry: Dict) -> str:
         """添加新条目到队列"""
+        global _CREATOR_MODEL_CACHE
+
         if "id" not in entry:
             entry["id"] = str(uuid.uuid4())
         if "created_at" not in entry:
@@ -138,6 +144,24 @@ class CrackQueue:
 
         # 计算优先级
         entry["priority_score"] = _calc_priority_score(entry)
+
+        # 计算 creator_match（使用缓存）
+        signals = entry.get("signals", {})
+        if signals:
+            try:
+                # 延迟导入避免循环
+                from cognitive_crack import learn_thinking_pattern, compute_creator_match
+                import time
+                now = time.time()
+                if (_CREATOR_MODEL_CACHE is None or
+                        now - _CREATOR_MODEL_CACHE.get("_ts", 0) > _CREATOR_MODEL_CACHE_TTL):
+                    _CREATOR_MODEL_CACHE = learn_thinking_pattern(history_limit=20)
+                    _CREATOR_MODEL_CACHE["_ts"] = now
+                creator_model = {k: v for k, v in _CREATOR_MODEL_CACHE.items() if not k.startswith("_")}
+                creator_match = compute_creator_match(entry, creator_model)
+                entry["creator_match"] = creator_match
+            except Exception:
+                pass  # creator_match 计算失败不影响写入
 
         entries = self._load_queue()
 
@@ -299,6 +323,69 @@ class CrackQueue:
         active = len([e for e in entries if e.get("status") in ("new", "reviewed")])
         return active, len(entries)
 
+    # ============ 归档查询 ============
+
+    def search_archive(self, keyword: str, limit: int = 10) -> List[Dict]:
+        """
+        在归档中搜索关键词（标题/consensus）
+
+        Args:
+            keyword: 搜索关键词
+            limit: 返回条数限制
+
+        Returns:
+            匹配的归档条目列表（按 priority_score 降序）
+        """
+        archive = self._load_archive()
+        if not archive or not keyword:
+            return []
+        keyword_lower = keyword.lower()
+        results = []
+        for e in archive:
+            title = e.get("title", "").lower()
+            consensus = e.get("consensus", "").lower()
+            if keyword_lower in title or keyword_lower in consensus:
+                results.append(e)
+        results.sort(key=lambda x: x.get("priority_score", 0), reverse=True)
+        return results[:limit]
+
+    def query_trends(self, current_crack: Dict, limit: int = 5) -> List[Dict]:
+        """
+        趋势感知：查询归档中与当前裂缝主题相似的条目
+        用于发现"这个话题是否已经同质化了"
+
+        Args:
+            current_crack: 当前裂缝条目（含 title/signals）
+            limit: 返回条数限制
+
+        Returns:
+            相似的归档条目列表
+        """
+        archive = self._load_archive()
+        if not archive:
+            return []
+
+        title = current_crack.get("title", "")
+        signals = current_crack.get("signals", {})
+        trend = signals.get("trend", "")
+
+        # 简单关键词匹配
+        search_terms = [title] + [trend] if trend else [title]
+        results = []
+        for e in archive:
+            e_title = e.get("title", "")
+            e_signals = e.get("signals", {})
+            e_trend = e_signals.get("trend", "")
+            # 标题或趋势关键词重叠
+            match = any(term.lower() in e_title.lower() or e_title.lower() in term.lower()
+                        for term in search_terms if term)
+            if match:
+                results.append(e)
+
+        # 按创建时间降序（最新的相似话题在前）
+        results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        return results[:limit]
+
     # ============ 格式化输出 ============
 
     def format_entry(self, e: Dict, index: int) -> str:
@@ -393,6 +480,16 @@ def main():
     # --archive
     subparsers.add_parser("archive", help="归档过期 consumed 条目")
 
+    # --search-archive
+    search_archive_parser = subparsers.add_parser("search-archive", help="在归档中搜索关键词")
+    search_archive_parser.add_argument("keyword", help="搜索关键词")
+    search_archive_parser.add_argument("--limit", "-l", type=int, default=10, help="返回条数限制")
+
+    # --trends
+    trends_parser = subparsers.add_parser("trends", help="查询与给定标题相似的归档趋势")
+    trends_parser.add_argument("title", help="当前裂缝标题")
+    trends_parser.add_argument("--limit", "-l", type=int, default=5, help="返回条数限制")
+
     # --stats
     subparsers.add_parser("stats", help="显示队列统计")
 
@@ -456,6 +553,39 @@ def main():
     elif args.command == "archive":
         count = q.archive_old()
         print(f"已归档 {count} 条")
+
+    elif args.command == "search-archive":
+        results = q.search_archive(args.keyword, limit=args.limit)
+        if not results:
+            print(f"归档中未找到包含 '{args.keyword}' 的条目")
+            return
+        print(f"归档中找到 {len(results)} 条\n")
+        for i, e in enumerate(results, 1):
+            title = e.get("title", "")
+            crack_type = e.get("crack_type", "")
+            created = e.get("created_at", "")[:10]
+            print(f"[{i}] {title}")
+            print(f"    类型: {crack_type} | 归档时间: {created}")
+            print()
+
+    elif args.command == "trends":
+        current = {"title": args.title, "signals": {}}
+        results = q.query_trends(current, limit=args.limit)
+        if not results:
+            print("归档中未找到相似话题")
+            return
+        print(f"归档中找到 {len(results)} 条相似话题\n")
+        for i, e in enumerate(results, 1):
+            title = e.get("title", "")
+            crack_type = e.get("crack_type", "")
+            signals = e.get("signals", {})
+            trend = signals.get("trend", "")
+            created = e.get("created_at", "")[:10]
+            print(f"[{i}] {title}")
+            print(f"    类型: {crack_type} | 归档时间: {created}")
+            if trend:
+                print(f"    趋势: {trend[:40]}...")
+            print()
 
     elif args.command == "stats":
         print(q.format_summary())

@@ -256,7 +256,7 @@ def learn_thinking_pattern(history_limit: int = 50) -> Dict:
         thesis_sample = all_thesis[:10]  # 取前 10 条作为样本
         thesis_str = "\n".join([f"- {t}" for t in thesis_sample])
 
-        prompt = f"""分析以下用户选题历史，提取思维特征。
+        prompt = f"""分析以下用户选题历史，提取完整的创作者模型。
 
 用户选题：
 {thesis_str}
@@ -272,11 +272,25 @@ def learn_thinking_pattern(history_limit: int = 50) -> Dict:
 
 3. 思维特征：用 3-5 个词概括用户的选题风格
 
+4. 成长阶段（根据选题演变判断）：
+   - 工具型：多工具教程、Prompt技巧
+   - 方法型：工作流、效率方法、系统搭建
+   - 系统型：方法论沉淀、行业洞察
+   - 思想型：社会观察、价值观输出
+
+5. 敏感方向：用户更容易对哪些主题产生表达欲？
+   （如：个体竞争力、职业发展、AI影响、技术教育、认知升级等）
+
+6. 世界观：用一句话概括用户的世界结构（如：技术进步与个体成长并行；效率至上；长期主义等）
+
 返回 JSON：
 {{
   "dimension_weights": {{"reversal": 0.0, "micro_scene": 0.0, "systemic_flaw": 0.0, "bridge": 0.0}},
-  "style_keywords": ["关键词1", "关键词2", "关键词3"],
-  "thinking_pattern": "特征1、特征2、特征3"
+  "style_keywords": ["关键词1", "关键词2"],
+  "thinking_pattern": "特征1、特征2",
+  "growth_stage": "系统型",
+  "sensitive_directions": ["方向1", "方向2"],
+  "worldview": "一句话世界观描述"
 }}"""
 
         result = _call_llm_raw(prompt)
@@ -286,6 +300,10 @@ def learn_thinking_pattern(history_limit: int = 50) -> Dict:
                 # 计算置信度（基于数据量）
                 confidence = min(1.0, len(all_thesis) / 20)  # 20 条以上满置信度
                 parsed["confidence"] = confidence
+                # 确保新字段存在
+                parsed.setdefault("growth_stage", "方法型")
+                parsed.setdefault("sensitive_directions", [])
+                parsed.setdefault("worldview", "")
                 return parsed
 
     # 默认返回
@@ -293,7 +311,10 @@ def learn_thinking_pattern(history_limit: int = 50) -> Dict:
         "thinking_pattern": "理性、克制、反常识",
         "dimension_weights": {"reversal": 0.25, "micro_scene": 0.25, "systemic_flaw": 0.25, "bridge": 0.25},
         "style_keywords": [],
-        "confidence": 0.0
+        "confidence": 0.0,
+        "growth_stage": "方法型",
+        "sensitive_directions": [],
+        "worldview": ""
     }
 
 
@@ -335,6 +356,76 @@ def record_twin_feedback(thesis: str, twin_selected: List[str], user_selected: s
         "status": "ok",
         "match": match,
         "accuracy": accuracy
+    }
+
+
+# ============ Phase D: creator_match 计算 ============
+
+def compute_creator_match(crack_entry: Dict, creator_model: Dict) -> Dict:
+    """
+    根据裂缝的 signals 和创作者数字分身模型，计算 creator_match
+
+    Args:
+        crack_entry: 含 signals{trend,emotion,contradiction} 的队列条目
+        creator_model: learn_thinking_pattern() 返回的模型，含
+                       growth_stage/sensitive_directions/worldview
+
+    Returns:
+        {
+            "growth_stage": "系统型",
+            "sensitive_directions": ["个体竞争力"],
+            "match_score": 0.75
+        }
+    """
+    signals = crack_entry.get("signals", {})
+    trend = signals.get("trend", "")
+    emotions = signals.get("emotion", [])
+    contradiction = signals.get("contradiction", "")
+
+    creator_sensitive = creator_model.get("sensitive_directions", [])
+    growth_stage = creator_model.get("growth_stage", "方法型")
+
+    if not creator_sensitive:
+        return {
+            "growth_stage": growth_stage,
+            "sensitive_directions": [],
+            "match_score": 0.0
+        }
+
+    # LLM 语义匹配：裂缝 signals vs 敏感方向
+    signal_text = " | ".join(filter(None, [trend, "/".join(emotions), contradiction]))
+
+    prompt = f"""判断以下裂缝信号与创作者敏感方向的匹配程度。
+
+创作者敏感方向：{", ".join(creator_sensitive)}
+裂缝信号：{signal_text}
+
+分析：
+1. 裂缝触发了哪些敏感方向？（从创作者敏感方向中选择匹配的）
+2. 匹配度高/中/低？
+
+返回 JSON：
+{{
+  "matched_directions": ["匹配的方向1", "匹配的方向2"],
+  "match_score": 0.0-1.0,
+  "reasoning": "简要说明"
+}}"""
+
+    result = _call_llm_raw(prompt)
+    if result:
+        parsed = _parse_llm_json(result)
+        if parsed:
+            return {
+                "growth_stage": growth_stage,
+                "sensitive_directions": parsed.get("matched_directions", []),
+                "match_score": parsed.get("match_score", 0.0)
+            }
+
+    # fallback
+    return {
+        "growth_stage": growth_stage,
+        "sensitive_directions": [],
+        "match_score": 0.0
     }
 
 
