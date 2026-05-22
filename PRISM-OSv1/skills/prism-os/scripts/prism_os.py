@@ -48,43 +48,63 @@ def _run_lark_cli(args: list, timeout: int = 30) -> tuple:
 def classify_intent(user_input: str) -> Dict:
     """
     意图识别 - 判断是否触发 PRISM-OS
+    LLM 二分类：这段话是否构成内容选题/写作意图？
     """
-    trigger_keywords = [
-        "写", "文章", "选题", "标题", "创作", "内容",
-        "想写", "要写", "帮我写", "生成标题", "策划"
-    ]
+    # 疑问句模式：短句末尾带"吗/么/吧/呀"，或含"怎么/如何/有没有"
+    text = user_input.strip()
+    short_question = (
+        len(text) < 40
+        and any(text.endswith(p) for p in ["吗", "么", "吧", "呀", "吗？", "么？", "吧？", "呀？", "？"])
+        and not any(kw in text for kw in ["写", "文章", "选题", "帮我", "生成", "策划", "创作"])
+    )
 
-    question_indicators = ["怎么写", "如何写", "写什么", "什么标题", "选题"]
+    # 强意图词
+    strong_intent = any(kw in text for kw in ["帮我写", "帮我做", "生成标题", "策划", "写一篇", "写一篇", "做个", "创作"])
 
-    # 隐式触发：话题疑问句（用户给了一个选题方向）
-    topic_question_patterns = ["为什么", "是什么", "如何", "怎么", "怎麼", "好不好", "要不要", "是不是"]
+    if strong_intent:
+        return {"trigger": True, "confidence": 0.95, "reason": "包含明确写作意图"}
+    if short_question:
+        return {"trigger": True, "confidence": 0.7, "reason": "话题疑问句，视为隐式选题"}
 
-    user_lower = user_input.lower()
-    trigger_count = sum(1 for kw in trigger_keywords if kw in user_lower)
-    question_count = sum(1 for kw in question_indicators if kw in user_lower)
-    topic_question = any(pat in user_input for pat in topic_question_patterns)
+    # 调用 LLM 做意图分类
+    try:
+        from call_llm import call_llm
+        prompt = f"""判断以下用户输入是否构成内容选题或写作意图。
 
-    confidence = min(0.9, 0.3 + trigger_count * 0.2 + question_count * 0.15 + (0.15 if topic_question else 0))
-    trigger = trigger_count >= 1 or question_count >= 1 or topic_question
+判断标准（满足任一即为是）：
+- 用户想写/做/创作内容（文章、短视频、选题策划等）
+- 用户想讨论一个值得做成内容的话题方向
+- 用户在问一个关于趋势、商业、职业、认知等值得探讨的问题
 
-    reason = ""
-    if trigger:
-        if trigger_count >= 2:
-            reason = "包含多个选题关键词"
-        elif question_count >= 1:
-            reason = "询问写作/选题相关问题"
-        elif topic_question:
-            reason = "隐式选题（话题疑问句）"
-        else:
-            reason = "包含选题关键词"
-    else:
-        reason = "未识别到明确的写作/选题意图"
+不符合的例子：
+- 纯闲聊（你好、天气怎么样）
+- 用户只是分享心情不想做内容
+- 用户在问一个纯事实性问题（今天几号）
 
-    return {
-        "trigger": trigger,
-        "confidence": confidence,
-        "reason": reason
-    }
+输入："{text}"
+
+返回 JSON：
+{{"trigger": true或false, "reason": "判断理由（10字内）"}}
+"""
+        result = call_llm(prompt)
+        if result and not result.get("error") and result.get("content"):
+            import re, json as _json
+            content = result["content"]
+            m = re.search(r'```json\s*\n?(.*?)\n?```', content, re.DOTALL)
+            if not m:
+                m = re.search(r'\{.*\}', content, re.DOTALL)
+            if m:
+                parsed = _json.loads(m.group(1))
+                return {
+                    "trigger": parsed.get("trigger", False),
+                    "confidence": 0.6,
+                    "reason": parsed.get("reason", "")
+                }
+    except Exception:
+        pass
+
+    # fallback
+    return {"trigger": False, "confidence": 0.0, "reason": "未识别到内容选题意图"}
 
 
 # ============ 辅助函数 ============

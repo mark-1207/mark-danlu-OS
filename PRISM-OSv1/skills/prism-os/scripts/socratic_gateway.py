@@ -113,6 +113,10 @@ def generate_clarification_questions(user_input: str, input_type: str) -> List[s
 
 def _rule_object_clarity(text: str) -> float:
     """规则计算对象清晰度（0-1）"""
+    # 明确写作意图
+    if any(kw in text for kw in ["帮我写", "帮我做", "写一篇", "生成标题", "策划"]):
+        return 1.0
+
     # 明确的具体对象
     specific_patterns = [
         r"^(老板|员工|程序员|设计师|运营|销售|医生|老师|学生|家长|小孩|男性|女性)\s",
@@ -121,6 +125,7 @@ def _rule_object_clarity(text: str) -> float:
         r"(初级|中级|高级|资深)\s", r"(00后|90后|80后|70后)\s",
         r"(创业|互联网|金融|教育|医疗|电商|AI)\s",
         r"(字节|腾讯|阿里|百度|美团|拼多多|京东)\s",
+        r"(个体户|小工作室|个人开发者|独立开发者|自由职业|外包|接单)",
     ]
     for p in specific_patterns:
         if re.search(p, text):
@@ -132,8 +137,12 @@ def _rule_object_clarity(text: str) -> float:
         if re.search(p, text):
             return 0.5
 
+    # 短标题/疑问句（隐含对象）：有具体关键词就给 0.6
+    if len(text) < 40 and any(kw in text for kw in ["AI", "个体", "工作室", "创业", "职业", "工作", "赚钱", "生存", "发展"]):
+        return 0.6
+
     # 无对象
-    no_object_patterns = [r"^(很|觉得|感觉|好像|如何|怎么|为什么)", r"(迷茫|焦虑|困惑|无聊|无聊)"]
+    no_object_patterns = [r"^(很|觉得|感觉|好像|如何|怎么|为什么)", r"(迷茫|焦虑|困惑|无聊)"]
     for p in no_object_patterns:
         if re.search(p, text):
             return 0.0
@@ -190,14 +199,15 @@ def _rule_fact_support(text: str) -> float:
 
 def calculate_entropy(user_input: str, user_config: Optional[Dict] = None) -> Dict:
     """
-    计算命题熵值，评估用户输入的质量（Phase 4.7 规则版）
+    计算命题熵值，评估用户输入的质量
 
     熵值公式: Entropy = Object×0.4 + Conflict×0.4 + Fact×0.2
 
     决策规则:
-    - Entropy < 1.5 → "blocked"，拦截重构
-    - Entropy < 2.5 → "clarify"，迫选追问
-    - Entropy >= 2.5 → "pass"，直接放行
+    - Entropy >= 1.2 → "pass"，直接放行
+    - Entropy >= 0.7 → "clarify"，迫选追问（更宽松）
+    - Entropy < 0.7 → "clarify"，短标题/疑问句不直接 block，转追问
+    - Entropy < 0.5 → "clarify"，真正无效输入
 
     Returns:
         {
@@ -213,16 +223,22 @@ def calculate_entropy(user_input: str, user_config: Optional[Dict] = None) -> Di
     conflict_score = _rule_conflict_tension(user_input)
     fact_score = _rule_fact_support(user_input)
     entropy = object_score * 0.4 + conflict_score * 0.4 + fact_score * 0.2
+    is_short = len(user_input.strip()) < 25
 
-    if entropy >= 2.5:
+    if entropy >= 1.2:
         decision = "pass"
-        reason = "命题清晰、有张力、有事实支撑"
-    elif entropy >= 1.5:
+        reason = "命题清晰、有张力"
+    elif entropy >= 0.7:
         decision = "clarify"
         reason = "命题基本合格，建议补充具体对象或事实"
     else:
-        decision = "blocked"
-        reason = "命题过于模糊或空洞，需重构"
+        # entropy < 0.7：短标题/疑问句不直接 block，转追问
+        if is_short:
+            decision = "clarify"
+            reason = "命题较简短，需要补充更多背景才能判断价值"
+        else:
+            decision = "clarify"
+            reason = "命题过于模糊或空洞，需补充具体背景"
 
     return {
         "object_clarity": round(object_score, 2),
