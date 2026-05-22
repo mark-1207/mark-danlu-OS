@@ -4,9 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Markitdown Web</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="/static/jszip.min.js"></script>
   <style>
     :root {
       --bg-deep: #0f0f12;
@@ -27,7 +25,7 @@
     html { font-size: 16px; }
 
     body {
-      font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg-deep);
       color: var(--text-primary);
       min-height: 100vh;
@@ -43,7 +41,7 @@
 
     .header { text-align: center; margin-bottom: 48px; animation: fadeInUp 0.6s ease-out; }
     .logo {
-      font-family: 'Playfair Display', serif;
+      font-family: 'Songti SC', 'SimSun', Georgia, serif;
       font-size: 2.5rem;
       font-weight: 700;
       color: var(--text-primary);
@@ -204,7 +202,7 @@
     .url-item .url-remove { color: var(--text-muted); cursor: pointer; padding: 4px; flex-shrink: 0; }
     .url-item .url-remove:hover { color: var(--error); }
 
-    textarea { width: 100%; height: 200px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; font-size: 0.95rem; font-family: 'Source Sans 3', monospace; resize: vertical; background: var(--bg-card); color: var(--text-primary); }
+    textarea { width: 100%; height: 200px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; font-size: 0.95rem; font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif, monospace; resize: vertical; background: var(--bg-card); color: var(--text-primary); }
     textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(232, 196, 124, 0.1); }
 
     label { font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 8px; display: block; }
@@ -219,7 +217,7 @@
       padding: 24px;
       margin-bottom: 20px;
     }
-    .meta-title { font-family: 'Playfair Display', serif; font-size: 1.5rem; font-weight: 600; margin-bottom: 16px; color: var(--accent); word-break: break-all; }
+    .meta-title { font-family: 'Songti SC', 'SimSun', Georgia, serif, serif; font-size: 1.5rem; font-weight: 600; margin-bottom: 16px; color: var(--accent); word-break: break-all; }
     .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; }
     .meta-item { display: flex; flex-direction: column; gap: 4px; }
     .meta-item .label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -236,7 +234,7 @@
       border: 1px solid var(--border);
       border-radius: 12px;
       font-size: 0.9rem;
-      font-family: 'Source Sans 3', 'SF Mono', Consolas, monospace;
+      font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif, 'SF Mono', Consolas, monospace;
       line-height: 1.7;
       background: var(--bg-card);
       color: var(--text-primary);
@@ -425,6 +423,9 @@
     let urlQueue = [];
     let urlBatchMode = false;
     let isBatchMode = false;
+    let isConvertingInProgress = false;
+    let totalSelectedToConvert = 0;
+    let batchConvertedCount = 0;
 
     // Tab switching
     document.querySelectorAll('.tab').forEach(tab => {
@@ -455,7 +456,7 @@
 
     function handleFiles(files) {
       for (const file of files) {
-        if (!fileQueue.some(f => f.name === file.name && f.size === file.size)) {
+        if (!fileQueue.some(f => f.file.name === file.name && f.file.size === file.size)) {
           fileQueue.push({ file, status: 'pending', selected: true });
         }
       }
@@ -511,9 +512,13 @@
       list.innerHTML = html;
 
       // 只转换选中的待处理文件
-      document.getElementById('file-convert').disabled = pendingSelected.length === 0;
+      document.getElementById('file-convert').disabled = pendingSelected.length === 0 && !isConvertingInProgress;
       const pendingCount = fileQueue.filter(f => f.status === 'pending').length;
-      document.getElementById('file-convert-text').textContent = pendingSelected.length > 0 ? `开始转换 (${pendingSelected.length})` : pendingCount > 0 ? '已选文件转换中...' : '已全部转换';
+      if (isConvertingInProgress && totalSelectedToConvert > 0) {
+        document.getElementById('file-convert-text').textContent = `转换中 (${batchConvertedCount}/${totalSelectedToConvert})`;
+      } else {
+        document.getElementById('file-convert-text').textContent = pendingSelected.length > 0 ? `开始转换 (${pendingSelected.length})` : pendingCount > 0 ? '已全部转换' : '已全部转换';
+      }
 
       // 批量下载：只有已转换且选中的文件时才显示
       const doneSelected = fileQueue.filter(f => f.status === 'done' && f.result && f.selected !== false);
@@ -569,6 +574,9 @@
       urlQueue = [];
       isBatchMode = false;
       urlBatchMode = false;
+      isConvertingInProgress = false;
+      totalSelectedToConvert = 0;
+      batchConvertedCount = 0;
       currentMarkdown = '';
       document.getElementById('result').classList.remove('show');
       document.getElementById('batch-summary').style.display = 'none';
@@ -584,6 +592,9 @@
 
       // 批量模式：多个选中文件时不显示单个预览
       isBatchMode = selectedPending.length > 1;
+      isConvertingInProgress = true;
+      totalSelectedToConvert = selectedPending.length;
+      batchConvertedCount = 0;
       document.getElementById('result').classList.remove('show');
       document.getElementById('batch-summary').style.display = 'none';
 
@@ -627,9 +638,11 @@
           fileQueue[index].errorMsg = e.message || '网络错误';
           failCount++;
         }
+        batchConvertedCount++;
         renderFileList();
       }
 
+      isConvertingInProgress = false;
       // 显示转换总结
       showBatchSummary(successCount, failCount, Date.now() - startTime);
       document.getElementById('reset-btn').style.display = 'inline-flex';

@@ -3,20 +3,97 @@ import tempfile
 import os
 import re
 from pathlib import Path
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import HTMLResponse
 from starlette.requests import Request
-from starlette.formparsers import MultiPartParser
-
-app = FastAPI(title="Markitdown Web")
+from starlette.staticfiles import StaticFiles
 
 BASE_DIR = Path(__file__).parent
 STATIC_DIR = BASE_DIR / "static"
 STATIC_DIR.mkdir(exist_ok=True)
 
+# Lazy-loaded OCR engine
+_ocr_engine = None
 
-def convert_markitdown(content: bytes, filename: str, keep_data_uris: bool = False) -> str:
-    """Convert file to markdown using markitdown."""
+def get_ocr_engine():
+    global _ocr_engine
+    if _ocr_engine is None:
+        from rapidocr_onnxruntime import RapidOCR
+        _ocr_engine = RapidOCR()
+    return _ocr_engine
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+
+app = FastAPI(title="Markitdown Web", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+
+
+def convert_pdf_with_ocr(content: bytes, filename: str, dpi: int = 150, max_pages: int = 50) -> str:
+    """Fallback OCR for image/scanned PDFs using RapidOCR + PyMuPDF.
+
+    Args:
+        content: PDF file bytes
+        filename: original filename
+        dpi: render resolution (default 150 for speed)
+        max_pages: max pages to OCR (default 50 to avoid timeout, 0 = all)
+    Returns:
+        Extracted text as markdown
+    """
+    import fitz
+    import time
+    tmpdir = Path(tempfile.gettempdir())
+    file_id = os.urandom(8).hex()
+    pdf_path = tmpdir / f"ocr_input_{file_id}.pdf"
+    pdf_path.write_bytes(content)
+
+    try:
+        doc = fitz.open(str(pdf_path))
+        ocr = get_ocr_engine()
+        total_pages = doc.page_count
+        pages_to_ocr = total_pages if max_pages == 0 else min(max_pages, total_pages)
+        all_lines = []
+        page_time_limit = 10  # seconds per page
+
+        for i in range(pages_to_ocr):
+            page_start = time.time()
+            page = doc[i]
+            pix = page.get_pixmap(dpi=dpi)
+            img_bytes = pix.tobytes("png")
+            result, _ = ocr(img_bytes)
+            if result:
+                for item in result:
+                    text = item[1].strip()
+                    if text:
+                        all_lines.append(text)
+            elapsed = time.time() - page_start
+            # If page took too long, stop to avoid endless processing
+            if elapsed > page_time_limit * 3:
+                all_lines.append(f"\n... (停止于第 {i+1}/{total_pages} 页，渲染太慢)")
+                break
+            # Page separator for readability
+            if i < pages_to_ocr - 1:
+                all_lines.append("")
+        doc.close()
+
+        if max_pages > 0 and total_pages > max_pages:
+            all_lines.append(f"\n\n_ _ _ (共 {total_pages} 页，仅展示前 {pages_to_ocr} 页)_ _ _")
+        return "\n".join(all_lines)
+    finally:
+        try:
+            os.unlink(pdf_path)
+        except Exception:
+            pass
+
+
+def convert_markitdown(content: bytes, filename: str, keep_data_uris: bool = False) -> tuple[str, bool]:
+    """Convert file to markdown using markitdown, with OCR fallback for scanned PDFs.
+
+    Returns:
+        (markdown_text, ocr_used)
+    """
     tmpdir = Path(tempfile.gettempdir())
     file_id = os.urandom(8).hex()
     input_path = tmpdir / f"md_input_{file_id}{Path(filename).suffix}"
@@ -38,7 +115,12 @@ def convert_markitdown(content: bytes, filename: str, keep_data_uris: bool = Fal
 
         if output_path.exists():
             raw = output_path.read_bytes()
-            return decode_mixed_output(raw)
+            text = decode_mixed_output(raw)
+            suffix = Path(filename).suffix.lower()
+            if len(text.strip()) < 100 and suffix == ".pdf":
+                text = convert_pdf_with_ocr(content, filename)
+                return text, True
+            return text, False
         raise RuntimeError("markitdown did not produce output file")
     finally:
         try:
@@ -201,9 +283,9 @@ async def convert_text(request: Request):
         if not content:
             raise HTTPException(status_code=400, detail="Content is required")
 
-        result = convert_markitdown(content.encode("utf-8"), filename, keep_data_uris)
+        result, ocr_used = convert_markitdown(content.encode("utf-8"), filename, keep_data_uris)
         meta = extract_meta_from_markdown(result) if not batch else {}
-        return {"success": True, "markdown": result, "filename": filename, "meta": meta}
+        return {"success": True, "markdown": result, "filename": filename, "meta": meta, "ocr_used": ocr_used}
     except HTTPException:
         raise
     except Exception as e:
