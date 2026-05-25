@@ -698,17 +698,6 @@ def main():
         sys.stdout.buffer.write(output.encode("utf-8"))
         sys.exit(0)
 
-    # 超短别名：p "一句话" → 等同于 run "一句话"
-    if command in ("p", "prism"):
-        user_input = " ".join(sys.argv[2:]) if len(sys.argv) > 2 else ""
-        if not user_input:
-            _safe_print({"error": "请提供选题内容"})
-            sys.exit(1)
-        result = run_prism_os(user_input, include_phase_4_8=True, skip_gateway=False)
-        output = format_prism_os_output(result)
-        sys.stdout.buffer.write(output.encode("utf-8"))
-        sys.exit(0)
-
     if command == "run":
 
         for arg in sys.argv[2:]:
@@ -1109,6 +1098,102 @@ def main():
                         "       python prism_os.py archive --trends <crack_id> [--limit N]\n"
                         "       python prism_os.py archive --list"
             })
+
+    elif command == "listen":
+        # HTTP long-running server for cross-machine access
+        # python prism_os.py listen [--port 7654] [--token <secret>]
+        import argparse
+        parser = argparse.ArgumentParser(description="PRISM-OS HTTP Server")
+        parser.add_argument("--port", type=int, default=7654, help="监听端口（默认 7654）")
+        parser.add_argument("--token", type=str, default=None, help="访问令牌（可选）")
+        parser.add_argument("--host", type=str, default="0.0.0.0", help="监听地址（默认 0.0.0.0）")
+        listen_args = parser.parse_args(sys.argv[2:])
+
+        port = listen_args.port
+        token = listen_args.token
+        host = listen_args.host
+
+        print(f"[PRISM-OS HTTP Server] 启动中...")
+        print(f"  地址: http://{host}:{port}")
+        print(f"  Token: {'已启用（需在 Header 中携带 X-Token）' if token else '未启用（建议生产环境设置 --token）'}")
+        print(f"  跨机器可用: http://<本机IP>:{port}")
+        print(f"  按 Ctrl+C 停止")
+        print()
+
+        from http.server import HTTPServer, BaseHTTPRequestHandler
+        import json as _json
+
+        class _PrismHandler(BaseHTTPRequestHandler):
+            def _send_json(self, code, data):
+                self.send_response(code)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Token")
+                self.end_headers()
+                self.wfile.write(_json.dumps(data, ensure_ascii=False).encode("utf-8"))
+
+            def do_OPTIONS(self):
+                self._send_json(204, {})
+
+            def do_POST(self):
+                # Auth check
+                if token:
+                    provided = self.headers.get("X-Token", "")
+                    if provided != token:
+                        self._send_json(401, {"error": "Unauthorized", "message": "Token 不匹配"})
+                        return
+
+                # Read body
+                content_len = int(self.headers.get("Content-Length", 0))
+                if content_len == 0:
+                    self._send_json(400, {"error": "Bad Request", "message": "请求体为空"})
+                    return
+
+                try:
+                    body = self.rfile.read(content_len)
+                    req = _json.loads(body.decode("utf-8"))
+                except Exception as e:
+                    self._send_json(400, {"error": "Bad JSON", "message": str(e)})
+                    return
+
+                topic = req.get("topic", "")
+                if not topic:
+                    self._send_json(400, {"error": "Bad Request", "message": "缺少 topic 字段"})
+                    return
+
+                # Run PRISM-OS
+                include_ext = req.get("include_phase_4_8", True)
+                skip_gateway = req.get("skip_gateway", False)
+                platform = req.get("platform", None)  # None = 让 run_prism_os 内部决定
+
+                print(f"[{self.address_string()}] POST /run  topic='{topic[:50]}...'")
+
+                try:
+                    result = run_prism_os(
+                        topic,
+                        include_phase_4_8=include_ext,
+                        skip_gateway=skip_gateway
+                    )
+                    self._send_json(200, {"status": "ok", "result": result})
+                    print(f"[{self.address_string()}] 完成")
+                except Exception as e:
+                    self._send_json(500, {"error": "Internal Error", "message": str(e)})
+                    print(f"[{self.address_string()}] 错误: {e}")
+
+            def log_message(self, format, *args):
+                # 安静日志（只打印重要请求）
+                pass
+
+        server = HTTPServer((host, port), _PrismHandler)
+        print(f"[PRISM-OS HTTP Server] 已启动 → http://{host}:{port}/run")
+        print()
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            print("\n[PRISM-OS HTTP Server] 已停止")
+            server.shutdown()
+        sys.exit(0)
 
     else:
         _safe_print({"error": f"未知命令: {command}"})
