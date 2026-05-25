@@ -4,6 +4,7 @@ import { PipelineContext } from '../../../core/context.js';
 import type { LLMProvider } from '../../../llm/types.js';
 import { promptLoader } from '../../../prompts/loader.js';
 import { ViralGenomeSchema, type ViralGenome } from '../types.js';
+import { writeViralGenomeToFeishu } from '../../feedback/feishu-viral-library.js';
 
 const InputSchema = z.object({
   originalArticle: z.string(),
@@ -101,6 +102,14 @@ export class ViralDeconstructionStep extends PipelineStep<z.infer<typeof InputSc
     } catch (err) {
       throw new Error(`[viral-deconstruction] 自检失败，${String(err)} 请重新运行。`);
     }
+
+    // Auto-save ViralGenome to Feishu library (fire-and-forget, non-blocking)
+    writeViralGenomeToFeishu({
+      url: '',
+      title: '',
+      platform: 'wechat',
+      viralGenome: genome,
+    }).catch(() => { /* intentionally swallow — library write is best-effort */ });
 
     return genome;
   }

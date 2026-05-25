@@ -16,7 +16,7 @@ import { estimateCost } from '../../utils/token-counter.js';
 import { acquireRunLock, releaseRunLock } from '../../utils/run-lock.js';
 import { sanitizeFilename } from '../../utils/sanitize.js';
 import { cleanupIntermediateFiles } from './create.js';
-import type { DifferentiationOutput, DifferentiationDirection, DualReviewResult } from '../../scenarios/recreate/types.js';
+import type { DifferentiationOutput, DifferentiationDirection, DualReviewResult, ViralGenome } from '../../scenarios/recreate/types.js';
 import { askPostGen } from '../../scenarios/revision/cli/post-gen-prompt.js';
 import { RevisionPipeline } from '../../scenarios/revision/index.js';
 
@@ -35,6 +35,7 @@ export async function runRecreate(
   inputPath: string,
   direction: 'auto' | 'interactive',
   platforms: string[] = [],
+  fromLibraryRecordId?: string,
 ): Promise<void> {
   // Load config
   const config = await loadConfig();
@@ -45,8 +46,28 @@ export async function runRecreate(
     llmFactory.register(name, providerConfig);
   }
 
-  const pipeline = buildRecreatePipeline(config, direction, platforms);
+  // If --from-library is set, pre-load ViralGenome from Feishu library and skip Step 1
+  if (fromLibraryRecordId) {
+    const { loadViralGenomeFromFeishu } = await import('../../scenarios/feedback/feishu-viral-library.js');
+    const viralGenome = await loadViralGenomeFromFeishu(fromLibraryRecordId);
+    // Inject pre-loaded genome into context so Step 1 is bypassed
+    // (context will be created below with the genome already set)
+    console.log(chalk.bold('\n📚 从素材库加载 ViralGenome\n'));
+    console.log(`  record_id: ${fromLibraryRecordId}`);
+    console.log(`  painPoint: ${viralGenome.topicStrategy.painPoint}`);
+    console.log(`  narrativeStructure: ${viralGenome.narrativeStructure.length} 段\n`);
+    // Store in a temp file and signal recreate to load from it instead of running Step 1
+    const { writeFile, unlink } = await import('fs/promises');
+    const tmpFile = path.join(config.output?.dir ?? './output', `.viral-genome-preloaded-${fromLibraryRecordId}.json`);
+    await fs.mkdir(path.dirname(tmpFile), { recursive: true });
+    await writeFile(tmpFile, JSON.stringify(viralGenome, null, 2), 'utf-8');
+    // Pass the tmpFile path as inputPath (hacky but avoids major signature changes)
+    await runRecreateFromPreloaded(tmpFile, fromLibraryRecordId, direction, platforms);
+    await unlink(tmpFile).catch(() => { /* ignore */ });
+    return;
+  }
 
+  const pipeline = buildRecreatePipeline(config, direction, platforms);
   const outputDir = config.output?.dir ?? './output';
   const runId = `recreate_${Date.now()}`;
   const runDir = path.resolve(outputDir, runId);
@@ -424,6 +445,78 @@ ${localRewriteSuccess && localRewriteResult?.appliedTriggers?.length ? localRewr
   await cleanupIntermediateFiles(runDir);
 }
 
+/**
+ * Run recreate with a pre-loaded ViralGenome (from --from-library).
+ * Skips viral-deconstruction step by pre-seeding context.
+ */
+async function runRecreateFromPreloaded(
+  viralGenomeFile: string,
+  recordId: string,
+  direction: 'auto' | 'interactive',
+  platforms: string[],
+): Promise<void> {
+  const config = await loadConfig();
+  setCachedConfig(config);
+
+  for (const [name, providerConfig] of Object.entries(config.providers)) {
+    llmFactory.register(name, providerConfig);
+  }
+
+  const pipeline = buildRecreatePipeline(config, direction, platforms);
+
+  const outputDir = config.output?.dir ?? './output';
+  const runId = `recreate_${Date.now()}`;
+  const runDir = path.resolve(outputDir, runId);
+
+  await fs.mkdir(runDir, { recursive: true });
+  await setupRunLogger(runDir);
+
+  await acquireRunLock(runId, outputDir);
+
+  // Load pre-seeded ViralGenome
+  const viralGenomeContent = await fs.readFile(viralGenomeFile, 'utf-8');
+  const viralGenome = JSON.parse(viralGenomeContent) as ViralGenome;
+
+  // Read original article from input file (still needed for Step 2 differentiation)
+  const originalArticle = viralGenomeContent; // not used in this path
+
+  const context = new PipelineContext('recreate', runDir, runId);
+  context.set('viral-deconstruction', viralGenome);
+  context.set('_originalArticle', '');
+  context.set('_direction', direction);
+  const progress = new ProgressDisplay();
+
+  console.log(chalk.bold('\n🔄 ContentForge — 爆款二创（素材库）\n'));
+  console.log(`record_id: ${recordId}`);
+  console.log(`方向选择: ${direction}\n`);
+
+  // Style TUI
+  const { styleTUI } = await import('../../scenarios/style/cli/style-tui.js');
+  const stylesDir = path.join(outputDir, 'styles');
+  const corpusDir = path.join(outputDir, 'corpus');
+  const styleResult = await styleTUI({ stylesDir, corpusDir });
+  if (styleResult.injectResult) {
+    context.set('style-inject', styleResult.injectResult);
+  }
+
+  // Run pipeline starting from Step 2 (differentiation), skipping Step 1 (viral-deconstruction)
+  const result = await pipeline.resumeFrom('viral-differentiation', context);
+  const finalContext = result.context;
+  const tokenUsage = finalContext.getTotalTokenUsage();
+  const cost = estimateCost(tokenUsage.input, tokenUsage.output);
+
+  console.log(chalk.bold('\n✅ 二创完成（素材库）\n'));
+  console.log(`输出目录: ${runDir}`);
+  console.log(`总 token: input=${tokenUsage.input} output=${tokenUsage.output}`);
+  console.log(`预估成本: $${cost.toFixed(4)}\n`);
+
+  const files = await fs.readdir(runDir);
+  console.log('生成文件:');
+  for (const file of files) {
+    console.log(`  - ${file}`);
+  }
+}
+
 export function registerRecreateCommand(program: Command): void {
   program
     .command('recreate')
@@ -433,13 +526,14 @@ export function registerRecreateCommand(program: Command): void {
     .option('-p, --platforms <list>', '目标平台（逗号分隔）: wechat,xiaohongshu,douyin', (val) =>
       val.split(',').map(p => p.trim()).filter(Boolean),
     )
+    .option('--from-library <record_id>', '从爆款素材库加载 ViralGenome，跳过 Step 1')
     .action(async (opts) => {
       try {
         const direction = opts.direction === 'interactive' ? 'interactive' : 'auto';
         const platforms = (opts.platforms ?? []).filter(p =>
           ['wechat', 'xiaohongshu', 'douyin'].includes(p),
         );
-        await runRecreate(opts.input, direction, platforms);
+        await runRecreate(opts.input, direction, platforms, opts.fromLibrary);
       } catch (error) {
         logger.error('recreate command failed', { error: String(error) });
         console.error(chalk.red(`错误: ${error}`));

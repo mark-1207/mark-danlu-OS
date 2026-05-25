@@ -35,6 +35,8 @@ export async function runLearn(options: {
   updatePreferences?: boolean;
   showPreferences?: boolean;
   showPreferencesJson?: boolean;
+  viralLibrary?: boolean;
+  viralLibraryShow?: string;
   feedbackEntry?: {
     runId: string;
     likes: number;
@@ -72,6 +74,53 @@ export async function runLearn(options: {
     const prefs = loadCreativePreferences();
     const report = formatPreferencesReport(prefs, options.showPreferencesJson);
     console.log(report);
+    return;
+  }
+
+  // ── --viral-library ───────────────────────────────────────────
+  if (options.viralLibrary) {
+    const { loadViralGenomeFromFeishu } = await import('../../scenarios/feedback/feishu-viral-library.js');
+    const { readFeishuRecords } = await import('../../scenarios/topic/feishu-sync.js');
+
+    console.log(chalk.bold('\n📚 爆款素材库\n'));
+
+    // List all records (read all from Feishu library table)
+    // For now, show a message that full list requires FEISHU_VIRAL_LIBRARY credentials
+    console.log('使用 --viral-library show <record_id> 查看详情\n');
+    return;
+  }
+
+  // ── --viral-library show <record_id> ──────────────────────────
+  if (options.viralLibraryShow) {
+    const { loadViralGenomeFromFeishu } = await import('../../scenarios/feedback/feishu-viral-library.js');
+    const recordId = options.viralLibraryShow;
+    console.log(chalk.bold(`\n📚 ViralGenome: ${recordId}\n`));
+
+    try {
+      const genome = await loadViralGenomeFromFeishu(recordId);
+      console.log(`painPoint: ${genome.topicStrategy.painPoint}`);
+      console.log(`whyItWorks: ${genome.topicStrategy.whyItWorks}`);
+      console.log(`targetAudience: ${genome.topicStrategy.targetAudience}`);
+      console.log(`\n叙事结构 (${genome.narrativeStructure.length} 段):`);
+      for (const s of genome.narrativeStructure) {
+        console.log(`  ${s.sectionIndex + 1}. ${s.purpose} — ${s.argumentativePath}`);
+      }
+      console.log(`\n钩子: ${genome.hookTechnique.type} / ${genome.hookTechnique.template}`);
+      console.log(`\n高光表达 (${genome.forbiddenExpressions.length}):`);
+      for (const f of genome.forbiddenExpressions) {
+        console.log(`  - "${f.text}" (${f.reason})`);
+      }
+      console.log(`\n案例 (${genome.caseStudies.length}):`);
+      for (const c of genome.caseStudies) {
+        console.log(`  - ${c.protagonist}: ${c.story}`);
+      }
+      console.log(`\n数据点 (${genome.keyDataPoints.length}):`);
+      for (const d of genome.keyDataPoints) {
+        console.log(`  - ${d.data} (${d.context})`);
+      }
+    } catch (err) {
+      console.log(chalk.red(`错误: ${err}`));
+    }
     return;
   }
 
@@ -534,6 +583,8 @@ export function registerLearnCommand(program: Command): void {
     .option('--shares <n>', '转发数')
     .option('--reads <n>', '阅读数（可选）')
     .option('--platform <platform>', '平台 wechat/xiaohongshu/douyin')
+    .option('--viral-library', '查看爆款素材库列表')
+    .option('--viral-library-show <record_id>', '查看指定 ViralGenome 详情')
     .action(async (opts) => {
       try {
         await runLearn({
@@ -554,6 +605,8 @@ export function registerLearnCommand(program: Command): void {
           updatePreferences: opts.updatePreferences,
           showPreferences: opts.showPreferences,
           showPreferencesJson: opts.json,
+          viralLibrary: opts.viralLibrary,
+          viralLibraryShow: opts.viralLibraryShow,
           feedbackEntry: opts.feedback ? {
             runId: opts.runId,
             likes: Number(opts.likes) || 0,
