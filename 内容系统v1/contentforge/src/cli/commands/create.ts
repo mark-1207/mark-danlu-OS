@@ -338,6 +338,44 @@ export async function runCreate(
         }
       }
 
+      // ── Node A: Outline Confirmation TUI ────────────────────────────────
+      // After outlines generated, confirm before going to material-search / content
+      const outlineConfirmResult = await (async () => {
+        const { confirmOutlines } = await import('../../cli/ui/outline-review.js');
+        const outlines = {
+          wechat: context.get('outline-wechat') as any,
+          xiaohongshu: context.get('outline-xiaohongshu') as any,
+          douyin: context.get('outline-douyin') as any,
+        };
+        if (!outlines.wechat && !outlines.xiaohongshu && !outlines.douyin) {
+          logger.warn('[create] no outlines found for confirmation');
+          return null;
+        }
+        // onRegenerate: re-run one platform's outline step
+        const onRegenerate = async (platform: string) => {
+          let step: any;
+          if (platform === 'wechat') step = new OutlineWechatStep(provider, defaultModel);
+          else if (platform === 'xiaohongshu') step = new OutlineXiaohongshuStep(provider, defaultModel);
+          else if (platform === 'douyin') step = new OutlineDouyinStep(provider, defaultModel);
+          else return null;
+          const r = await step.execute({}, context);
+          if (r.success && r.data) context.set(`outline-${platform}`, r.data);
+          return r.data;
+        };
+        const confirmed = await confirmOutlines(outlines, onRegenerate, platformsToRun);
+        // Write confirmed values back to context
+        for (const [platform, confirmedData] of Object.entries(confirmed)) {
+          if (confirmedData) {
+            context.set(`confirmed-outline-${platform}`, confirmedData);
+            if (confirmedData.seedMaterial) {
+              context.set(`outline-seed-material-${platform}`, confirmedData.seedMaterial);
+            }
+          }
+        }
+        return confirmed;
+      })();
+      void outlineConfirmResult; // used via context side-effects above
+
       // Step 4: Material Search
       progress.startStep('material-search', '素材搜索');
       const matStep = new MaterialSearchStep(provider, defaultModel);
@@ -377,6 +415,29 @@ export async function runCreate(
           progress.failStep(contentSteps[i].config.name, r.error ?? 'unknown');
         }
       }
+
+      // ── Node C: Content Draft Confirmation ────────────────────────────
+      const contentConfirmResult = await (async () => {
+        const { confirmContent } = await import('../../cli/ui/outline-review.js');
+        // Show confirmation for each platform that was generated
+        for (const platform of platformsToRun) {
+          const content = context.get<string>(`content-${platform}`);
+          if (!content) continue;
+          const mode = platform === 'wechat' ? 'paragraph' : 'simple';
+          const result = await confirmContent(content, mode as 'simple' | 'paragraph');
+          if (result.action === 'ok') {
+            // proceed normally
+          } else if (result.action === 'mark' && result.markedParagraphs) {
+            // Store marked paragraphs for revision pipeline
+            context.set(`content-marked-${platform}`, result.markedParagraphs);
+            context.set(`content-confirm-${platform}`, result);
+          } else if (result.action === 'rewrite') {
+            context.set(`content-confirm-${platform}`, result);
+          }
+        }
+        return null;
+      })();
+      void contentConfirmResult;
 
       // Step 6: Review (parallel)
       progress.startStep('review-wechat', '审核-公众号');

@@ -73,12 +73,14 @@ export class ContentWechatStep extends PipelineStep<ContentInput, string> {
 
   protected async doExecute(input: ContentInput, context: PipelineContext): Promise<string> {
     const assignments = context.get<PlatformAssignments>('topic-assignment');
-    const outline = context.get<WechatOutline>('outline-wechat');
-    if (!assignments || !outline) throw new Error('Missing context: topic-assignment or outline-wechat');
+    const outline = context.get<WechatOutline>('confirmed-outline-wechat')
+      ?? context.get<WechatOutline>('outline-wechat');
+    if (!assignments || !outline) throw new Error('Missing context: topic-assignment or outline');
     const template = await promptLoader.load('create', 'content', 'wechat');
     const systemPrompt = promptLoader.render(template.system, {});
     const obsidianMaterials = await loadObsidianMaterials(context);
-    const allMaterials = [input.materials, obsidianMaterials].filter(Boolean).join('\n\n');
+    const seedMaterial = context.get<string>('outline-seed-material-wechat') ?? '';
+    const allMaterials = [seedMaterial, input.materials, obsidianMaterials].filter(Boolean).join('\n\n');
     const userPrompt = promptLoader.render(template.user, {
       topicCard: JSON.stringify(assignments.wechat, null, 2),
       outline: JSON.stringify(outline, null, 2),
@@ -108,12 +110,14 @@ export class ContentXiaohongshuStep extends PipelineStep<ContentInput, string> {
 
   protected async doExecute(input: ContentInput, context: PipelineContext): Promise<string> {
     const assignments = context.get<PlatformAssignments>('topic-assignment');
-    const outline = context.get<XiaohongshuOutline>('outline-xiaohongshu');
-    if (!assignments || !outline) throw new Error('Missing context: topic-assignment or outline-xiaohongshu');
+    const outline = context.get<XiaohongshuOutline>('confirmed-outline-xiaohongshu')
+      ?? context.get<XiaohongshuOutline>('outline-xiaohongshu');
+    if (!assignments || !outline) throw new Error('Missing context: topic-assignment or outline');
     const template = await promptLoader.load('create', 'content', 'xiaohongshu');
     const systemPrompt = promptLoader.render(template.system, {});
     const obsidianMaterials = await loadObsidianMaterials(context);
-    const allMaterials = [input.materials, obsidianMaterials].filter(Boolean).join('\n\n');
+    const seedMaterial = context.get<string>('outline-seed-material-xiaohongshu') ?? '';
+    const allMaterials = [seedMaterial, input.materials, obsidianMaterials].filter(Boolean).join('\n\n');
     const userPrompt = promptLoader.render(template.user, {
       topicCard: JSON.stringify(assignments.xiaohongshu, null, 2),
       outline: JSON.stringify(outline, null, 2),
@@ -143,12 +147,14 @@ export class ContentDouyinStep extends PipelineStep<ContentInput, string> {
 
   protected async doExecute(input: ContentInput, context: PipelineContext): Promise<string> {
     const assignments = context.get<PlatformAssignments>('topic-assignment');
-    const outline = context.get<DouyinOutline>('outline-douyin');
-    if (!assignments || !outline) throw new Error('Missing context: topic-assignment or outline-douyin');
+    const outline = context.get<DouyinOutline>('confirmed-outline-douyin')
+      ?? context.get<DouyinOutline>('outline-douyin');
+    if (!assignments || !outline) throw new Error('Missing context: topic-assignment or outline');
     const template = await promptLoader.load('create', 'content', 'douyin');
     const systemPrompt = promptLoader.render(template.system, {});
     const obsidianMaterials = await loadObsidianMaterials(context);
-    const allMaterials = [input.materials, obsidianMaterials].filter(Boolean).join('\n\n');
+    const seedMaterial = context.get<string>('outline-seed-material-douyin') ?? '';
+    const allMaterials = [seedMaterial, input.materials, obsidianMaterials].filter(Boolean).join('\n\n');
     const userPrompt = promptLoader.render(template.user, {
       topicCard: JSON.stringify(assignments.douyin, null, 2),
       outline: JSON.stringify(outline, null, 2),
