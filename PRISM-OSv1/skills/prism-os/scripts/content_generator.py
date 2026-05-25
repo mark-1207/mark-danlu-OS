@@ -254,33 +254,79 @@ def scrape_article(url: str, format: str = "json") -> Optional[Dict]:
     Returns:
         {"title": str, "content": str, "url": str} 或 None
     """
-    # 微信公众号用专用命令
+    # 微信公众号用专用命令（三级降级：autocli → wechat-article-extractor → markitdown-web）
     if "mp.weixin.qq.com" in url:
+        # Level 1: autocli
         output = _run_autocli(["weixin", "download", url, "--format", "json"])
-        if not output or output.startswith("[autocli error]"):
-            return None
+        if output and not output.startswith("[autocli error]"):
+            try:
+                parsed = json.loads(output)
+                if isinstance(parsed, list):
+                    parsed = parsed[0]
+                if parsed.get("status") == "ok":
+                    title = parsed.get("title", "")
+                    md_path = parsed.get("path", "")
+                    if md_path:
+                        try:
+                            with open(md_path, "r", encoding="utf-8") as f:
+                                content = f.read()
+                            content = re.sub(r"^---[\s\S]*?---\n", "", content).strip()
+                            import os
+                            os.remove(md_path)
+                        except Exception:
+                            content = ""
+                    else:
+                        content = parsed.get("content", "")
+                    return {"title": title, "content": content, "url": url}
+            except Exception:
+                pass
+
+        # Level 2: wechat-article-extractor skill
         try:
-            parsed = json.loads(output)
-            if isinstance(parsed, list):
-                parsed = parsed[0]
-            if parsed.get("status") != "ok":
-                return None
-            title = parsed.get("title", "")
-            md_path = parsed.get("path", "")
-            if md_path:
-                try:
-                    with open(md_path, "r", encoding="utf-8") as f:
-                        content = f.read()
-                    content = re.sub(r"^---[\s\S]*?---\n", "", content).strip()
-                    import os
-                    os.remove(md_path)
-                except Exception:
-                    content = ""
-            else:
-                content = parsed.get("content", "")
-            return {"title": title, "content": content, "url": url}
+            extractor_path = Path(r"C:\Users\admin\.claude\skills\wechat-article-extractor\scripts\extract.js")
+            if extractor_path.exists():
+                import subprocess
+                result = subprocess.run(
+                    ["node", str(extractor_path), url, "--json"],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                    encoding="utf-8",
+                    errors="replace"
+                )
+                if result.returncode == 0 and result.stdout:
+                    extracted = json.loads(result.stdout)
+                    if extracted.get("done"):
+                        title = extracted.get("data", {}).get("msg_title", "")
+                        raw_content = extracted.get("data", {}).get("msg_content", "")
+                        # 去掉 HTML 标签
+                        content = re.sub(r"<[^>]+>", "", raw_content).strip()
+                        return {"title": title, "content": content, "url": url}
         except Exception:
-            return None
+            pass
+
+        # Level 3: markitdown-web 本地渲染（最终 fallback）
+        try:
+            markitdown_url = "http://localhost:3001/api/scrape"
+            import urllib.request
+            req = urllib.request.Request(
+                markitdown_url,
+                data=json.dumps({"url": url}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                if data.get("content"):
+                    return {
+                        "title": data.get("title", ""),
+                        "content": data.get("content", ""),
+                        "url": url
+                    }
+        except Exception:
+            pass
+
+        return None
 
     # 其他 URL 用通用 read 命令
     output = _run_autocli(["read", url, "--format", format])
@@ -464,6 +510,61 @@ def search_gap_articles(
     return results[:max_results]
 
 
+# ============ 抓取重试逻辑 (Issue 7) ============
+
+def _is_retryable_scrape_error(scrape_result: Dict) -> bool:
+    """判断抓取错误是否可重试"""
+    if scrape_result is None:
+        return True  # 超时/网络错误可重试
+    # 微信反爬错误码
+    error_str = str(scrape_result.get("error", "")).lower()
+    if any(code in error_str for code in ["403", "451", "blocked", "反爬"]):
+        return False
+    return True
+
+
+def _scrape_with_retry(
+    url: str,
+    format: str = "json",
+    max_retries: int = 3,
+    initial_delay: float = 1.0
+) -> Optional[Dict]:
+    """
+    带指数退避重试的抓取
+
+    Args:
+        url: 文章 URL
+        format: 输出格式
+        max_retries: 最大重试次数
+        initial_delay: 初始延迟（秒）
+
+    Returns:
+        scrape_article 返回结果或 None
+    """
+    delay = initial_delay
+    last_result = None
+
+    for attempt in range(max_retries + 1):
+        result = scrape_article(url, format=format)
+        last_result = result
+
+        if result is not None:
+            # 成功或不可重试的错误
+            if not _is_retryable_scrape_error(result):
+                return result  # 不可重试的错误，直接返回
+            # 有内容算成功
+            if result.get("content"):
+                return result
+
+        # 判断是否继续重试
+        if attempt < max_retries:
+            import time
+            time.sleep(delay)
+            delay *= 2  # 指数退避：1s, 2s, 4s
+
+    return last_result  # 返回最后一次结果（通常是 None）
+
+
 # ============ 抓取并入库完整流程 ============
 
 def scrape_and_import_material(
@@ -487,8 +588,8 @@ def scrape_and_import_material(
     if vault_path is None:
         vault_path = Path(r"D:\软件\obsidian笔记\内容素材库")
 
-    # 1. 抓取
-    scrape_result = scrape_article(url, format="json")
+    # 1. 抓取（带重试）
+    scrape_result = _scrape_with_retry(url, format="json")
     if not scrape_result:
         return {"status": "scrape_failed", "title": "", "material_type": "case", "path": "", "error": "抓取失败"}
 
@@ -1027,6 +1128,14 @@ def _save_mod_log(log: List[Dict]) -> None:
         print(f"[Warning] 保存修改记录失败: {e}", file=sys.stderr)
 
 
+def get_modification_log() -> List[Dict]:
+    """获取当前内存中的修改记录（惰性加载，只从磁盘读一次）"""
+    global _modification_log
+    if not _modification_log:
+        _modification_log = _load_mod_log()
+    return _modification_log
+
+
 def record_modification(
     module: str,
     original: str,
@@ -1252,6 +1361,42 @@ def content_generation_workflow(
         # 召回素材
         materials = recall_materials_by_module(topic, mod_type, vault_path)
 
+        # 追加已抓取入库的素材（Issue 2: 搜索结果应用于生成）
+        imported = gap_info.get("imported", [])
+        for imp in imported:
+            if imp.get("status") == "success" and imp.get("path"):
+                # 从已入库文件读取内容作为素材
+                try:
+                    imp_path = Path(imp["path"])
+                    if imp_path.exists():
+                        content = imp_path.read_text(encoding="utf-8")
+                        # 去掉 frontmatter
+                        content = re.sub(r"^---[\s\S]*?---\n", "", content).strip()
+                        materials.append({
+                            "name": imp.get("title", imp_path.stem),
+                            "type": "imported",
+                            "content": content[:500],
+                            "relevance": 0.9,
+                            "quality_score": 8.0,
+                            "source": "search_scraped"
+                        })
+                except Exception:
+                    pass
+            elif imp.get("status") == "success" and not imp.get("path"):
+                # 无文件路径时用搜索结果 snippet
+                search_snippets = gap_info.get("search_results", [])
+                for snip in search_snippets:
+                    if snip.get("url") == imp.get("url"):
+                        materials.append({
+                            "name": imp.get("title", "导入素材"),
+                            "type": "imported",
+                            "content": snip.get("snippet", ""),
+                            "relevance": 0.85,
+                            "quality_score": 7.5,
+                            "source": "search_snippet"
+                        })
+                        break
+
         # 生成模块
         gen_result = generate_single_module(
             topic, mod_type, ccos_outline,
@@ -1408,9 +1553,9 @@ def interactive_content_generation_workflow(
             # 询问用户
             if rewrite_count >= 2:
                 print("  [已达最大重写次数，建议手动修改]")
-                action = input("  操作：[回车]确认 [e]编辑 [r]重写 → ").strip().lower()
+                action = input("  操作：[回车]确认 [r]重写 [e]直接编辑 [p]润色编辑 → ").strip().lower()
             else:
-                action = input("  操作：[回车]确认 [r]重写 [e]编辑 → ").strip().lower()
+                action = input("  操作：[回车]确认 [r]重写 [e]直接编辑 [p]润色编辑 → ").strip().lower()
 
             if action == "q":
                 print("\n退出。已确认模块：", [m["module"] for m in confirmed_modules])
@@ -1424,14 +1569,59 @@ def interactive_content_generation_workflow(
             elif action == "r" and rewrite_count < 2:
                 rewrite_count += 1
                 continue
-            elif action == "e":
+            elif action == "p":
+                # Issue 5: 润色后编辑
+                print("  请输入润色参考内容（空行结束输入，输入的内容将作为润色素材）：")
+                lines = []
+                while True:
+                    try:
+                        line = input()
+                        if line == "":
+                            break
+                        lines.append(line)
+                    except (EOFError, KeyboardInterrupt):
+                        lines = []
+                        break
+                user_text = "\n".join(lines).strip()
+                if user_text:
+                    # 以当前草稿为基础，结合用户输入进行润色
+                    polished_result = polish_user_material(
+                        user_text or result["draft"],
+                        platform,
+                        mod_type
+                    )
+                    polished = polished_result.get("polished", result["draft"])
+                    print(f"\n  【润色预览】")
+                    print(f"  {polished[:500]}")
+                    if len(polished) > 500:
+                        print(f"  ...(共 {len(polished)} 字)")
+                    confirm = input("  [回车]确认润色结果 [e]直接编辑原文 [r]放弃 → ").strip().lower()
+                    if confirm == "e":
+                        # 切回直接编辑
+                        pass  # fall through to edit branch
+                    elif confirm == "r":
+                        continue  # 放弃此次编辑
+                    else:
+                        # 确认润色结果
+                        record_modification(mod_type, result["draft"], polished, platform, topic)
+                        result = {**result, "draft": polished, "status": "manually_edited"}
+                        break
+                else:
+                    print("  未输入内容，跳过")
+                    continue
+
+            if action == "e":
                 print("  请输入修改后的内容（空行结束输入）：")
                 lines = []
                 while True:
-                    line = input()
-                    if line == "":
+                    try:
+                        line = input()
+                        if line == "":
+                            break
+                        lines.append(line)
+                    except (EOFError, KeyboardInterrupt):
+                        lines = []
                         break
-                    lines.append(line)
                 edited = "\n".join(lines)
                 if edited.strip():
                     record_modification(mod_type, result["draft"], edited, platform, topic)

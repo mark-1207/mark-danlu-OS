@@ -1021,6 +1021,72 @@ def main():
                 "usage": "python prism_os.py queue [--list] [--tag <id> <label>] [--dismiss <id>] [--stats]"
             })
 
+    elif command == "archive":
+        # 归档查询命令
+        # 用法: python prism_os.py archive --search <keyword> [--limit N]
+        #        python prism_os.py archive --trends <crack_id>
+        from crack_queue import CrackQueue
+
+        q = CrackQueue()
+        args = sys.argv[2:]
+
+        if "--search" in args or "-s" in args:
+            idx = args.index("--search") if "--search" in args else args.index("-s")
+            keyword = args[idx + 1] if idx + 1 < len(args) else ""
+            limit = 10
+            if "--limit" in args:
+                li = args.index("--limit")
+                try:
+                    limit = int(args[li + 1])
+                except (ValueError, IndexError):
+                    pass
+
+            if not keyword:
+                _safe_print({"error": "请提供搜索关键词: python prism_os.py archive --search <keyword>"})
+                sys.exit(1)
+
+            results = q.search_archive(keyword, limit=limit)
+            _safe_print({"status": "ok", "keyword": keyword, "count": len(results), "results": results})
+
+        elif "--trends" in args or "-t" in args:
+            idx = args.index("--trends") if "--trends" in args else args.index("-t")
+            crack_id = args[idx + 1] if idx + 1 < len(args) else ""
+            limit = 5
+            if "--limit" in args:
+                li = args.index("--limit")
+                try:
+                    limit = int(args[li + 1])
+                except (ValueError, IndexError):
+                    pass
+
+            # 通过 ID 找到 crack 条目
+            entry = None
+            if crack_id:
+                all_entries = q.list_all()
+                for e in all_entries:
+                    if e.get("id") == crack_id:
+                        entry = e
+                        break
+
+            if not entry:
+                _safe_print({"error": f"未找到 ID 为 {crack_id} 的归档条目"})
+                sys.exit(1)
+
+            results = q.query_trends(entry, limit=limit)
+            _safe_print({"status": "ok", "crack_id": crack_id, "count": len(results), "results": results})
+
+        elif "--list" in args or "-l" in args:
+            # 列出最近归档条目
+            archive = q._load_archive() if hasattr(q, "_load_archive") else []
+            _safe_print({"status": "ok", "total": len(archive), "entries": archive[:20]})
+
+        else:
+            _safe_print({
+                "usage": "python prism_os.py archive --search <keyword> [--limit N]\n"
+                        "       python prism_os.py archive --trends <crack_id> [--limit N]\n"
+                        "       python prism_os.py archive --list"
+            })
+
     else:
         _safe_print({"error": f"未知命令: {command}"})
         sys.exit(1)

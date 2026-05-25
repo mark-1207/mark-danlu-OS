@@ -555,6 +555,59 @@ def _make_structured_error(provider: str, error: str, retry_count: int = 0) -> D
     }
 
 
+# ============ 错误可重试性判断 ============
+
+def _is_retryable_error(error: str) -> bool:
+    """
+    判断 LLM 错误是否可重试
+
+    可重试：timeout、connection、network、SSL、502/503/504
+    不可重试：401 Unauthorized、403 Forbidden、400 Bad Request（请求本身有问题）
+    """
+    error_lower = error.lower()
+    if any(x in error_lower for x in ["http 401", "http 403", "unauthorized", "forbidden", "bad request", "invalid request"]):
+        return False
+    if any(x in error_lower for x in ["timeout", "connection", "network", "ssl", "temporary", "502", "503", "504", "reset", "refused"]):
+        return True
+    return True  # 默认可重试
+
+
+def _call_with_retry(fn, prompt: str, *args, max_retries: int = 2, initial_delay: float = 1.0, **kwargs) -> Dict:
+    """
+    带指数退避重试的 provider 调用
+
+    Args:
+        fn: 要重试的函数 (prompt, *args, **kwargs) -> result_dict
+        prompt: 提示词
+        max_retries: 最大重试次数
+        initial_delay: 初始延迟（秒）
+
+    Returns:
+        函数结果（成功或最终失败）
+    """
+    delay = initial_delay
+    last_result = None
+
+    for attempt in range(max_retries + 1):
+        result = fn(prompt, *args, **kwargs)
+        last_result = result
+
+        if result.get("error") is None:
+            return result  # 成功
+
+        error = result.get("error", "")
+        if not _is_retryable_error(error):
+            # 不可重试的错误（如 401），直接返回
+            return result
+
+        if attempt < max_retries:
+            print(f"[重试] {attempt + 1}/{max_retries} 失败，{delay}s 后重试... ({error[:50]})", file=sys.stderr)
+            time.sleep(delay)
+            delay *= 2  # 指数退避
+
+    return last_result  # 返回最后一次结果
+
+
 # ============ 主调用函数 ============
 
 def call_llm(prompt: str, model: str = "gpt-4", temperature: float = 0.7) -> Dict:
@@ -577,11 +630,11 @@ def call_llm(prompt: str, model: str = "gpt-4", temperature: float = 0.7) -> Dic
     scene = get_scene()
     start_time = time.time()
 
-    # Step 1: Kimi (主路径，场景动态模型)
+    # Step 1: Kimi (主路径，场景动态模型，带重试)
     kimi_model = get_kimi_model(scene)
     kimi_max_tokens = get_kimi_max_tokens(scene)
     print(f"[Kimi] {kimi_model}({kimi_max_tokens})...", file=sys.stderr)
-    result = call_kimi(prompt, kimi_model, temperature, kimi_max_tokens)
+    result = _call_with_retry(call_kimi, prompt, kimi_model, temperature, kimi_max_tokens, max_retries=2)
     duration_ms = int((time.time() - start_time) * 1000)
     _log_llm_call(scene, duration_ms, "success" if result["error"] is None else "error",
                    "kimi", kimi_model, result.get("error"))
@@ -591,9 +644,9 @@ def call_llm(prompt: str, model: str = "gpt-4", temperature: float = 0.7) -> Dic
     kimi_error = result["error"]
     print(f"[Kimi] 失败: {kimi_error}", file=sys.stderr)
 
-    # Step 2: Gateway (免费模型，Kimi 失败后尝试)
+    # Step 2: Gateway (免费模型，Kimi 失败后尝试，带重试)
     print(f"[Gateway] 尝试...", file=sys.stderr)
-    result = call_gateway(prompt, temperature)
+    result = _call_with_retry(call_gateway, prompt, temperature, max_retries=2)
     duration_ms = int((time.time() - start_time) * 1000)
     _log_llm_call(scene, duration_ms, "success" if result["error"] is None else "error",
                    "gateway", model, result.get("error"))
@@ -605,10 +658,10 @@ def call_llm(prompt: str, model: str = "gpt-4", temperature: float = 0.7) -> Dic
     gw_error = result["error"]
     print(f"[Gateway] 失败: {gw_error}", file=sys.stderr)
 
-    # Step 3: OpenRouter 最终降级（使用动态模型列表）
+    # Step 3: OpenRouter 最终降级（使用动态模型列表，带重试）
     for or_model in get_openrouter_models():
         print(f"[OpenRouter] {or_model}...", file=sys.stderr)
-        result = call_openrouter(prompt, or_model, temperature)
+        result = _call_with_retry(call_openrouter, prompt, or_model, temperature, max_retries=2)
         duration_ms = int((time.time() - start_time) * 1000)
         _log_llm_call(scene, duration_ms, "success" if result["error"] is None else "error",
                        "openrouter", or_model, result.get("error"))

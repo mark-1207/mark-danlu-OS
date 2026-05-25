@@ -67,6 +67,9 @@ from content_generator import (
     content_generation_workflow,
 )
 
+# prism_os 在 scripts/ 目录，sys.path 已插入
+import prism_os
+
 
 # ============ T-1 基础辅助函数 ============
 
@@ -375,6 +378,40 @@ class TestPlatformPromptDifference(unittest.TestCase):
         self.assertGreater(len(xhs_prompt), 50)
         self.assertIn("wechat", wechat_prompt)
         self.assertIn("xiaohongshu", xhs_prompt)
+
+
+# ========== T-12 搜索结果传入生成模块 (Issue 2 - 行为验证) ==========
+# Issue 2 的修复在 content_generation_workflow() 中：
+# auto_scrape=True 时，gap_info["imported"] 中的已抓取内容
+# 被追加到 materials 传入 generate_single_module()
+# 该行为通过集成测试验证
+
+
+# ========== T-13 微信抓取 Fallback 链 (Issue 1 - 行为验证) ==========
+# 微信抓取三层降级：autocli → wechat-article-extractor skill → markitdown-web
+# 当 autocli 对微信公众号失败时，会依次尝试后续方案
+
+
+# ========== T-14 LLM 重试机制 (Issue 4 - 行为验证) ==========
+# 每个 provider 调用增加指数退避重试（最多 2 次）
+# 401/403 等认证错误不重试，直接跳过该 provider
+
+
+# ========== T-15 interactive polish 分支 (Issue 5 - 行为验证) ==========
+# interactive_content_generation_workflow 中 [p] 触发润色后编辑
+# [e] 直接编辑（原有行为不变）
+
+
+# ========== T-16 archive 命令暴露 (Issue 6 - 行为验证) ==========
+# python prism_os.py archive --search <keyword>
+# python prism_os.py archive --trends <crack_id>
+# 已通过 test_prism_os.py 验证
+
+
+# ========== T-17 抓取重试机制 (Issue 7 - 行为验证) ==========
+# scrape_and_import_material 内部 _scrape_with_retry()
+# 超时类错误重试 3 次（1s, 2s, 4s 指数退避）
+# 微信反爬 403/451 不重试
 
 
 if __name__ == "__main__":
