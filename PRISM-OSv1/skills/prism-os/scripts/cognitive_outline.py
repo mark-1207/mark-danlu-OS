@@ -74,6 +74,16 @@ def _parse_llm_json(text: str) -> Optional[Dict]:
     """从 LLM 输出解析 JSON（含 code block 提取）"""
     if not text:
         return None
+    # 防御：如果收到的是 dict（直接返回了 LLM result 的情况），提取 content 后解析
+    if isinstance(text, dict):
+        if "content" in text:
+            inner = text["content"]
+            if isinstance(inner, str):
+                try:
+                    return json.loads(inner)
+                except Exception:
+                    pass
+        return None
     # 尝试提取 code block
     code_block_pattern = r"```(?:json)?\s*([\s\S]*?)```"
     match = re.search(code_block_pattern, text)
