@@ -685,14 +685,31 @@ def main():
 
     command = sys.argv[1]
 
+    # 短触发：未知命令 → 当作 run 处理（天然语言一句话直接跑）
+    known_commands = {"run", "classify", "gateway", "confirm", "ccos", "generate", "queue", "archive", "p", "prism"}
+    if command not in known_commands:
+        # 第一个参数不是命令 → 当作 user_input 走完整流程
+        user_input = command
+        # 剩余参数合并
+        for arg in sys.argv[2:]:
+            user_input += " " + arg
+        result = run_prism_os(user_input, include_phase_4_8=True, skip_gateway=False)
+        output = format_prism_os_output(result)
+        sys.stdout.buffer.write(output.encode("utf-8"))
+        sys.exit(0)
+
+    # 超短别名：p "一句话" → 等同于 run "一句话"
+    if command in ("p", "prism"):
+        user_input = " ".join(sys.argv[2:]) if len(sys.argv) > 2 else ""
+        if not user_input:
+            _safe_print({"error": "请提供选题内容"})
+            sys.exit(1)
+        result = run_prism_os(user_input, include_phase_4_8=True, skip_gateway=False)
+        output = format_prism_os_output(result)
+        sys.stdout.buffer.write(output.encode("utf-8"))
+        sys.exit(0)
+
     if command == "run":
-        # 解析参数
-        user_input = ""
-        include_ext = True
-        use_format = False
-        skip_gateway = False
-        from_queue = False
-        match_queue = False
 
         for arg in sys.argv[2:]:
             if arg == "--format" or arg == "-f":
