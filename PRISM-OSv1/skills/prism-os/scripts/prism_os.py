@@ -61,6 +61,12 @@ def classify_intent(user_input: str) -> Dict:
     # 强意图词
     strong_intent = any(kw in text for kw in ["帮我写", "帮我做", "生成标题", "策划", "写一篇", "写一篇", "做个", "创作"])
 
+    # 闲聊/纯事实性问题（明确不触发）
+    small_talk = any(kw in text for kw in ["你好", "天气", "几号", "今天", "明天", "叫什么名字", "你是谁"])
+    purely_factual = len(text) < 10 and not strong_intent
+
+    if small_talk or purely_factual:
+        return {"trigger": False, "confidence": 0.9, "reason": "闲聊/纯事实，不触发"}
     if strong_intent:
         return {"trigger": True, "confidence": 0.95, "reason": "包含明确写作意图"}
     if short_question:
@@ -103,8 +109,8 @@ def classify_intent(user_input: str) -> Dict:
     except Exception:
         pass
 
-    # fallback
-    return {"trigger": False, "confidence": 0.0, "reason": "未识别到内容选题意图"}
+    # fallback：LLM 不可用时默认触发（安全侧，宁放过不错杀）
+    return {"trigger": True, "confidence": 0.3, "reason": "无法判断，默认触发PRISM-OS"}
 
 
 # ============ 辅助函数 ============
