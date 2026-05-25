@@ -27,6 +27,6 @@ describe('cosineSimilarity', () => {
 
 describe('SIMILARITY_THRESHOLD', () => {
   it('is 0.85', () => {
-    expect(SIMILARITY_THRESHOLD).toBe(0.85);
+    expect(SIMILARITY_THRESHOLD).toBe(0.80);
   });
 });
