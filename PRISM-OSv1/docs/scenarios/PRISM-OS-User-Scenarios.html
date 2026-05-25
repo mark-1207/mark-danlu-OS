@@ -1020,7 +1020,7 @@ suggestion: "建议关注 reversal 维度，当前匹配率 60.7%"</div>
   <div class="scenario-desc">用户确认选题后，系统基于 CCOS 大纲进行分模块内容生成，支持公众号/小红书双平台，素材缺口可自动抓取入库</div>
 </div>
 <div class="scenario-summary">
-  <p><strong>模块：</strong>Phase 5 内容生成（Phase 5.1 + Phase 5.5）</p>
+  <p><strong>模块：</strong>Phase 5 内容生成（Phase 5.1 + Phase 5.5 + Phase 5.6）</p>
   <p><strong>用户痛点：</strong><span class="pain-point">有了大纲不知道怎么写——素材够不够、每个模块怎么衔接、人工改动的风格怎么积累</span></p>
   <p><strong>场景方案：</strong><span class="solution">逐模块生成 + 用户确认/重写/编辑 → 素材缺口自动抓取入库 → 修改记录用于风格学习</span></p>
 </div>
@@ -1143,12 +1143,14 @@ result = {
 </div>
 
 <div class="tip">
-  <strong>Phase 5.5 新增能力（2026-05-20）：</strong>
+  <strong>Phase 5.6 新增能力（2026-05-25，commit 084ab0d+78be94a）：</strong>
   <ul style="margin-top:8px">
-    <li>文章抓取：autocli（微信公众号 weixin download / 通用网页 read）</li>
-    <li>Obsidian 入库自动召回：scan_vault 递归 glob，直接写洞察库/原子库</li>
-    <li>逐模块交互确认：interactive 命令，生成/确认/重写/编辑/退出</li>
-    <li>风格学习：record_modification 持久化，get_style_preferences 注入 prompt</li>
+    <li>Issue 1 微信抓取三级降级：autocli weixin → wechat-article-extractor skill → markitdown-web</li>
+    <li>Issue 2 搜索→生成素材：gap_info["imported"] 已抓取内容追加到 materials 传入 generate_single_module</li>
+    <li>Issue 4 LLM 重试：Kimi/Gateway/OpenRouter 每 provider 指数退避重试（1s→2s，max_retries=2），401/403 不重试</li>
+    <li>Issue 5 interactive 润色：[p]润色后编辑 → polish_user_material → 预览 → 确认/编辑/放弃</li>
+    <li>Issue 6 archive 命令：--search / --trends / --list</li>
+    <li>Issue 7 抓取重试：_scrape_with_retry 超时 3 次退避（1s→2s→4s），403/451 不重试</li>
   </ul>
 </div>
 
@@ -1220,6 +1222,36 @@ result = {
     <td>内容目标 + 用户动机（规则版，关键词扩充）</td>
     <td><span class="tag-green">新增</span> 从 LLM 改为规则版</td>
   </tr>
+  <tr>
+    <td>微信抓取三级降级</td>
+    <td>autocli weixin → wechat-article-extractor skill → markitdown-web</td>
+    <td><span class="tag-green">Phase 5.6</span> 新增</td>
+  </tr>
+  <tr>
+    <td>搜索→生成素材</td>
+    <td>gap_info["imported"] 已抓取内容追加到 materials 传入 generate_single_module</td>
+    <td><span class="tag-green">Phase 5.6</span> 新增</td>
+  </tr>
+  <tr>
+    <td>LLM 指数退避重试</td>
+    <td>Kimi/Gateway/OpenRouter 每 provider 重试（1s→2s，max_retries=2），401/403 不重试</td>
+    <td><span class="tag-green">Phase 5.6</span> 新增</td>
+  </tr>
+  <tr>
+    <td>interactive 润色</td>
+    <td>[p]润色后编辑 → polish_user_material → 预览 → 确认/编辑/放弃</td>
+    <td><span class="tag-green">Phase 5.6</span> 新增</td>
+  </tr>
+  <tr>
+    <td>archive 命令</td>
+    <td>prism_os.py archive --search / --trends / --list</td>
+    <td><span class="tag-green">Phase 5.6</span> 新增</td>
+  </tr>
+  <tr>
+    <td>抓取重试机制</td>
+    <td>_scrape_with_retry 超时 3 次退避（1s→2s→4s），403/451 不重试</td>
+    <td><span class="tag-green">Phase 5.6</span> 新增</td>
+  </tr>
 </table>
 
 <div class="tip">
@@ -1230,6 +1262,15 @@ result = {
     <li>Layer 2 三个推理调用从串行改为并行（耗时 /3）</li>
     <li>classify_topic_type / decide_progression_method 回退到 LLM（规则版覆盖率不足）</li>
     <li>_call_llm_raw 修复 scene bug，GATEWAY_SCENE=writing-cn</li>
+  </ul>
+</div>
+
+<div class="tip">
+  <strong>Phase 5.6 测试验证（2026-05-25，commit 084ab0d+78be94a）：</strong>
+  <ul style="margin-top:8px">
+    <li>单元测试：test_content_generator.py 27/27 通过</li>
+    <li>E2E 测试：test_e2e.py 7/7 通过（sys.modules['call_llm'] mock 拦截）</li>
+    <li>全测试：151/151 通过</li>
   </ul>
 </div>
 
