@@ -45,4 +45,8 @@ export interface ObsidianMaterial {
   card: ObsidianCard;
   /** Relevance score 0-1 based on keyword/topic match */
   relevanceScore: number;
+  /** Semantic similarity 0-1 from embedding (added by semanticSearch) */
+  semanticScore?: number;
+  /** Combined score if both keyword and semantic used */
+  combinedScore?: number;
 }

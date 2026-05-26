@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { logger } from '../../utils/logger.js';
+import { computeEmbedding, cosineSimilarity } from '../../utils/embedding.js';
 import type { ObsidianCard, ObsidianQuery, ObsidianMaterial } from './types.js';
 
 // ── Frontmatter parser (lightweight, no dependency) ────────────────────
@@ -212,7 +213,91 @@ export class ObsidianReader {
   }
 
   /**
+   * Re-rank search results using embedding-based semantic similarity.
+   * Uses query embeddings to re-score keyword-filtered candidates.
+   * Falls back to keyword-only search if embedding fails.
+   *
+   * @param keywords - Search keywords for keyword filtering
+   * @param queryText - Full query text for embedding (e.g. article title + angle)
+   * @param options - Standard ObsidianQuery filters
+   * @param topK - How many results to return (default 8)
+   * @param semanticWeight - Weight for semantic score vs keyword (0-1, default 0.5)
+   */
+  async semanticSearch(
+    keywords: string[],
+    queryText: string,
+    options: ObsidianQuery = {},
+    topK = 8,
+    semanticWeight = 0.5,
+  ): Promise<ObsidianMaterial[]> {
+    // First pass: keyword-based candidate selection (fast, no API cost)
+    const candidates = this.query(options);
+    if (candidates.length === 0) return [];
+
+    // Filter and score by keywords
+    const scored = candidates
+      .map((card) => ({
+        card,
+        keywordScore: computeRelevance(card, keywords),
+      }))
+      .filter((m) => m.keywordScore > 0);
+
+    if (scored.length === 0) return [];
+
+    try {
+      // Compute query embedding once
+      const queryEmb = await computeEmbedding({ text: queryText.slice(0, 500) });
+
+      // Compute embedding for each candidate body (first 300 chars for efficiency)
+      const embResults = await Promise.allSettled(
+        scored.map((s) =>
+          computeEmbedding({ text: s.card.body.slice(0, 300) }).then((emb) => ({
+            ...s,
+            semanticScore: cosineSimilarity(queryEmb.embedding, emb.embedding),
+          }))
+        )
+      );
+
+      const withSemantic = embResults
+        .filter((r): r is PromiseFulfilledResult<typeof scored[0] & { semanticScore: number }> =>
+          r.status === 'fulfilled'
+        )
+        .map((r) => r.value);
+
+      if (withSemantic.length === 0) {
+        // Embedding failed for all — fall back to keyword only
+        return scored.slice(0, topK).map((s) => ({ card: s.card, relevanceScore: s.keywordScore }));
+      }
+
+      // Normalize semantic scores
+      const maxSemantic = Math.max(...withSemantic.map((s) => s.semanticScore));
+      const minSemantic = Math.min(...withSemantic.map((s) => s.semanticScore));
+
+      // Combine keyword + semantic with configured weight
+      const combined = withSemantic.map((s) => {
+        const normSemantic =
+          maxSemantic === minSemantic ? 0.5 : (s.semanticScore - minSemantic) / (maxSemantic - minSemantic);
+        const combinedScore =
+          semanticWeight * s.keywordScore + (1 - semanticWeight) * normSemantic;
+        return {
+          card: s.card,
+          relevanceScore: s.keywordScore,
+          semanticScore: s.semanticScore,
+          combinedScore,
+        } satisfies ObsidianMaterial;
+      });
+
+      // Sort by combined score, return topK
+      return combined.sort((a, b) => (b.combinedScore ?? 0) - (a.combinedScore ?? 0)).slice(0, topK);
+    } catch (err) {
+      logger.warn('[ObsidianReader.semanticSearch] embedding failed, falling back to keyword:', String(err));
+      return scored.slice(0, topK).map((s) => ({ card: s.card, relevanceScore: s.keywordScore }));
+    }
+  }
+
+  /**
    * Format materials for prompt injection.
+   * Shows combined score when semantic search was used.
    */
   formatForPrompt(materials: ObsidianMaterial[]): string {
     if (materials.length === 0) return '';
@@ -229,9 +314,13 @@ export class ObsidianReader {
 
     for (const [dir, items] of byDir) {
       parts.push(`### ${dir}`);
-      for (const { card, relevanceScore } of items) {
+      for (const { card, relevanceScore, semanticScore, combinedScore } of items) {
         const tag = `[${card.type}${card.subtype ? '/' + card.subtype : ''}]`;
-        const scoreTag = ` [相关度:${relevanceScore.toFixed(2)}]`;
+        const scoreTag = combinedScore !== undefined
+          ? ` [综合相关度:${(combinedScore * 100).toFixed(0)}%]`
+          : semanticScore !== undefined
+          ? ` [语义相关度:${(semanticScore * 100).toFixed(0)}%]`
+          : ` [相关度:${relevanceScore.toFixed(2)}]`;
         parts.push(`- ${tag} **${card.name}**${scoreTag}`);
 
         // Include a brief excerpt (first 200 chars of body)

@@ -90,6 +90,13 @@ const ConfigSchema = z.object({
         .default(['40_知识库/原子库', '40_知识库/洞察库', '40_知识库/金句库', '40_知识库/思维模型', '40_知识库/人生哲学', '30_研究/书籍拆解'])
         .describe('Relative paths under vault to read knowledge from'),
       writeDir: z.string().default('50_资源/生成文章').describe('Relative path under vault to write generated articles'),
+      embeddingSearch: z
+        .object({
+          enabled: z.boolean().default(false).describe('Enable embedding-based semantic re-ranking in Obsidian search'),
+          semanticWeight: z.number().min(0).max(1).default(0.5).describe('Weight for semantic score vs keyword (0=keyword-only, 1=semantic-only)'),
+          topK: z.number().default(8).describe('Max results to return from semantic search'),
+        })
+        .optional(),
     })
     .optional(),
 });

@@ -197,7 +197,57 @@ node dist/index.js skill "<输入>"
 
 ---
 
-### 2.4 素材搜索系统 (material-search)
+### 2.4 知识库语义搜索（Embedding-Based）
+
+**文件**: `src/io/obsidian/reader.ts`
+
+#### 两阶段搜索架构
+
+```
+第一步（快速）: keyword filter
+    reader.search(keywords, { minQuality: 6 })
+    → 候选集（关键词匹配 + 质量过滤）
+
+第二步（语义重排）: semantic re-ranking
+    reader.semanticSearch(keywords, queryText, options)
+    → 使用 embedding 重新排序候选集
+    → keyword score × (1-w) + semantic score × w
+```
+
+#### 配置
+
+```yaml
+obsidian:
+  vaultPath: /path/to/vault
+  embeddingSearch:
+    enabled: true           # 开启语义搜索（默认关闭）
+    semanticWeight: 0.5     # 语义权重（0=纯关键词，1=纯语义）
+    topK: 8                 # 返回结果数量
+```
+
+#### 依赖
+
+- Tavily Embeddings API（`TAVILY_API_KEY`）
+- 或 Google text-embedding-004（`GOOGLE_EMBEDDING_API_KEY`）
+- 结果自动缓存，避免重复 embedding 同一条卡片
+
+#### 降级策略
+
+| 场景 | 行为 |
+|------|------|
+| `embeddingSearch.enabled = false` | 使用 keyword-only search |
+| Embedding API 失败 | 回退到 keyword-only search，warn 日志 |
+| 无 embedding API key | 自动降级，不报错 |
+
+#### 在 pipeline 中的位置
+
+- `outline-generation.ts` — 大纲生成时加载素材（首次匹配）
+- `content-generation.ts` — 正文生成时再加载（深化匹配）
+- 两处共享同一配置 `config.obsidian.embeddingSearch`
+
+---
+
+### 2.5 素材搜索系统 (material-search)
 
 **文件**: `src/scenarios/create/steps/material-search.ts`
 
@@ -603,6 +653,12 @@ node dist/index.js topic-engine select <id> --generate
 
 # 偏好可视化面板
 node dist/index.js learn --dashboard
+
+# 语义搜索（需配置 embedding API key）
+# 在 config/contentforge.yaml 中启用:
+# obsidian:
+#   embeddingSearch:
+#     enabled: true
 ```
 
 ---

@@ -39,7 +39,22 @@ async function loadObsidianMaterials(context: PipelineContext): Promise<string> 
 
     if (keywords.length === 0) return '';
 
-    const materials = reader.search(keywords, { minQuality: 6, limit: 8 });
+    const embCfg = obsidianConfig.embeddingSearch;
+    let materials;
+    if (embCfg?.enabled) {
+      // Build query text from topic analysis for embedding-based search
+      const queryText = [topicAnalysis.keyword, ...topicAnalysis.subTopics.map((s: any) => s.name)].join(' ');
+      materials = await reader.semanticSearch(
+        keywords,
+        queryText,
+        { minQuality: 6 },
+        embCfg.topK ?? 8,
+        embCfg.semanticWeight ?? 0.5,
+      );
+    } else {
+      materials = reader.search(keywords, { minQuality: 6, limit: 8 });
+    }
+
     if (materials.length === 0) return '';
 
     logger.info(`[content-generation] injected ${materials.length} Obsidian materials`);
