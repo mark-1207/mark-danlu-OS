@@ -123,7 +123,7 @@ export function parseIntent(text: string): IntentResult {
   return result;
 }
 
-export async function runSkill(input: string): Promise<void> {
+export async function runSkill(input: string, options: { auto?: boolean } = {}): Promise<void> {
   const intent = parseIntent(input);
 
   if (intent.type === 'create') {
@@ -131,10 +131,12 @@ export async function runSkill(input: string): Promise<void> {
       throw new Error('无法从输入中提取主题关键词，请重新描述。例如：帮我写一篇关于AI的文章');
     }
     const platforms = intent.platforms.join(',');
+    // skill 命令默认不设置 interactive，由 runCreate 的 isTTY 检测自动决定
+    // --auto 时显式禁用交互
     await runCreate(intent.keyword, {
       platforms: platforms || undefined,
       context: undefined,
-      interactive: true, // skill 命令强制交互模式，确保确认环节正常执行
+      interactive: options.auto === true ? false : undefined,
     });
   } else {
     if (!intent.inputPath) {
@@ -149,9 +151,10 @@ export function registerSkillCommand(program: Command): void {
     .command('skill')
     .description('自然语言统一入口：描述需求即可，自动判断原创/二创及目标平台')
     .argument('<text>', '自然语言描述，例如：帮我写一篇关于AI的文章 发公众号')
-    .action(async (text: string) => {
+    .option('--auto', '使用默认选项全自动运行（无需确认，适合 CI/快速测试）')
+    .action(async (text: string, opts: { auto?: boolean }) => {
       try {
-        await runSkill(text);
+        await runSkill(text, { auto: opts.auto });
       } catch (error) {
         logger.error('skill command failed', { error: String(error) });
         console.error(`错误: ${error}`);

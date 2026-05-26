@@ -101,6 +101,9 @@ export async function recommendStructure(keyword: string, angle: string): Promis
 // ─── Interactive helpers ───────────────────────────────────────────────────────
 
 function ask(question: string, fallback: string = ''): Promise<string> {
+  if (!process.stdin.isTTY) {
+    return Promise.resolve(fallback);
+  }
   return new Promise((resolve) => {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     rl.question(question, (answer) => {
@@ -111,6 +114,9 @@ function ask(question: string, fallback: string = ''): Promise<string> {
 }
 
 function askChoice(question: string, options: string[]): Promise<number> {
+  if (!process.stdin.isTTY) {
+    return Promise.resolve(0); // default to first option
+  }
   return new Promise((resolve) => {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     console.log(question);
