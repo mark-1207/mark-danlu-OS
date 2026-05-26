@@ -112,11 +112,15 @@ KIMI_MAX_TOKENS_MAP = {
 # 优先级规则：free > cheap > fast，context_length >= 32k
 # 动态从 OpenRouter API 获取，可通过 refresh_openrouter_models() 更新
 
-# 默认兜底模型（API 不可用时使用）
+# 默认兜底模型（OpenRouter付费key可用模型，按能力/速度排序）
+# 已验证可用：qwen-72b > deepseek-v3 > gemma-26b > mistral-24b > llama-8b > qwen3-8b
 OPENROUTER_FALLBACK_MODELS = [
-    "openrouter/owl-alpha",           # 1M ctx, free, 快
-    "google/gemma-4-26b-a4b-it:free",  # 262k ctx, free
-    "qwen/qwen3-coder:free",           # 262k ctx, free, 编程强
+    "qwen/qwen-2.5-72b-instruct",     # 验证可用，大参数，强
+    "deepseek/deepseek-chat-v3",       # 验证可用，强
+    "google/gemma-4-26b-a4b-it",        # 验证可用
+    "mistralai/mistral-small-24b-instruct-2501",  # 验证可用
+    "meta-llama/llama-3.1-8b-instruct", # 验证可用
+    "qwen/qwen3-8b",                   # 验证可用，快
 ]
 
 # 缓存的模型列表（通过 refresh_openrouter_models 更新）
@@ -182,9 +186,11 @@ def refresh_openrouter_models(force: bool = False) -> List[str]:
 
 
 def get_openrouter_models() -> List[str]:
-    """获取当前缓存的 OpenRouter 模型列表"""
-    cached = refresh_openrouter_models()
-    return cached if cached else OPENROUTER_FALLBACK_MODELS
+    """获取 OpenRouter 模型列表
+    优先使用已验证的付费模型，避免免费模型限流问题
+    """
+    # 直接返回已验证可用的付费模型，不再用API缓存的免费模型
+    return OPENROUTER_FALLBACK_MODELS
 
 
 # ============ 配置加载 ============
