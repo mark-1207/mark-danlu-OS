@@ -19,9 +19,7 @@ import sys
 import json
 import os
 import time
-import ssl
-import urllib.request
-import urllib.error
+import subprocess
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
@@ -35,6 +33,42 @@ if _env_file.exists():
             continue
         k, v = line.split("=", 1)
         os.environ.setdefault(k.strip(), v.strip())
+
+# ============ curl subprocess 封装（绕过 Windows Python SSL 问题）============
+
+def _curl_post(url: str, payload: dict, headers: dict, timeout: int = 30) -> Optional[dict]:
+    """用 curl POST 发送请求，绕过 Windows SSL 问题"""
+    try:
+        proc = subprocess.run(
+            ["curl", "-s", "--max-time", str(timeout), "-k", "-X", "POST",
+             url,
+             "-H", "Content-Type: application/json",
+             *sum([["-H", f"{k}: {v}"] for k, v in headers.items()], []),
+             "-d", json.dumps(payload)],
+            capture_output=True, timeout=timeout + 5
+        )
+        if proc.returncode != 0 or not proc.stdout:
+            return None
+        return json.loads(proc.stdout.decode("utf-8", errors="replace"))
+    except Exception:
+        return None
+
+
+def _curl_get(url: str, headers: dict, timeout: int = 30) -> Optional[dict]:
+    """用 curl GET 发送请求，绕过 Windows SSL 问题"""
+    try:
+        proc = subprocess.run(
+            ["curl", "-s", "--max-time", str(timeout), "-k", "-X", "GET",
+             url,
+             *sum([["-H", f"{k}: {v}"] for k, v in headers.items()], [])],
+            capture_output=True, timeout=timeout + 5
+        )
+        if proc.returncode != 0 or not proc.stdout:
+            return None
+        return json.loads(proc.stdout.decode("utf-8", errors="replace"))
+    except Exception:
+        return None
+
 
 # ============ API Keys & Endpoints ============
 
@@ -110,14 +144,11 @@ def refresh_openrouter_models(force: bool = False) -> List[str]:
 
     print(f"[OpenRouter] 获取模型列表...", file=sys.stderr)
     try:
-        import urllib.request
-        req = urllib.request.Request(
+        data = _curl_get(
             "https://openrouter.ai/api/v1/models",
             headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"},
-            method="GET"
+            timeout=30
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
 
         models = data.get("data", [])
         candidates = []
@@ -205,36 +236,21 @@ def call_kimi(prompt: str, model: str = "kimi-k2", temperature: float = 0.7, max
         "max_tokens": max_tokens
     }
 
-    data = json.dumps(payload).encode("utf-8")
     headers = {
-        "Content-Type": "application/json",
         "Authorization": f"Bearer {KIMI_API_KEY}"
     }
 
-    req = urllib.request.Request(
-        KIMI_API_URL,
-        data=data,
-        headers=headers,
-        method="POST"
-    )
-
     try:
-        with urllib.request.urlopen(req, timeout=120) as response:
-            result = json.loads(response.read().decode("utf-8"))
-            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-            return {
-                "content": content,
-                "error": None,
-                "model": model,
-                "provider": "kimi",
-                "via_backup": True
-            }
-    except urllib.error.HTTPError as e:
+        result = _curl_post(KIMI_API_URL, payload, headers, timeout=120)
+        if not result:
+            return {"content": None, "error": "curl failed", "model": model, "provider": "kimi"}
+        content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
         return {
-            "content": None,
-            "error": f"HTTP {e.code}: {e.reason}",
+            "content": content,
+            "error": None,
             "model": model,
-            "provider": "kimi"
+            "provider": "kimi",
+            "via_backup": True
         }
     except Exception as e:
         return {
@@ -266,34 +282,21 @@ def call_openrouter(prompt: str, model: str = "google/gemini-2.0-flash-exp", tem
         "max_tokens": 4096
     }
 
-    data = json.dumps(payload).encode("utf-8")
     headers = {
-        "Content-Type": "application/json",
         "Authorization": f"Bearer {OPENROUTER_API_KEY}"
     }
 
-    # 创建 SSL 上下文绕过证书问题
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
-
-    req = urllib.request.Request(
-        OPENROUTER_API_URL,
-        data=data,
-        headers=headers,
-        method="POST"
-    )
-
     try:
-        with urllib.request.urlopen(req, context=ssl_context, timeout=180) as response:
-            result = json.loads(response.read().decode("utf-8"))
-            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-            return {
-                "content": content,
-                "error": None,
-                "model": model,
-                "provider": "openrouter",
-                "via_backup": True
+        result = _curl_post(OPENROUTER_API_URL, payload, headers, timeout=180)
+        if not result:
+            return {"content": None, "error": "curl failed", "model": model, "provider": "openrouter"}
+        content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+        return {
+            "content": content,
+            "error": None,
+            "model": model,
+            "provider": "openrouter",
+            "via_backup": True
             }
     except Exception as e:
         return {
@@ -328,34 +331,19 @@ def call_gateway(prompt: str, temperature: float = 0.7) -> Dict:
         "temperature": temperature
     }
 
-    data = json.dumps(payload).encode("utf-8")
     headers = {
-        "Content-Type": "application/json",
         "Authorization": f"Bearer {config['llm_api_key']}"
     }
     scene = get_scene()
     if scene:
         headers["X-Gateway-Scene"] = scene
 
-    req = urllib.request.Request(
-        config["llm_api_url"],
-        data=data,
-        headers=headers,
-        method="POST"
-    )
-
     try:
-        with urllib.request.urlopen(req, timeout=60) as response:
-            result = json.loads(response.read().decode("utf-8"))
-            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-            return {"content": content, "error": None, "via_backup": False}
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8") if e.fp else ""
-        return {
-            "content": None,
-            "error": f"HTTP {e.code}: {e.reason} | body: {body[:500]}",
-            "via_backup": False
-        }
+        result = _curl_post(config["llm_api_url"], payload, headers, timeout=60)
+        if not result:
+            return {"content": None, "error": "curl failed", "via_backup": True}
+        content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+        return {"content": content, "error": None, "via_backup": False}
     except Exception as e:
         return {
             "content": None,
