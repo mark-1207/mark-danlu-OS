@@ -188,7 +188,8 @@ export async function runCreate(
   }
 
   // Auto-detect TTY: if not explicitly disabled and stdin is a TTY, enable interactive
-  const isInteractive = options.interactive !== false && process.stdin.isTTY;
+  // Explicit interactive:true overrides TTY requirement (for skill command in non-TTY mode)
+  const isInteractive = options.interactive === true || (options.interactive !== false && process.stdin.isTTY);
 
   // Get provider and model for direct step execution
   const providerConfig = config.providers[config.defaultProvider];

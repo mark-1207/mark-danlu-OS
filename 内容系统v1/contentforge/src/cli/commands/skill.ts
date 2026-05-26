@@ -134,6 +134,7 @@ export async function runSkill(input: string): Promise<void> {
     await runCreate(intent.keyword, {
       platforms: platforms || undefined,
       context: undefined,
+      interactive: true, // skill 命令强制交互模式，确保确认环节正常执行
     });
   } else {
     if (!intent.inputPath) {
