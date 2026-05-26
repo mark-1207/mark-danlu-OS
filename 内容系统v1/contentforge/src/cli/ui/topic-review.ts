@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import readline from 'readline';
+import { isTerminalInteractive } from './interactive.js';
 import type { TopicAnalysisReview, CompetitorInsight, PlatformSelectionConfirmed } from '../../scenarios/create/types.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -59,7 +60,7 @@ export async function reviewTopicAnalysis(
   onRewrite: (group: string) => Promise<TopicAnalysisReview>,
 ): Promise<{ selectedIndices: number[]; excludeDirections: string[]; extraDirections: string[] }> {
   // Non-TTY fallback — resolve immediately with all pending subTopics selected
-  if (!process.stdin.isTTY) {
+  if (!isTerminalInteractive()) {
     const selectedIndices = reviewData.subTopics
       .map((st, i) => (st.decision === 'pending' ? i : -1))
       .filter((i) => i >= 0);
@@ -316,7 +317,7 @@ export async function reviewTopicAssignment(
   assignment: TopicAssignmentDisplay,
 ): Promise<{ wechat: PlatformSelectionConfirmed; xiaohongshu: PlatformSelectionConfirmed; douyin: PlatformSelectionConfirmed }> {
   // Non-TTY fallback — resolve immediately with current selections
-  if (!process.stdin.isTTY) {
+  if (!isTerminalInteractive()) {
     const toConfirm = (platform: keyof TopicAssignmentDisplay) => ({
       titleIndex: assignment[platform].selectedIndex,
       title: assignment[platform].titles[assignment[platform].selectedIndex],

@@ -1,5 +1,6 @@
 import { createInterface } from 'readline';
 import chalk from 'chalk';
+import { isTerminalInteractive } from './interactive.js';
 import type { WechatOutline, XiaohongshuOutline, DouyinOutline } from '../../scenarios/create/types.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -101,7 +102,7 @@ export async function recommendStructure(keyword: string, angle: string): Promis
 // ─── Interactive helpers ───────────────────────────────────────────────────────
 
 function ask(question: string, fallback: string = ''): Promise<string> {
-  if (!process.stdin.isTTY) {
+  if (!isTerminalInteractive()) {
     return Promise.resolve(fallback);
   }
   return new Promise((resolve) => {
@@ -114,7 +115,7 @@ function ask(question: string, fallback: string = ''): Promise<string> {
 }
 
 function askChoice(question: string, options: string[]): Promise<number> {
-  if (!process.stdin.isTTY) {
+  if (!isTerminalInteractive()) {
     return Promise.resolve(0); // default to first option
   }
   return new Promise((resolve) => {
@@ -141,6 +142,8 @@ export async function confirmOutlines(
   outlines: PlatformOutlines,
   onRegenerate?: (platform: string) => Promise<WechatOutline | XiaohongshuOutline | DouyinOutline>,
   platforms: 'all' | string[] = 'all',
+  keyword: string = '',
+  angle: string = '',
 ): Promise<PlatformOutlinesConfirmed> {
   const platformsToProcess = platforms === 'all'
     ? (['wechat', 'xiaohongshu', 'douyin'] as const)
@@ -171,8 +174,6 @@ export async function confirmOutlines(
     }
 
     // Structure (ask recommendation)
-    const keyword = 'AI时代生存'; // will be passed in from outer scope
-    const angle = '普通人如何在AI时代生存'; // will be passed in
     const rec = await recommendStructure(keyword, angle);
     const currentStructure = rec.structure;
 

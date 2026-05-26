@@ -101,6 +101,219 @@ async function writeArticlesToObsidian(
   }
 }
 
+// ─── Phase: outline-only generation ────────────────────────────────────────────
+
+interface OutlinePhaseParams {
+  keyword: string;
+  userContext: string | undefined;
+  allPlatforms: readonly string[];
+  provider: any;
+  defaultModel: string;
+  context: PipelineContext;
+  runId: string;
+  runDir: string;
+  outputDir: string;
+}
+
+async function generateOutlinePhase(params: OutlinePhaseParams): Promise<void> {
+  const { keyword, userContext, allPlatforms, provider, defaultModel, context, runId, runDir, outputDir } = params;
+  const progress = new ProgressDisplay();
+
+  // Step 1: Topic Analysis
+  progress.startStep('topic-analysis', '主题深挖');
+  const topicStep = new TopicAnalysisStep(provider, defaultModel);
+  const taResult = await topicStep.execute({ keyword, userContext }, context);
+  if (!taResult.success) throw new Error(`Topic analysis failed: ${taResult.error}`);
+  context.set('topic-analysis', taResult.data);
+  context.setStepResult('topic-analysis', taResult);
+  progress.completeStep('topic-analysis', taResult.durationMs, `tokens: +${taResult.tokenUsage.output}`);
+
+  // Step 2: Topic Assignment
+  progress.startStep('topic-assignment', '话题分配');
+  const taStep = new TopicAssignmentStep(provider, defaultModel);
+  const taAssignResult = await taStep.execute({}, context);
+  if (!taAssignResult.success) throw new Error(`Topic assignment failed: ${taAssignResult.error}`);
+  context.set('topic-assignment', taAssignResult.data);
+  context.setStepResult('topic-assignment', taAssignResult);
+  progress.completeStep('topic-assignment', taAssignResult.durationMs, `tokens: +${taAssignResult.tokenUsage.output}`);
+
+  // Step 3: Outlines (parallel per platform)
+  const outlineStepMap: Record<string, any> = {
+    wechat: OutlineWechatStep,
+    xiaohongshu: OutlineXiaohongshuStep,
+    douyin: OutlineDouyinStep,
+  };
+  for (const p of allPlatforms) {
+    progress.startStep(`outline-${p}`, `大纲-${PLATFORM_LABELS[p] ?? p}`);
+  }
+  const outlineResults = await Promise.all(
+    allPlatforms.map(async (p) => {
+      const StepClass = outlineStepMap[p];
+      if (!StepClass) return { platform: p, result: null };
+      const step = new StepClass(provider, defaultModel);
+      const result = await step.execute({}, context);
+      context.setStepResult(`outline-${p}`, result);
+      if (result.success && result.data !== undefined) {
+        context.set(`outline-${p}`, result.data);
+      }
+      return { platform: p, result };
+    }),
+  );
+  for (const { platform: p, result } of outlineResults) {
+    if (result && result.success) {
+      progress.completeStep(`outline-${p}`, result.durationMs, '');
+    } else if (result) {
+      progress.failStep(`outline-${p}`, result.error ?? 'unknown');
+    }
+  }
+
+  // Persist everything to disk
+  await context.persist();
+
+  // Print structured outline summary for Claude Code to parse
+  printOutlineSummary(context, runId, [...allPlatforms], keyword);
+
+  await releaseRunLock(runId, outputDir);
+  console.log(chalk.dim(`\n[phase=outline] runId=${runId} — outline ready, awaiting confirmation`));
+}
+
+function printOutlineSummary(
+  context: PipelineContext,
+  runId: string,
+  platforms: string[],
+  keyword: string,
+): void {
+  const outlineData: Record<string, any> = {};
+  for (const platform of platforms) {
+    const outline = context.get<any>(`outline-${platform}`);
+    const assignments = context.get<any>('topic-assignment');
+    const topicCard = assignments?.[platform];
+    outlineData[platform] = {
+      angle: topicCard?.angle ?? '',
+      titles: topicCard?.titleDrafts ?? [],
+    };
+    if (platform === 'wechat' && outline?.sections) {
+      outlineData[platform].sections = outline.sections.map((s: any) => ({
+        title: s.title,
+        purpose: s.purpose,
+        caseSlot: s.caseSlot,
+      }));
+    }
+    if (platform === 'xiaohongshu' && outline?.tips) {
+      outlineData[platform].tips = outline.tips.map((t: any) => ({ title: t.title }));
+    }
+    if (platform === 'douyin' && outline?.hook3s) {
+      outlineData[platform].hook = outline.hook3s.script?.slice(0, 60);
+      outlineData[platform].corePoint = outline.corePoint?.statement;
+    }
+  }
+  console.log(chalk.bold('\n=== OUTLINE_SUMMARY_START ==='));
+  console.log(JSON.stringify({ runId, phase: 'outline', keyword, platforms, outlines: outlineData }));
+  console.log(chalk.bold('=== OUTLINE_SUMMARY_END ==='));
+}
+
+// ─── Phase: content (resume from outline) ──────────────────────────────────────
+
+async function resumeFromOutline(
+  keyword: string,
+  runId: string,
+  outputDir: string,
+  options: { keepArtifacts?: boolean },
+): Promise<void> {
+  const runDir = path.resolve(outputDir, runId);
+
+  // Restore saved context (all artifacts including non-step keys)
+  const context = await PipelineContext.restore(runId, outputDir);
+
+  // Re-load config and providers
+  const config = await loadConfig();
+  setCachedConfig(config);
+  for (const [name, providerConfig] of Object.entries(config.providers)) {
+    llmFactory.register(name, providerConfig);
+  }
+
+  await setupRunLogger(runDir);
+  await acquireRunLock(runId, outputDir);
+
+  const meta = JSON.parse(await fs.readFile(path.join(runDir, 'run-meta.json'), 'utf-8'));
+  const allPlatforms: string[] = meta.completedSteps
+    .filter((s: string) => s.startsWith('outline-'))
+    .map((s: string) => s.replace('outline-', ''));
+
+  const platformList = allPlatforms.map((p: string) => PLATFORM_LABELS[p] ?? p).join(' / ');
+  console.log(chalk.bold('\n🔨 ContentForge — 原创生成（续）\n'));
+  console.log(`关键词: ${keyword}`);
+  console.log(`平台: ${platformList}`);
+  console.log(`Run: ${runId}\n`);
+
+  // Build pipeline and resume from material-search
+  const providerConfig = config.providers[config.defaultProvider];
+  if (!providerConfig) throw new Error(`Provider '${config.defaultProvider}' not found`);
+  const provider = llmFactory.get(config.defaultProvider);
+  const defaultModel = providerConfig.defaultModel;
+  const pipeline = buildCreatePipeline(config, allPlatforms as PlatformSelection);
+
+  const progress = new ProgressDisplay();
+  pipeline.onStepComplete((stepName, result) => {
+    if (result.success) {
+      progress.completeStep(stepName, result.durationMs, `tokens: +${result.tokenUsage.output}`);
+    } else {
+      progress.failStep(stepName, result.error ?? 'unknown error');
+    }
+  });
+
+  // Resume each remaining group: material-search → content-* → review-*
+  // resumeFrom only runs a single parallel group, so we chain them
+  const remainingGroups = [
+    'material-search',   // search materials
+    'content-wechat',    // generate content (parallel per platform)
+    'review-wechat',     // review content (parallel per platform)
+  ];
+  let finalContext = context;
+  for (const resumeStep of remainingGroups) {
+    const result = await pipeline.resumeFrom(resumeStep, finalContext);
+    finalContext = result.context;
+    if (!result.success) {
+      console.error(chalk.red(`\n❌ 管道在 ${resumeStep} 执行失败\n`));
+      await releaseRunLock(runId, outputDir);
+      return;
+    }
+  }
+
+  // Write output files
+  for (const platform of allPlatforms) {
+    const reviewResult = finalContext.get<ReviewResult>(`review-${platform}`);
+    if (!reviewResult) continue;
+    const { recommendedTitle, revisedContent } = reviewResult;
+    const safeTitle = sanitizeFilename(recommendedTitle);
+    const ext = platform === 'xiaohongshu' ? 'xhs.md' : `${platform}.md`;
+    await fs.writeFile(path.join(runDir, `${safeTitle}.${ext}`), revisedContent, 'utf-8');
+  }
+
+  // Cleanup
+  if (!options.keepArtifacts) {
+    await cleanupIntermediateFiles(runDir);
+  }
+
+  // Sync to Obsidian
+  await writeArticlesToObsidian(finalContext, [...allPlatforms]);
+
+  // Summarize
+  const tokenUsage = finalContext.getTotalTokenUsage();
+  const cost = estimateCost(tokenUsage.input, tokenUsage.output);
+  console.log(chalk.bold('\n✅ 生成完成\n'));
+  console.log(`输出目录: ${runDir}`);
+  console.log(`总 token: input=${tokenUsage.input} output=${tokenUsage.output}`);
+  console.log(`预估成本: $${cost.toFixed(4)}\n`);
+  const files = await fs.readdir(runDir);
+  console.log('生成文件:');
+  for (const file of files) {
+    console.log(`  - ${file}`);
+  }
+
+  await releaseRunLock(runId, outputDir);
+}
+
 // ─── Helper: buildTopicAnalysisReview ─────────────────────────────────────────
 
 function buildTopicAnalysisReview(ta: TopicAnalysis): TopicAnalysisReview {
@@ -135,8 +348,35 @@ function buildTopicAnalysisReview(ta: TopicAnalysis): TopicAnalysisReview {
 
 export async function runCreate(
   keyword: string,
-  options: { platforms?: string; context?: string; interactive?: boolean; keepArtifacts?: boolean },
+  options: {
+    platforms?: string;
+    context?: string;
+    interactive?: boolean;
+    keepArtifacts?: boolean;
+    phase?: 'full' | 'outline' | 'content';
+    runId?: string;
+  },
 ): Promise<void> {
+  // Load config first (needed for all phases)
+  const config = await loadConfig();
+  setCachedConfig(config);
+
+  // Register providers
+  for (const [name, providerConfig] of Object.entries(config.providers)) {
+    llmFactory.register(name, providerConfig);
+  }
+
+  const outputDir = config.output?.dir ?? './output';
+
+  // ─── Phase: content (resume from outline) ────────────────────────────────────
+  if (options.phase === 'content') {
+    if (!options.runId) throw new Error('--run-id is required for phase=content');
+    await resumeFromOutline(keyword, options.runId, outputDir, options);
+    return;
+  }
+
+  // ─── Phase: outline (or full) — shared preamble ──────────────────────────────
+
   // Parse and validate platforms
   let selectedPlatforms: PlatformSelection | undefined;
   if (options.platforms) {
@@ -149,16 +389,6 @@ export async function runCreate(
     selectedPlatforms = raw as PlatformSelection;
   }
 
-  // Load config
-  const config = await loadConfig();
-  setCachedConfig(config);
-
-  // Register providers
-  for (const [name, providerConfig] of Object.entries(config.providers)) {
-    llmFactory.register(name, providerConfig);
-  }
-
-  const outputDir = config.output?.dir ?? './output';
   const runId = `create_${Date.now()}`;
   const runDir = path.resolve(outputDir, runId);
 
@@ -178,18 +408,16 @@ export async function runCreate(
   console.log(`关键词: ${keyword}`);
   console.log(`平台: ${platformList}\n`);
 
-  // Style TUI — select style before content generation
-  const { styleTUI } = await import('../../scenarios/style/cli/style-tui.js');
-  const stylesDir = path.join(outputDir, 'styles');
-  const corpusDir = path.join(outputDir, 'corpus');
-  const styleResult = await styleTUI({ stylesDir, corpusDir });
-  if (styleResult.injectResult) {
-    context.set('style-inject', styleResult.injectResult);
+  // Style TUI — select style before content generation (skip for outline phase)
+  if (options.phase !== 'outline') {
+    const { styleTUI } = await import('../../scenarios/style/cli/style-tui.js');
+    const stylesDir = path.join(outputDir, 'styles');
+    const corpusDir = path.join(outputDir, 'corpus');
+    const styleResult = await styleTUI({ stylesDir, corpusDir });
+    if (styleResult.injectResult) {
+      context.set('style-inject', styleResult.injectResult);
+    }
   }
-
-  // Auto-detect TTY: if not explicitly disabled and stdin is a TTY, enable interactive
-  // Explicit interactive:true overrides TTY requirement (for skill command in non-TTY mode)
-  const isInteractive = options.interactive === true || (options.interactive !== false && process.stdin.isTTY);
 
   // Get provider and model for direct step execution
   const providerConfig = config.providers[config.defaultProvider];
@@ -198,6 +426,17 @@ export async function runCreate(
   }
   const provider = llmFactory.get(config.defaultProvider);
   const defaultModel = providerConfig.defaultModel;
+  const allPlatforms = selectedPlatforms ?? (['wechat', 'xiaohongshu', 'douyin'] as const);
+
+  // ─── Phase: outline only (generate outline, persist, exit) ──────────────────
+  if (options.phase === 'outline') {
+    await generateOutlinePhase({ keyword, userContext: options.context, allPlatforms, provider, defaultModel, context, runId, runDir, outputDir });
+    return;
+  }
+
+  // Auto-detect TTY: if not explicitly disabled and stdin is a TTY, enable interactive
+  // Explicit interactive:true overrides TTY requirement (for skill command in non-TTY mode)
+  const isInteractive = options.interactive === true || (options.interactive !== false && process.stdin.isTTY);
 
   if (isInteractive) {
     // ─── Interactive flow ───────────────────────────────────────────────────────
@@ -363,7 +602,11 @@ export async function runCreate(
           if (r.success && r.data) context.set(`outline-${platform}`, r.data);
           return r.data;
         };
-        const confirmed = await confirmOutlines(outlines, onRegenerate, platformsToRun);
+        const confirmed = await confirmOutlines(
+          outlines, onRegenerate, platformsToRun,
+          topicAnalysisResult?.keyword ?? '',
+          topicAnalysisResult?.subTopics?.[0]?.name ?? '',
+        );
         // Write confirmed values back to context
         for (const [platform, confirmedData] of Object.entries(confirmed)) {
           if (confirmedData) {

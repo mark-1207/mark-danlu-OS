@@ -135,27 +135,41 @@ export class PipelineContext {
     }
 
     const context = new PipelineContext(meta.scenario, dir, runId);
+    const completedSet = new Set(meta.completedSteps);
 
-    // Restore completed steps and artifacts
-    for (const stepName of meta.completedSteps) {
-      const artifactPath = path.join(dir, `${stepName}.json`);
+    // Read ALL .json artifact files (not just completedSteps)
+    // This preserves non-step keys like confirmed-outline-*, outline-seed-material-*, etc.
+    let files: string[];
+    try {
+      files = await fs.readdir(dir);
+    } catch {
+      files = [];
+    }
+
+    for (const file of files) {
+      if (file === 'run-meta.json' || file === 'run.log' || !file.endsWith('.json')) continue;
+      const key = file.replace(/\.json$/, '');
       try {
-        const content = await fs.readFile(artifactPath, 'utf-8');
+        const content = await fs.readFile(path.join(dir, file), 'utf-8');
         const data = JSON.parse(content);
-        context.set(stepName, data);
-        // Reconstruct step result so resumeFrom skips already-completed steps
-        context.setStepResult(stepName, {
-          success: true,
-          data,
-          tokenUsage: { input: 0, output: 0 },
-          durationMs: 0,
-        });
+        context.set(key, data);
+        if (completedSet.has(key)) {
+          context.setStepResult(key, {
+            success: true,
+            data,
+            tokenUsage: { input: 0, output: 0 },
+            durationMs: 0,
+          });
+        }
       } catch {
-        // artifact file may not exist for some steps
+        // skip corrupt or unreadable files
       }
     }
 
-    logger.info(`Restored context for run ${runId}`, { completedSteps: meta.completedSteps });
+    logger.info(`Restored context for run ${runId}`, {
+      artifacts: files.filter(f => f.endsWith('.json') && f !== 'run-meta.json').length,
+      completedSteps: meta.completedSteps,
+    });
     return context;
   }
 
