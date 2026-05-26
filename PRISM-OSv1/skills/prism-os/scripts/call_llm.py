@@ -36,8 +36,24 @@ if _env_file.exists():
 
 # ============ curl subprocess 封装（绕过 Windows Python SSL 问题）============
 
+# 全局节流控制：确保 API 调用间隔至少此秒数
+_last_api_call = 0.0
+_MIN_APICALL_INTERVAL = 0.8
+
+
+def _global_throttle():
+    """所有 curl API 调用底层的节流，防止 rate limit"""
+    global _last_api_call
+    now = time.time()
+    elapsed = now - _last_api_call
+    if elapsed < _MIN_APICALL_INTERVAL:
+        time.sleep(_MIN_APICALL_INTERVAL - elapsed)
+    _last_api_call = time.time()
+
+
 def _curl_post(url: str, payload: dict, headers: dict, timeout: int = 30) -> Optional[dict]:
     """用 curl POST 发送请求，绕过 Windows SSL 问题"""
+    _global_throttle()
     try:
         proc = subprocess.run(
             ["curl", "-s", "--max-time", str(timeout), "-k", "-X", "POST",
@@ -56,6 +72,7 @@ def _curl_post(url: str, payload: dict, headers: dict, timeout: int = 30) -> Opt
 
 def _curl_get(url: str, headers: dict, timeout: int = 30) -> Optional[dict]:
     """用 curl GET 发送请求，绕过 Windows SSL 问题"""
+    _global_throttle()
     try:
         proc = subprocess.run(
             ["curl", "-s", "--max-time", str(timeout), "-k", "-X", "GET",
@@ -639,7 +656,7 @@ def call_llm(prompt: str, model: str = "gpt-4", temperature: float = 0.7) -> Dic
     kimi_model = get_kimi_model(scene)
     kimi_max_tokens = get_kimi_max_tokens(scene)
     print(f"[Kimi] {kimi_model}({kimi_max_tokens})...", file=sys.stderr)
-    result = _call_with_retry(call_kimi, prompt, kimi_model, temperature, kimi_max_tokens, max_retries=2)
+    result = _call_with_retry(call_kimi, prompt, kimi_model, temperature, kimi_max_tokens, max_retries=1)
     duration_ms = int((time.time() - start_time) * 1000)
     _log_llm_call(scene, duration_ms, "success" if result["error"] is None else "error",
                    "kimi", kimi_model, result.get("error"))
@@ -651,7 +668,7 @@ def call_llm(prompt: str, model: str = "gpt-4", temperature: float = 0.7) -> Dic
 
     # Step 2: Gateway (免费模型，Kimi 失败后尝试，带重试)
     print(f"[Gateway] 尝试...", file=sys.stderr)
-    result = _call_with_retry(call_gateway, prompt, temperature, max_retries=2)
+    result = _call_with_retry(call_gateway, prompt, temperature, max_retries=1)
     duration_ms = int((time.time() - start_time) * 1000)
     _log_llm_call(scene, duration_ms, "success" if result["error"] is None else "error",
                    "gateway", model, result.get("error"))
@@ -666,7 +683,7 @@ def call_llm(prompt: str, model: str = "gpt-4", temperature: float = 0.7) -> Dic
     # Step 3: OpenRouter 最终降级（使用动态模型列表，带重试）
     for or_model in get_openrouter_models():
         print(f"[OpenRouter] {or_model}...", file=sys.stderr)
-        result = _call_with_retry(call_openrouter, prompt, or_model, temperature, max_retries=2)
+        result = _call_with_retry(call_openrouter, prompt, or_model, temperature, max_retries=1)
         duration_ms = int((time.time() - start_time) * 1000)
         _log_llm_call(scene, duration_ms, "success" if result["error"] is None else "error",
                        "openrouter", or_model, result.get("error"))
