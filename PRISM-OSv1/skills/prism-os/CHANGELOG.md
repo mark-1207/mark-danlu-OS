@@ -4,6 +4,52 @@
 
 ---
 
+### v1.0.10 (2026-05-26)
+
+**状态**：当前版本
+
+#### 修复
+
+- **Windows SSL 全面绕过**：
+  - `call_llm.py` 所有 API 调用改为 curl subprocess（`_curl_post` / `_curl_get`），绕过 Windows Python SSL 证书问题
+  - `reality_anchor.py` 重写：Tavily / Firecrawl 搜索改为 curl subprocess（`-k` 参数）
+  - `embedding.py` 添加 `verify=False` 和 `urllib3` 警告抑制
+  - 所有外部 API 调用不再依赖 Python SSL 堆栈
+
+- **跨机器密钥迁移**：
+  - 新增 `scripts/.env` 文件，集中存放 KIMI_API_KEY / OPENROUTER_API_KEY / ZHIPU_API_KEY
+  - `call_llm.py` / `embedding.py` / `reality_anchor.py` 启动时自动加载 `.env`
+  - 迁移到新机器只需复制 `.env` 文件
+
+#### 新增
+
+- **HTTP 监听模式**：`python prism_os.py listen` 启动长期监听服务，支持跨机器 POST `/run` 触发
+- **全局 API 节流**：`_global_throttle()` 在所有 curl 调用底层强制 0.8s 间隔，避免密集调用触发 rate limit
+- **OpenRouter 付费模型验证列表**：6 个已验证可用模型替代免费限流列表
+  - `qwen/qwen-2.5-72b-instruct` — 最强
+  - `deepseek/deepseek-chat-v3` — 强
+  - `google/gemma-4-26b-a4b-it` — 可用
+  - `mistralai/mistral-small-24b-instruct-2501` — 可用
+  - `meta-llama/llama-3.1-8b-instruct` — 可用
+  - `qwen/qwen3-8b` — 快
+
+#### 优化
+
+- 意图识别：移除过于激进的 `purely_factual` 检查（10字以下+无强意图），fallback 默认触发
+- LLM 重试次数：从 2 次降为 1 次，避免失败时放大 rate limit
+- `classify_intent()` 置信度提升（0.3 → 0.6+），更准确识别讨论类话题
+- OpenRouter 模型获取：不再使用 API 缓存的免费模型列表，直接用验证过的付费模型
+
+#### 不可用模型（区域限制）
+
+| 模型系列 | 状态 |
+|---------|------|
+| OpenAI（gpt-4o/gpt-4o-mini） | 403 区域限制 |
+| Google Gemini | 403 区域限制 |
+| Anthropic Claude（Sonnet/Opus） | 403 区域限制 |
+
+---
+
 ### v1.0.9 (2026-05-21)
 
 **状态**：开发中
@@ -311,4 +357,4 @@ major.minor.patch
 
 ---
 
-**最后更新**：2026-05-20
+**最后更新**：2026-05-26

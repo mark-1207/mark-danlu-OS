@@ -15,6 +15,7 @@
 | V5 | ✓ | Phase 5 内容生成（模块级生成 + 逐模块确认） |
 | V5.5 | ✓ | autocli 集成 + Obsidian 递归扫描 + 风格学习 |
 | V1.0.9 | ✓ | RSS-Hunter × PRISM-OS 整合（crack_queue + --from-queue/--match-queue） |
+| V1.0.10 | ✓ | Windows SSL 修复 + 跨机器密钥迁移 + HTTP 监听 + API 节流 |
 
 ## 目录结构
 
@@ -22,10 +23,24 @@
 prism-os/
 ├── SKILL.md                         # Skill 入口文件
 ├── README.md                        # 本文件
+├── MANUAL.md                        # 用户使用手册
+├── CHANGELOG.md                     # 更新日志
 ├── scripts/
-│   ├── call_llm.py                 # LLM 调用脚本
-│   ├── search.py                   # 搜索查重脚本
-│   └── storage.py                  # 数据持久化脚本
+│   ├── .env                         # API 密钥集中管理（跨机器迁移）
+│   ├── prism_os.py                  # 主入口脚本
+│   ├── call_llm.py                  # LLM 调用脚本（curl subprocess 实现）
+│   ├── embedding.py                 # 向量生成与相似度计算
+│   ├── reality_anchor.py            # 现实校验锚（curl subprocess 实现）
+│   ├── cognitive_crack.py           # 认知裂缝捕捉
+│   ├── cognitive_outline.py         # CCOS v2.0 认知大纲
+│   ├── crack_queue.py               # 裂缝队列管理
+│   ├── gap_analysis.py              # 素材缺口分析
+│   ├── logic_pressure.py            # 逻辑压力测试
+│   ├── assassination.py             # 刺客机制
+│   ├── socratic_gateway.py          # 苏格拉底网关
+│   ├── content_generator.py         # Phase 5 内容生成
+│   ├── search.py                    # 搜索查重脚本
+│   └── storage.py                   # 数据持久化脚本
 ├── references/
 │   ├── intent_recognition.md        # 意图识别 Prompt
 │   ├── socratic_gateway.md          # 苏格拉底网关 Prompt
@@ -46,30 +61,32 @@ prism-os/
 
 ## 快速开始
 
-### 1. 配置环境变量
+### 1. 配置 API 密钥
+
+编辑 `scripts/.env` 文件，填入实际 API 密钥（迁移到新机器只需复制此文件）：
 
 ```bash
-# Gateway（免费主路径）
-export LLM_API_URL="http://localhost:3000/v1/chat/completions"
-export GATEWAY_AUTH_KEY="your-gateway-key"
-export GATEWAY_SCENE="reasoning"  # reasoning/quality/writing-cn/translation/fast/long-context/summary/extraction
-
-# Kimi（付费兜底，Kimi API Key）
-export KIMI_API_KEY="your-kimi-key"
-
-# OpenRouter（付费备用，OpenRouter API Key）
-export OPENROUTER_API_KEY="your-openrouter-key"
+# scripts/.env
+KIMI_API_KEY=your-kimi-key
+OPENROUTER_API_KEY=your-openrouter-key
+ZHIPU_API_KEY=your-zhipu-key
 ```
 
-### 2. 复制配置模板
+### 2. 使用
 
+**方式一：直接触发（推荐）**
 ```bash
-cp config/user_config.yaml.example config/user_config.yaml
-# 编辑 config/user_config.yaml，填入实际配置
+python prism_os.py run "你的话题" [--fast] [--no-ext]
 ```
 
-### 3. 使用
+**方式二：HTTP 监听模式（跨机器）**
+```bash
+python prism_os.py listen
+# 然后从其他机器 POST 触发：
+# curl -X POST http://<IP>:8080/run -d '{"text": "你的话题"}'
+```
 
+**方式三：Claude Code Skill 自动触发**
 在 Claude Code 中，当你有创作意图时，描述你的想法，skill 会自动介入。
 
 ## 核心流程
@@ -124,13 +141,19 @@ cp config/user_config.yaml.example config/user_config.yaml
 # 完整流程（用户输入）
 python prism_os.py run "<用户输入>" [--format] [--no-ext] [--fast]
 
-# 从队列选择裂缝进入主流程（新增 v1.0.9）
+# HTTP 监听模式（跨机器触发，新增 v1.0.10）
+python prism_os.py listen [--port 8080]
+
+# 短期记忆
+python prism_os.py recall
+
+# 从队列选择裂缝进入主流程（v1.0.9）
 python prism_os.py run --from-queue
 
-# 输入时匹配队列中的相关裂缝（新增 v1.0.9）
+# 输入时匹配队列中的相关裂缝（v1.0.9）
 python prism_os.py run "<用户输入>" --match-queue
 
-# 队列管理（新增 v1.0.9）
+# 队列管理（v1.0.9）
 python prism_os.py queue --list                # 列出所有待消费裂缝
 python prism_os.py queue --tag <id> <标签>      # 打标签（如"战略级"）
 python prism_os.py queue --dismiss <id>         # 删除无用条目
@@ -146,39 +169,40 @@ python prism_os.py generate "<标题>" [--platform wechat|xiaohongshu] [--intera
 ## LLM 三级 Fallback 架构
 
 ```
-1. Gateway（免费主路径）
-   └─ 超时/500错误 → 重试一次
-       └─ 还失败 →
+1. Kimi（付费主路径） — 场景模型动态选择
+   └─ reasoning     → moonshot-v1-128k (8192 tokens)
+   └─ quality       → moonshot-v1-128k (16384 tokens)
+   └─ writing-cn    → moonshot-v1-128k (16384 tokens)
+   └─ fast          → moonshot-v1-32k (4096 tokens)
+   └─ 重试 1 次，失败 →
 
-2. Kimi（付费兜底，优先）
-   └─ 场景模型映射：
-       reasoning     → kimi-k2.6
-       quality       → moonshot-v1-128k
-       writing-cn    → moonshot-v1-128k
-       writing-en    → moonshot-v1-128k
-       translation   → moonshot-v1-128k
-       fast          → moonshot-v1-32k
-       long-context  → kimi-k2.6
-       summary       → moonshot-v1-128k
-       extraction    → moonshot-v1-128k
-       multimodal    → moonshot-v1-128k-vision-preview
-   └─ 失败 →
+2. Gateway（免费模型） — 备用
+   └─ 未配置则跳过 →
 
-3. OpenRouter（付费备用）
-   └─ google/gemini-2.0-flash-exp（先试，便宜快速）
-       └─ 失败 →
-   └─ anthropic/claude-sonnet-4.6（兜底，更强）
+3. OpenRouter（付费备用） — 最终降级
+   └─ qwen/qwen-2.5-72b-instruct（最强）
+   └─ deepseek/deepseek-chat-v3（强）
+   └─ google/gemma-4-26b-a4b-it
+   └─ mistralai/mistral-small-24b-instruct-2501
+   └─ meta-llama/llama-3.1-8b-instruct
+   └─ qwen/qwen3-8b（最快）
+
+全部失败 → 返回结构化错误
 ```
 
-**Kimi 限制**：
-- 并发数：50
-- TPM：2,000,000
-- RPM：200
-- TPD：200
+**API 调用实现**：
+- 全部通过 curl subprocess（`-k` 参数），绕过 Windows Python SSL 问题
+- 全局节流：所有 API 调用间隔 ≥ 0.8s，防止 rate limit
+
+**不可用模型（区域限制）**：
+- OpenAI 系列（gpt-4o/gpt-4o-mini） → 403
+- Google Gemini 系列 → 403
+- Anthropic Claude 系列 → 403
 
 **意图识别增强**：
 - 显式关键词触发：写、文章、选题、标题、创作、帮我写等
 - 隐式触发：话题疑问句（为什么、是什么、如何等）
+- 默认 fallback：无法判断时默认触发 PRISM-OS（安全侧）
 
 ## 验收标准
 
