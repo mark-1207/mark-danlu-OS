@@ -93,20 +93,27 @@ def classify_intent(user_input: str) -> Dict:
 """
         result = call_llm(prompt)
         if result and not result.get("error") and result.get("content"):
-            import re, json as _json
+            import re
             content = result["content"]
-            m = re.search(r'```json\s*\n?(.*?)\n?```', content, re.DOTALL)
-            if not m:
-                m = re.search(r'\{.*\}', content, re.DOTALL)
-            if m:
-                parsed = _json.loads(m.group(1))
-                return {
-                    "trigger": parsed.get("trigger", False),
-                    "confidence": 0.6,
-                    "reason": parsed.get("reason", "")
-                }
-    except Exception:
-        pass
+            # 先尝试提取 code block 中的内容（有捕获组 → group(1)）
+            code_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', content, re.DOTALL)
+            if code_match:
+                text_to_parse = code_match.group(1)
+            else:
+                # 否则直接找 JSON 对象
+                brace_match = re.search(r'\{.*\}', content, re.DOTALL)
+                if brace_match:
+                    text_to_parse = brace_match.group(0)
+                else:
+                    text_to_parse = content
+            parsed = json.loads(text_to_parse)
+            return {
+                "trigger": parsed.get("trigger", False),
+                "confidence": 0.6,
+                "reason": parsed.get("reason", "")
+            }
+    except (ImportError, json.JSONDecodeError, AttributeError, KeyError, TypeError, IndexError) as e:
+        print(f"[Warning] classify_intent LLM 解析失败: {e}", file=sys.stderr)
 
     # fallback：LLM 不可用时默认触发（安全侧，宁放过不错杀）
     return {"trigger": True, "confidence": 0.3, "reason": "无法判断，默认触发PRISM-OS"}
@@ -203,7 +210,8 @@ def run_prism_os(
     include_phase_4_8: bool = True,
     materials: str = "",
     history_topics: List[str] = None,
-    skip_gateway: bool = False
+    skip_gateway: bool = False,
+    platform: str = "both"
 ) -> Dict:
     """
     PRISM-OS 完整工作流程
@@ -393,12 +401,10 @@ def run_prism_os(
             first_candidate = final_candidates[0] if final_candidates else {}
             title = first_candidate.get("title", "")
             dimension = first_candidate.get("dimension", "")
-            platform_choice = "both"  # 默认双平台
-
-            if platform_choice == "both":
+            if platform == "both":
                 ccos_result = generate_dual_platform_outline(title, dimension)
             else:
-                ccos_result = cognitive_outline_workflow(title, dimension, platform_choice)
+                ccos_result = cognitive_outline_workflow(title, dimension, platform)
 
             result["ccos_outline"] = ccos_result
         except Exception as e:
@@ -436,7 +442,6 @@ def run_prism_os(
                 "thesis": thesis,
                 "candidates_count": len(final_candidates),
                 "entropy_score": entropy_score,
-                "gap_score": result.get("gap", {}).get("gap_score", 0) if result.get("gap") else 0,
                 "candidates": [{"title": c.get("title", ""), "dimension": c.get("dimension", "")} for c in final_candidates[:5]],
                 "ccos_outline": result.get("ccos_outline")
             }
@@ -866,7 +871,15 @@ def main():
             _safe_print({"error": "请提供用户输入"})
             sys.exit(1)
 
-        result = run_prism_os(user_input, include_phase_4_8=include_ext, skip_gateway=skip_gateway)
+        # 加载历史选题供刺客机制使用
+        try:
+            from storage import load_log
+            history_logs = load_log(20)
+            history_topics = [log.get("thesis", "") for log in history_logs if log.get("thesis")]
+        except Exception:
+            history_topics = []
+
+        result = run_prism_os(user_input, include_phase_4_8=include_ext, skip_gateway=skip_gateway, history_topics=history_topics)
 
         if use_format:
             output = format_prism_os_output(result)
