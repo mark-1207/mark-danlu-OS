@@ -125,7 +125,7 @@ export function parseIntent(text: string): IntentResult {
 
 export async function runSkill(
   input: string,
-  options: { auto?: boolean; phase?: 'full' | 'outline' | 'content'; runId?: string } = {},
+  options: { auto?: boolean; phase?: 'full' | 'outline' | 'material-gap' | 'content-draft' | 'content' | 'review'; runId?: string } = {},
 ): Promise<void> {
   const intent = parseIntent(input);
 
@@ -155,7 +155,7 @@ export function registerSkillCommand(program: Command): void {
     .description('自然语言统一入口：描述需求即可，自动判断原创/二创及目标平台')
     .argument('<text>', '自然语言描述，例如：帮我写一篇关于AI的文章 发公众号')
     .option('--auto', '使用默认选项全自动运行（无需确认，适合 CI/快速测试）')
-    .option('--phase <phase>', '运行阶段: full | outline | content', 'full')
+    .option('--phase <phase>', '运行阶段: outline | material-gap | content-draft | content | review | full', 'full')
     .option('--run-id <id>', '指定 run ID（phase=content 时必填）')
     .action(async (text: string, opts: { auto?: boolean; phase?: string; runId?: string }) => {
       try {

@@ -183,33 +183,181 @@ function printOutlineSummary(
   platforms: string[],
   keyword: string,
 ): void {
+  // Layer 1: Topic Analysis
+  const topicAnalysis = context.get<any>('topic-analysis');
+  const subTopics = (topicAnalysis?.subTopics ?? []).map((s: any) => ({
+    name: s.name,
+    description: s.description,
+    heatLevel: s.heatLevel,
+  }));
+  const painPoints = (topicAnalysis?.painPoints ?? []).map((p: any) => ({
+    description: p.description ?? p,
+    severity: p.severity ?? p.intensity,
+  }));
+  const trendingAngles = (topicAnalysis?.trendingAngles ?? []).map((a: any) => ({
+    angle: a.angle ?? a,
+    competitiveLandscape: a.competitiveLandscape ?? a.heat,
+  }));
+  const controversies = (topicAnalysis?.controversies ?? []).map((c: any) => ({
+    description: c.description ?? c,
+  }));
+
+  // Layer 2: Topic Assignment (per platform)
+  const assignments = context.get<any>('topic-assignment');
+  const platformCards: Record<string, any> = {};
+  for (const platform of platforms) {
+    const card = assignments?.[platform];
+    if (card) {
+      platformCards[platform] = {
+        angle: card.angle,
+        titleDrafts: card.titleDrafts ?? [],
+        keyPoints: card.keyPoints ?? [],
+      };
+    }
+  }
+
+  // Layer 3: Outlines (per platform)
   const outlineData: Record<string, any> = {};
   for (const platform of platforms) {
     const outline = context.get<any>(`outline-${platform}`);
-    const assignments = context.get<any>('topic-assignment');
-    const topicCard = assignments?.[platform];
-    outlineData[platform] = {
-      angle: topicCard?.angle ?? '',
-      titles: topicCard?.titleDrafts ?? [],
-    };
+    const data: any = { ...platformCards[platform] };
     if (platform === 'wechat' && outline?.sections) {
-      outlineData[platform].sections = outline.sections.map((s: any) => ({
+      data.sections = outline.sections.map((s: any) => ({
         title: s.title,
         purpose: s.purpose,
         caseSlot: s.caseSlot,
       }));
     }
     if (platform === 'xiaohongshu' && outline?.tips) {
-      outlineData[platform].tips = outline.tips.map((t: any) => ({ title: t.title }));
+      data.tips = outline.tips.map((t: any) => ({ title: t.title, description: t.description }));
     }
     if (platform === 'douyin' && outline?.hook3s) {
-      outlineData[platform].hook = outline.hook3s.script?.slice(0, 60);
-      outlineData[platform].corePoint = outline.corePoint?.statement;
+      data.hook = outline.hook3s.script?.slice(0, 80);
+      data.corePoint = outline.corePoint?.statement;
     }
+    outlineData[platform] = data;
   }
+
   console.log(chalk.bold('\n=== OUTLINE_SUMMARY_START ==='));
-  console.log(JSON.stringify({ runId, phase: 'outline', keyword, platforms, outlines: outlineData }));
+  console.log(JSON.stringify({
+    runId,
+    phase: 'outline',
+    keyword,
+    platforms,
+    topicAnalysis: { subTopics, painPoints, trendingAngles, controversies },
+    platformCards,
+    outlines: outlineData,
+  }));
   console.log(chalk.bold('=== OUTLINE_SUMMARY_END ==='));
+}
+
+// ─── Phase: material-gap (material search + gap analysis) ─────────────────────
+
+async function materialGapPhase(params: OutlinePhaseParams): Promise<void> {
+  const { allPlatforms, provider, defaultModel, context, runId, runDir, outputDir } = params;
+  const progress = new ProgressDisplay();
+
+  // Run material-search for each platform
+  for (const p of allPlatforms) {
+    progress.startStep(`material-search-${p}`, `素材搜索-${PLATFORM_LABELS[p] ?? p}`);
+  }
+  const searchStep = new MaterialSearchStep(provider, defaultModel);
+  const searchResult = await searchStep.execute({}, context);
+  context.setStepResult('material-search', searchResult);
+  if (searchResult.success && searchResult.data !== undefined) {
+    context.set('material-search', searchResult.data);
+  }
+  for (const p of allPlatforms) {
+    progress.completeStep(`material-search-${p}`, searchResult.durationMs, '');
+  }
+
+  await context.persist();
+
+  // Output gap analysis JSON
+  const materials = context.get<any>('material-search');
+  const userMaterials: Record<string, string> = {};
+  for (const p of allPlatforms) {
+    const um = context.get<string>(`user-materials-${p}`);
+    if (um) userMaterials[p] = um;
+  }
+  console.log(chalk.bold('\n=== MATERIAL_GAP_START ==='));
+  console.log(JSON.stringify({
+    runId,
+    phase: 'material-gap',
+    foundMaterials: materials ?? {},
+    userMaterials,
+    nextPhase: 'content-draft',
+  }));
+  console.log(chalk.bold('=== MATERIAL_GAP_END ==='));
+
+  await releaseRunLock(runId, outputDir);
+  console.log(chalk.dim(`\n[phase=material-gap] runId=${runId} — materials ready, awaiting confirmation`));
+}
+
+// ─── Phase: content-draft (generate content per platform) ─────────────────────
+
+async function contentDraftPhase(
+  keyword: string,
+  runId: string,
+  outputDir: string,
+  options: { keepArtifacts?: boolean },
+): Promise<void> {
+  const runDir = path.resolve(outputDir, runId);
+  const context = await PipelineContext.restore(runId, outputDir);
+
+  const config = await loadConfig();
+  setCachedConfig(config);
+  for (const [name, providerConfig] of Object.entries(config.providers)) {
+    llmFactory.register(name, providerConfig);
+  }
+  await setupRunLogger(runDir);
+  await acquireRunLock(runId, outputDir);
+
+  const meta = JSON.parse(await fs.readFile(path.join(runDir, 'run-meta.json'), 'utf-8'));
+  const allPlatforms: string[] = meta.completedSteps
+    .filter((s: string) => s.startsWith('outline-'))
+    .map((s: string) => s.replace('outline-', ''));
+  const providerConfig = config.providers[config.defaultProvider];
+  const provider = llmFactory.get(config.defaultProvider);
+  const defaultModel = providerConfig.defaultModel;
+  const pipeline = buildCreatePipeline(config, allPlatforms as PlatformSelection);
+  const progress = new ProgressDisplay();
+
+  // Run content generation for each platform
+  const contentStepMap: Record<string, any> = {
+    wechat: ContentWechatStep,
+    xiaohongshu: ContentXiaohongshuStep,
+    douyin: ContentDouyinStep,
+  };
+
+  for (const p of allPlatforms) {
+    progress.startStep(`content-${p}`, `内容生成-${PLATFORM_LABELS[p] ?? p}`);
+    // Run content step directly (read confirmed-outline from context)
+    const StepClass = contentStepMap[p];
+    if (!StepClass) continue;
+    const step = new StepClass(provider, defaultModel);
+    const r = await step.execute({}, context);
+    context.setStepResult(`content-${p}`, r);
+    if (r.success && r.data !== undefined) {
+      context.set(`content-${p}`, r.data);
+    }
+    progress.completeStep(`content-${p}`, r.durationMs, `tokens: +${r.tokenUsage.output}`);
+  }
+
+  await context.persist();
+
+  // Output content drafts as JSON
+  const drafts: Record<string, any> = {};
+  for (const p of allPlatforms) {
+    const content = context.get<string>(`content-${p}`);
+    drafts[p] = { content };
+  }
+  console.log(chalk.bold('\n=== CONTENT_DRAFT_START ==='));
+  console.log(JSON.stringify({ runId, phase: 'content-draft', drafts, nextPhase: 'review' }));
+  console.log(chalk.bold('=== CONTENT_DRAFT_END ==='));
+
+  await releaseRunLock(runId, outputDir);
+  console.log(chalk.dim(`\n[phase=content-draft] runId=${runId} — drafts ready, awaiting confirmation`));
 }
 
 // ─── Phase: content (resume from outline) ──────────────────────────────────────
@@ -262,13 +410,20 @@ async function resumeFromOutline(
     }
   });
 
+  // Determine resume starting point based on phase
+  const res = options as any;
+  let startIndex = 0;
+  if (res.phase === 'content-draft' as any) startIndex = 1; // skip material-search
+  if (res.phase === 'review' as any) startIndex = 2;       // skip to review only
+
   // Resume each remaining group: material-search → content-* → review-*
   // resumeFrom only runs a single parallel group, so we chain them
-  const remainingGroups = [
+  const allGroups = [
     'material-search',   // search materials
     'content-wechat',    // generate content (parallel per platform)
     'review-wechat',     // review content (parallel per platform)
   ];
+  const remainingGroups = allGroups.slice(startIndex);
   let finalContext = context;
   for (const resumeStep of remainingGroups) {
     const result = await pipeline.resumeFrom(resumeStep, finalContext);
@@ -353,7 +508,7 @@ export async function runCreate(
     context?: string;
     interactive?: boolean;
     keepArtifacts?: boolean;
-    phase?: 'full' | 'outline' | 'content';
+    phase?: 'full' | 'outline' | 'material-gap' | 'content-draft' | 'content' | 'review';
     runId?: string;
   },
 ): Promise<void> {
@@ -368,10 +523,15 @@ export async function runCreate(
 
   const outputDir = config.output?.dir ?? './output';
 
-  // ─── Phase: content (resume from outline) ────────────────────────────────────
-  if (options.phase === 'content') {
-    if (!options.runId) throw new Error('--run-id is required for phase=content');
+  // ─── Phase: resume modes (need runId) ──────────────────────────────────────
+  if (options.phase === 'content' || options.phase === 'review') {
+    if (!options.runId) throw new Error(`--run-id is required for phase=${options.phase}`);
     await resumeFromOutline(keyword, options.runId, outputDir, options);
+    return;
+  }
+  if (options.phase === 'content-draft') {
+    if (!options.runId) throw new Error('--run-id is required for phase=content-draft');
+    await contentDraftPhase(keyword, options.runId, outputDir, options);
     return;
   }
 
@@ -428,9 +588,20 @@ export async function runCreate(
   const defaultModel = providerConfig.defaultModel;
   const allPlatforms = selectedPlatforms ?? (['wechat', 'xiaohongshu', 'douyin'] as const);
 
-  // ─── Phase: outline only (generate outline, persist, exit) ──────────────────
+  // ─── Phase: outline only ──────────────────────────────────────────────────
   if (options.phase === 'outline') {
     await generateOutlinePhase({ keyword, userContext: options.context, allPlatforms, provider, defaultModel, context, runId, runDir, outputDir });
+    return;
+  }
+
+  // ─── Phase: material-gap (resume from outline, run material-search) ─────────
+  if (options.phase === 'material-gap') {
+    if (!options.runId) throw new Error('--run-id is required for phase=material-gap');
+    const runDir2 = path.resolve(outputDir, options.runId);
+    const ctx2 = await PipelineContext.restore(options.runId, outputDir);
+    await setupRunLogger(runDir2);
+    await acquireRunLock(options.runId, outputDir);
+    await materialGapPhase({ keyword, userContext: options.context, allPlatforms, provider, defaultModel, context: ctx2, runId: options.runId, runDir: runDir2, outputDir });
     return;
   }
 
