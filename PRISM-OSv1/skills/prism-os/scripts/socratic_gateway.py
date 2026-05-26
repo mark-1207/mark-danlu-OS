@@ -343,20 +343,8 @@ def socratic_gateway(user_input: str, user_config: Optional[Dict] = None) -> Dic
 # ============ 辅助函数 ============
 
 def _call_llm_raw(prompt: str) -> Optional[str]:
-    """调用 LLM，返回原始文本"""
-    from call_llm import call_llm
-
-    # Phase 1 使用 reasoning scene
-    scene = os.environ.get("GATEWAY_SCENE", "reasoning")
-    os.environ["GATEWAY_SCENE"] = scene
-
-    result = call_llm(prompt)
-
-    if result.get("error"):
-        print(f"LLM 调用错误: {result['error']}", file=sys.stderr)
-        return None
-
-    return result.get("content")
+    from call_llm import call_llm_raw
+    return call_llm_raw(prompt, temperature=0.7, scene="reasoning", error_prefix="LLM 调用错误:")
 
 
 def _parse_llm_json(text: str) -> Optional[Dict]:

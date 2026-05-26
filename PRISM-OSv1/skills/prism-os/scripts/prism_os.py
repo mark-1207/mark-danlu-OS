@@ -300,10 +300,15 @@ def run_prism_os(
     from prism_engine import prism_engine as generate_titles
 
     result["phase"] = "prism"
-    prism_result = generate_titles(thesis, identity_role, audience)
-    result["prism"] = prism_result
+    try:
+        prism_result = generate_titles(thesis, identity_role, audience)
+        result["prism"] = prism_result
+    except Exception as e:
+        result["status"] = "error"
+        result["message"] = f"标题生成异常: {str(e)}"
+        return result
 
-    if prism_result["status"] == "error" or not prism_result.get("candidates"):
+    if prism_result.get("status") == "error" or not prism_result.get("candidates"):
         result["status"] = "error"
         result["message"] = "标题生成失败"
         return result
@@ -312,8 +317,23 @@ def run_prism_os(
     from reality_anchor import reality_anchor as validate_titles
 
     result["phase"] = "reality"
-    reality_result = validate_titles(prism_result["candidates"])
-    result["reality"] = reality_result
+    try:
+        reality_result = validate_titles(prism_result["candidates"])
+        result["reality"] = reality_result
+    except Exception as e:
+        # 优雅降级：保留所有原始候选，标记为"未校验"
+        candidates = prism_result["candidates"]
+        reality_result = {
+            "status": "partial",
+            "validated": candidates,
+            "rejected": [],
+            "statistics": {
+                "error": str(e),
+                "total_count": len(candidates),
+                "validated_count": len(candidates)
+            }
+        }
+        result["reality"] = reality_result
 
     # 提取最终候选
     final_candidates = reality_result.get("validated", [])
@@ -445,7 +465,11 @@ def run_prism_os(
                 result["topology"] = {}
 
     # ============ 最终结果 ============
-    result["status"] = "success"
+    if not final_candidates:
+        result["status"] = "no_candidates"
+        result["message"] = "所有候选标题均未通过现实校验（重复度过高或竞争过于激烈）"
+    else:
+        result["status"] = "success"
     result["phase"] = "complete"
 
     return result
@@ -685,7 +709,7 @@ def main():
     command = sys.argv[1]
 
     # 短触发：未知命令 → 当作 run 处理（天然语言一句话直接跑）
-    known_commands = {"run", "classify", "gateway", "confirm", "ccos", "generate", "queue", "archive", "p", "prism"}
+    known_commands = {"run", "classify", "gateway", "confirm", "ccos", "generate", "queue", "archive"}
     if command not in known_commands:
         # 第一个参数不是命令 → 当作 user_input 走完整流程
         user_input = command

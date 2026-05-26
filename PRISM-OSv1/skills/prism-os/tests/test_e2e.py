@@ -126,6 +126,13 @@ class TestE2ECCOSFlow:
         mock_module.call_llm = _mock_single_call
         mock_module.call_llm.__name__ = 'call_llm'
         mock_module.call_llm.__module__ = 'call_llm'
+
+        def _mock_call_llm_raw(prompt, temperature=0.7, scene="writing-cn", error_prefix="[LLM]"):
+            result = _mock_llm(prompt, temperature)
+            if result.get("error"):
+                return None
+            return result.get("content", "")
+        mock_module.call_llm_raw = _mock_call_llm_raw
         sys.modules['call_llm'] = mock_module
 
         try:
@@ -166,6 +173,13 @@ class TestE2ECCOSFlow:
         mock_module.call_llm = _mock_single_call
         mock_module.call_llm.__name__ = 'call_llm'
         mock_module.call_llm.__module__ = 'call_llm'
+
+        def _mock_call_llm_raw(prompt, temperature=0.7, scene="writing-cn", error_prefix="[LLM]"):
+            result = _mock_llm(prompt, temperature)
+            if result.get("error"):
+                return None
+            return result.get("content", "")
+        mock_module.call_llm_raw = _mock_call_llm_raw
         sys.modules['call_llm'] = mock_module
 
         try:
@@ -233,6 +247,13 @@ class TestE2ECCOSFlow:
         mock_module.call_llm = _mock_single_call
         mock_module.call_llm.__name__ = 'call_llm'
         mock_module.call_llm.__module__ = 'call_llm'
+
+        def _mock_call_llm_raw(prompt, temperature=0.7, scene="writing-cn", error_prefix="[LLM]"):
+            result = _mock_llm(prompt, temperature)
+            if result.get("error"):
+                return None
+            return result.get("content", "")
+        mock_module.call_llm_raw = _mock_call_llm_raw
         sys.modules['call_llm'] = mock_module
 
         try:
@@ -260,6 +281,13 @@ class TestE2ECCOSFlow:
         mock_module.call_llm = _mock_single_call
         mock_module.call_llm.__name__ = 'call_llm'
         mock_module.call_llm.__module__ = 'call_llm'
+
+        def _mock_call_llm_raw(prompt, temperature=0.7, scene="writing-cn", error_prefix="[LLM]"):
+            result = _mock_llm(prompt, temperature)
+            if result.get("error"):
+                return None
+            return result.get("content", "")
+        mock_module.call_llm_raw = _mock_call_llm_raw
         sys.modules['call_llm'] = mock_module
 
         try:

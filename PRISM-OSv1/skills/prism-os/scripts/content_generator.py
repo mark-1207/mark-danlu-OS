@@ -19,15 +19,8 @@ from datetime import datetime
 # ============ LLM 调用 ============
 
 def _call_llm_raw(prompt: str, temperature: float = 0.7) -> Optional[str]:
-    """调用 LLM，返回原始文本"""
-    os.environ["GATEWAY_SCENE"] = "writing-cn"
-    sys.path.insert(0, str(Path(__file__).parent))
-    from call_llm import call_llm as _call_llm
-    result = _call_llm(prompt, temperature=temperature)
-    if result.get("error"):
-        print(f"[LLM Error] {result['error']}", file=sys.stderr)
-        return None
-    return result.get("content", "")
+    from call_llm import call_llm_raw
+    return call_llm_raw(prompt, temperature=temperature, scene="writing-cn", error_prefix="[LLM Error]")
 
 
 def _parse_llm_json(text: str) -> Optional[Dict]:

@@ -59,15 +59,8 @@ def _get_config(path: List[str], default: Any = None) -> Any:
 # ============ T-1: 基础辅助函数 ============
 
 def _call_llm_raw(prompt: str, temperature: float = 0.7) -> Optional[str]:
-    """调用 LLM，返回原始文本（Phase 4.7: 修复 scene bug）"""
-    os.environ["GATEWAY_SCENE"] = "writing-cn"
-    sys.path.insert(0, str(Path(__file__).parent))
-    from call_llm import call_llm as _call_llm
-    result = _call_llm(prompt, temperature=temperature)
-    if result.get("error"):
-        print(f"[LLM Error] {result['error']}", file=sys.stderr)
-        return None
-    return result.get("content", "")
+    from call_llm import call_llm_raw
+    return call_llm_raw(prompt, temperature=temperature, scene="writing-cn", error_prefix="[LLM Error]")
 
 
 def _parse_llm_json(text: str) -> Optional[Dict]:

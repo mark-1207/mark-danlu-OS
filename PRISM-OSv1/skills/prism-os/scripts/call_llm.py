@@ -52,11 +52,12 @@ def _global_throttle():
 
 
 def _curl_post(url: str, payload: dict, headers: dict, timeout: int = 30) -> Optional[dict]:
-    """用 curl POST 发送请求，绕过 Windows SSL 问题"""
+    """用 curl POST 发送请求，绕过 Windows SSL 问题。
+    返回响应 JSON dict，失败（包括 HTTP 4xx/5xx）返回 None。"""
     _global_throttle()
     try:
         proc = subprocess.run(
-            ["curl", "-s", "--max-time", str(timeout), "-k", "-X", "POST",
+            ["curl", "-s", "-f", "--max-time", str(timeout), "-k", "-X", "POST",
              url,
              "-H", "Content-Type: application/json",
              *sum([["-H", f"{k}: {v}"] for k, v in headers.items()], []),
@@ -65,24 +66,32 @@ def _curl_post(url: str, payload: dict, headers: dict, timeout: int = 30) -> Opt
         )
         if proc.returncode != 0 or not proc.stdout:
             return None
-        return json.loads(proc.stdout.decode("utf-8", errors="replace"))
+        data = json.loads(proc.stdout.decode("utf-8", errors="replace"))
+        # 防御性检查：API 可能返回 {"error": ...} 但 HTTP 200（某些 API 行为）
+        if isinstance(data, dict) and "error" in data:
+            return None
+        return data
     except Exception:
         return None
 
 
 def _curl_get(url: str, headers: dict, timeout: int = 30) -> Optional[dict]:
-    """用 curl GET 发送请求，绕过 Windows SSL 问题"""
+    """用 curl GET 发送请求，绕过 Windows SSL 问题。
+    返回响应 JSON dict，失败返回 None。"""
     _global_throttle()
     try:
         proc = subprocess.run(
-            ["curl", "-s", "--max-time", str(timeout), "-k", "-X", "GET",
+            ["curl", "-s", "-f", "--max-time", str(timeout), "-k", "-X", "GET",
              url,
              *sum([["-H", f"{k}: {v}"] for k, v in headers.items()], [])],
             capture_output=True, timeout=timeout + 5
         )
         if proc.returncode != 0 or not proc.stdout:
             return None
-        return json.loads(proc.stdout.decode("utf-8", errors="replace"))
+        data = json.loads(proc.stdout.decode("utf-8", errors="replace"))
+        if isinstance(data, dict) and "error" in data:
+            return None
+        return data
     except Exception:
         return None
 
@@ -273,7 +282,7 @@ def call_kimi(prompt: str, model: str = "kimi-k2", temperature: float = 0.7, max
             "error": None,
             "model": model,
             "provider": "kimi",
-            "via_backup": True
+            "via_backup": False  # Kimi 是主路径，不是备用
         }
     except Exception as e:
         return {
@@ -692,6 +701,35 @@ def call_llm(prompt: str, model: str = "gpt-4", temperature: float = 0.7) -> Dic
         print(f"[OpenRouter] 失败: {result['error']}", file=sys.stderr)
 
     return _make_structured_error("none", f"所有 provider 都失败: {kimi_error}")
+
+
+# ============ 统一 LLM 原始文本调用 ============
+
+def call_llm_raw(
+    prompt: str,
+    temperature: float = 0.7,
+    scene: str = "writing-cn",
+    error_prefix: str = "[LLM]"
+) -> Optional[str]:
+    """
+    统一的 LLM 调用封装，返回原始文本内容。
+    所有模块通过此函数或 shim 调用，避免重复实现。
+
+    Args:
+        prompt: LLM 提示词
+        temperature: 温度（默认 0.7）
+        scene: GATEWAY_SCENE 值（默认 "writing-cn"）
+        error_prefix: stderr 错误信息前缀
+
+    Returns:
+        原始文本内容，失败返回 None
+    """
+    os.environ["GATEWAY_SCENE"] = scene
+    result = call_llm(prompt, temperature=temperature)
+    if result.get("error"):
+        print(f"{error_prefix} {result['error']}", file=sys.stderr)
+        return None
+    return result.get("content", "")
 
 
 # ============ CLI 入口 ============

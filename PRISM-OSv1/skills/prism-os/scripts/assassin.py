@@ -678,20 +678,8 @@ def _load_yaml_simple(path: str) -> list:
 
 
 def _call_llm_raw(prompt: str) -> Optional[str]:
-    """调用 LLM，返回原始文本"""
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from call_llm import call_llm
-
-    scene = os.environ.get("GATEWAY_SCENE", "quality")
-    os.environ["GATEWAY_SCENE"] = scene
-
-    result = call_llm(prompt)
-
-    if result.get("error"):
-        print(f"[Error] LLM: {result['error']}", file=sys.stderr)
-        return None
-
-    return result.get("content")
+    from call_llm import call_llm_raw
+    return call_llm_raw(prompt, temperature=0.7, scene="quality", error_prefix="[Error] LLM:")
 
 
 def _parse_llm_json(text: str) -> Optional[Dict]:
