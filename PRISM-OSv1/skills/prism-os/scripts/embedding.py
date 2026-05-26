@@ -11,9 +11,22 @@ import hashlib
 import re
 import shutil
 from typing import List, Optional
+from pathlib import Path
 
 import numpy as np
 import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# ============ .env 自动加载（兼容跨机器迁移）============
+_env_file = Path(__file__).parent / ".env"
+if _env_file.exists():
+    for line in _env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        os.environ.setdefault(k.strip(), v.strip())
 
 # ============ 常量 ============
 
@@ -128,7 +141,8 @@ def embed(text: str, model: str = None) -> Optional[List[float]]:
             ZHIPU_API_URL,
             headers=headers,
             json=payload,
-            timeout=REQUEST_TIMEOUT
+            timeout=REQUEST_TIMEOUT,
+            verify=False
         )
         response.raise_for_status()
         data = response.json()

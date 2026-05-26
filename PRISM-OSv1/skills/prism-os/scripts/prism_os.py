@@ -63,9 +63,8 @@ def classify_intent(user_input: str) -> Dict:
 
     # 闲聊/纯事实性问题（明确不触发）
     small_talk = any(kw in text for kw in ["你好", "天气", "几号", "今天", "明天", "叫什么名字", "你是谁"])
-    purely_factual = len(text) < 10 and not strong_intent
 
-    if small_talk or purely_factual:
+    if small_talk:
         return {"trigger": False, "confidence": 0.9, "reason": "闲聊/纯事实，不触发"}
     if strong_intent:
         return {"trigger": True, "confidence": 0.95, "reason": "包含明确写作意图"}
@@ -699,6 +698,12 @@ def main():
         sys.exit(0)
 
     if command == "run":
+        user_input = ""
+        include_ext = True
+        use_format = False
+        skip_gateway = False
+        from_queue = False
+        match_queue = False
 
         for arg in sys.argv[2:]:
             if arg == "--format" or arg == "-f":

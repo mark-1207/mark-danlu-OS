@@ -25,6 +25,17 @@ import urllib.error
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
+# ============ .env 自动加载（兼容跨机器迁移）============
+# 在 key 文件旁边放 .env 文件，自动读取
+_env_file = Path(__file__).parent / ".env"
+if _env_file.exists():
+    for line in _env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        os.environ.setdefault(k.strip(), v.strip())
+
 # ============ API Keys & Endpoints ============
 
 # Kimi (Moonshot) - 优先付费
