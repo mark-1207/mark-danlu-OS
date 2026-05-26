@@ -13,6 +13,8 @@ import { readFeishuRecords } from '../../scenarios/topic/feishu-sync.js';
 import { backfillCompetitorAnalysis } from '../../scenarios/topic/backfill-analysis.js';
 import { analyzePatterns } from '../../scenarios/learning/pattern-analyzer.js';
 import { updateCreativePreferences, loadCreativePreferences, loadCreativePreferencesFromFeishu, formatPreferencesReport } from '../../scenarios/learning/creative-preferences.js';
+import { loadOverrides, saveOverrides } from '../../scenarios/learning/preference-override.js';
+import { isTerminalInteractive } from '../ui/interactive.js';
 import type { RevisionManifest } from '../../scenarios/revision/types.js';
 import type { Platform } from '../../scenarios/learning/types.js';
 import { writeFeedbackRecord } from '../../scenarios/feedback/feishu-feedback.js';
@@ -35,6 +37,7 @@ export async function runLearn(options: {
   updatePreferences?: boolean;
   showPreferences?: boolean;
   showPreferencesJson?: boolean;
+  dashboard?: boolean;
   viralLibrary?: boolean;
   viralLibraryShow?: string;
   feedbackEntry?: {
@@ -67,6 +70,30 @@ export async function runLearn(options: {
 
   const store = getFragmentStore(resolvedCorpusDir);
   await store.ensureLoaded();
+
+  // ── --dashboard (创作偏好交互面板) ──────────────────────────
+  if (options.dashboard) {
+    await loadCreativePreferencesFromFeishu();
+    const prefs = loadCreativePreferences();
+    const overrides = await loadOverrides();
+
+    if (isTerminalInteractive()) {
+      const { showPreferenceDashboard } = await import('../../cli/ui/preference-dashboard.js');
+      const result = await showPreferenceDashboard(prefs, overrides);
+      await saveOverrides(result.overrides);
+      console.log(chalk.green('\n✅ 偏好覆盖已保存\n'));
+      // Show final prompt previews
+      for (const platform of ['wechat', 'xiaohongshu', 'douyin'] as const) {
+        const prompt = (await import('../../scenarios/learning/creative-preferences.js')).buildPreferencePrompt(platform);
+        console.log(chalk.bold(`【${platform}】注入预览:`) + (prompt || chalk.gray('（无偏好注入）')));
+      }
+      console.log('');
+    } else {
+      const { formatDashboardNonTty } = await import('../../cli/ui/preference-dashboard.js');
+      console.log(formatDashboardNonTty(prefs, overrides));
+    }
+    return;
+  }
 
   // ── --show-preferences ─────────────────────────────────────────
   if (options.showPreferences) {
@@ -574,6 +601,7 @@ export function registerLearnCommand(program: Command): void {
     .option('--feedback-compare', '对比我方内容与竞品内容的标签级差距')
     .option('--backfill-analysis', '对竞品表已有记录补填叙事结构/情感调性/内容角度')
     .option('--update-preferences', '从 revision manifests + 反馈数据 + 竞品数据分析创作偏好并更新')
+    .option('--dashboard', '交互式创作偏好面板（含临时覆盖功能）')
     .option('--show-preferences', '展示当前创作偏好（从飞书读取）')
     .option('--json', '输出原始 JSON 格式（配合 --show-preferences）')
     .option('--feedback', '快捷录入反馈数据（配合 --run-id/--likes/--comments/--shares/--reads/--platform）')
@@ -603,6 +631,7 @@ export function registerLearnCommand(program: Command): void {
           feedbackCompare: opts.feedbackCompare,
           backfillAnalysis: opts.backfillAnalysis,
           updatePreferences: opts.updatePreferences,
+          dashboard: opts.dashboard,
           showPreferences: opts.showPreferences,
           showPreferencesJson: opts.json,
           viralLibrary: opts.viralLibrary,

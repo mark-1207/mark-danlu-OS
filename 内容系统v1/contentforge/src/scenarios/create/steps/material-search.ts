@@ -124,6 +124,24 @@ function getSearchProvider(providerName: string): SearchProvider | null {
 }
 
 /**
+ * Strip prompt framing from caseSlot text to produce concise search keywords.
+ * "需要一个中年白领失业后情绪崩溃的真实案例（可虚构但需细节）"
+ *   → "中年白领失业后情绪崩溃"
+ */
+function extractSearchTerms(text: string): string {
+  // Remove parenthetical notes like （可虚构但需细节）, （可虚构）, （来源：XX）
+  let cleaned = text.replace(/[（(][^）)]*[）)]/g, '');
+  // Remove "需要" / "需要一个" / "一个" prefixed noun framing
+  cleaned = cleaned.replace(/^(需要)?一个/, '');
+  // Remove "如" / "比如" / "例如" trailing examples
+  cleaned = cleaned.replace(/[，,]\s*(如|比如|例如).*$/, '');
+  // Remove "说明"/"展示"/"引出"/"反映" leading verbs (keep the object)
+  cleaned = cleaned.replace(/^(说明|展示|引出|反映|描述|分析|介绍|呈现|讨论)/, '');
+  // Trim and limit to 30 chars — short queries work better
+  return cleaned.trim().slice(0, 30);
+}
+
+/**
  * Extract search queries from platform outlines and assignments
  */
 export function extractQueriesFromOutlines(
@@ -136,8 +154,9 @@ export function extractQueriesFromOutlines(
   // WeChat: extract from section case slots and key points
   if (outlines.wechat) {
     for (const section of outlines.wechat.sections ?? []) {
-      if (section.caseSlot && !section.caseSlot.includes('无需') && !section.caseSlot.includes('无需案例')) {
-        queries.wechat.push(`${keyword} ${section.title} ${section.caseSlot}`);
+      if (section.caseSlot && !section.caseSlot.includes('无需') && !section.caseSlot.includes('不需要')) {
+        const terms = extractSearchTerms(section.caseSlot);
+        queries.wechat.push(`${keyword} ${terms || section.title}`);
       }
       for (const point of section.keyPoints ?? []) {
         if (point.length > 5) queries.wechat.push(`${keyword} ${point}`);

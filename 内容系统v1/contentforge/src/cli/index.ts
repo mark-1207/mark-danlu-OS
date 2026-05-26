@@ -10,6 +10,7 @@ import { registerReviseCommand } from './commands/revise.js';
 import { registerStyleCommand } from './commands/style.js';
 import { registerComplianceCommand } from './commands/compliance.js';
 import { registerTopicCommand } from './commands/topic.js';
+import { registerTopicEngineCommand } from './commands/topic-engine.js';
 
 export function buildCLI(): Command {
   const program = new Command();
@@ -30,6 +31,7 @@ export function buildCLI(): Command {
   registerStyleCommand(program);
   registerComplianceCommand(program);
   registerTopicCommand(program);
+  registerTopicEngineCommand(program);
 
   return program;
 }
