@@ -102,6 +102,34 @@ def _curl_get(url: str, headers: dict, timeout: int = 30) -> Optional[dict]:
 KIMI_API_KEY = os.environ.get("KIMI_API_KEY", "")
 KIMI_API_URL = "https://api.moonshot.cn/v1/chat/completions"
 
+# NVIDIA NIM — 高速推理，Kimi 失败后首选降级
+NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "")
+NVIDIA_API_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
+
+# NVIDIA 模型映射（OpenAI 兼容 API）
+NVIDIA_MODEL_MAP = {
+    "reasoning": "meta/llama-3.1-70b-instruct",
+    "quality": "meta/llama-3.1-70b-instruct",
+    "writing-cn": "meta/llama-3.1-70b-instruct",
+    "writing-en": "meta/llama-3.1-70b-instruct",
+    "translation": "meta/llama-3.1-70b-instruct",
+    "fast": "meta/llama-3.1-8b-instruct",
+    "long-context": "mistralai/mistral-large-2-instruct",
+    "summary": "meta/llama-3.1-70b-instruct",
+    "extraction": "meta/llama-3.1-70b-instruct",
+}
+NVIDIA_MAX_TOKENS_MAP = {
+    "reasoning": 8192,
+    "quality": 16384,
+    "writing-cn": 16384,
+    "writing-en": 16384,
+    "translation": 8192,
+    "fast": 4096,
+    "long-context": 128000,
+    "summary": 8192,
+    "extraction": 8192,
+}
+
 # OpenRouter 备用付费
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -246,6 +274,16 @@ def get_kimi_max_tokens(scene: str) -> int:
     return KIMI_MAX_TOKENS_MAP.get(scene, 8192)
 
 
+def get_nvidia_model(scene: str) -> str:
+    """根据场景获取 NVIDIA 模型"""
+    return NVIDIA_MODEL_MAP.get(scene, "meta/llama-3.1-70b-instruct")
+
+
+def get_nvidia_max_tokens(scene: str) -> int:
+    """根据场景获取 NVIDIA 最大 token 数"""
+    return NVIDIA_MAX_TOKENS_MAP.get(scene, 8192)
+
+
 # ============ Kimi API 调用 ============
 
 def call_kimi(prompt: str, model: str = "kimi-k2", temperature: float = 0.7, max_tokens: int = 4096) -> Dict:
@@ -290,6 +328,55 @@ def call_kimi(prompt: str, model: str = "kimi-k2", temperature: float = 0.7, max
             "error": str(e),
             "model": model,
             "provider": "kimi"
+        }
+
+
+# ============ NVIDIA NIM API 调用 ============
+
+def call_nvidia(prompt: str, model: str = "meta/llama-3.1-70b-instruct", temperature: float = 0.7, max_tokens: int = 4096) -> Dict:
+    """
+    调用 NVIDIA NIM API（OpenAI 兼容）
+
+    Args:
+        prompt: 提示词
+        model: NVIDIA 模型名
+        temperature: 温度
+        max_tokens: 最大 tokens
+
+    Returns:
+        {"content": str, "error": str|null, "model": str, "provider": "nvidia"}
+    """
+    if not NVIDIA_API_KEY:
+        return {"content": None, "error": "NVIDIA_API_KEY 未配置", "model": model, "provider": "nvidia"}
+
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": temperature,
+        "max_tokens": max_tokens
+    }
+
+    headers = {
+        "Authorization": f"Bearer {NVIDIA_API_KEY}"
+    }
+
+    try:
+        result = _curl_post(NVIDIA_API_URL, payload, headers, timeout=120)
+        if not result:
+            return {"content": None, "error": "curl failed", "model": model, "provider": "nvidia"}
+        content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+        return {
+            "content": content,
+            "error": None,
+            "model": model,
+            "provider": "nvidia",
+        }
+    except Exception as e:
+        return {
+            "content": None,
+            "error": str(e),
+            "model": model,
+            "provider": "nvidia"
         }
 
 
@@ -403,7 +490,7 @@ def _load_call_log() -> list:
     if LLM_CALL_LOG.exists():
         try:
             return json.loads(LLM_CALL_LOG.read_text(encoding="utf-8")).get("logs", [])
-        except:
+        except (json.JSONDecodeError, OSError):
             return []
     return []
 
@@ -643,10 +730,11 @@ def _call_with_retry(fn, prompt: str, *args, max_retries: int = 2, initial_delay
 
 def call_llm(prompt: str, model: str = "gpt-4", temperature: float = 0.7) -> Dict:
     """
-    三级 fallback 调用（Kimi 优先，Gateway/OpenRouter 降级）：
+    四层 fallback 调用：
     1. Kimi (付费) — 主路径，按场景动态选择 8k/32k/128k
-    2. Gateway (免费模型) — 备用
-    3. OpenRouter (付费备用) — 最终降级
+    2. NVIDIA NIM (高速推理) — Kimi 失败后首选降级
+    3. Gateway (免费模型) — 备用
+    4. OpenRouter (付费备用) — 最终降级
 
     所有 provider 失败即止，不重试。
 
@@ -675,6 +763,20 @@ def call_llm(prompt: str, model: str = "gpt-4", temperature: float = 0.7) -> Dic
     kimi_error = result["error"]
     print(f"[Kimi] 失败: {kimi_error}", file=sys.stderr)
 
+    # Step 1.5: NVIDIA NIM (高速推理，Kimi 失败后首选降级，带重试)
+    nvidia_model = get_nvidia_model(scene)
+    nvidia_max_tokens = get_nvidia_max_tokens(scene)
+    print(f"[NVIDIA] {nvidia_model}({nvidia_max_tokens})...", file=sys.stderr)
+    result = _call_with_retry(call_nvidia, prompt, nvidia_model, temperature, nvidia_max_tokens, max_retries=1)
+    duration_ms = int((time.time() - start_time) * 1000)
+    _log_llm_call(scene, duration_ms, "success" if result["error"] is None else "error",
+                   "nvidia", nvidia_model, result.get("error"))
+    if result["error"] is None:
+        return result
+
+    nvidia_error = result["error"]
+    print(f"[NVIDIA] 失败: {nvidia_error}", file=sys.stderr)
+
     # Step 2: Gateway (免费模型，Kimi 失败后尝试，带重试)
     print(f"[Gateway] 尝试...", file=sys.stderr)
     result = _call_with_retry(call_gateway, prompt, temperature, max_retries=1)
@@ -700,7 +802,7 @@ def call_llm(prompt: str, model: str = "gpt-4", temperature: float = 0.7) -> Dic
             return result
         print(f"[OpenRouter] 失败: {result['error']}", file=sys.stderr)
 
-    return _make_structured_error("none", f"所有 provider 都失败: {kimi_error}")
+    return _make_structured_error("none", f"所有 provider 都失败: Kimi={kimi_error}, NVIDIA={nvidia_error}")
 
 
 # ============ 统一 LLM 原始文本调用 ============

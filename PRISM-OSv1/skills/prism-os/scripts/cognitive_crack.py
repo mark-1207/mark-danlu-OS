@@ -494,8 +494,8 @@ def _parse_llm_json(text: str) -> Optional[Dict]:
         end = text.rfind("}") + 1
         if start >= 0 and end > start:
             return json.loads(text[start:end])
-    except:
-        pass
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"[Warning] JSON 解析失败: {e}", file=sys.stderr)
 
     return None
 
@@ -542,7 +542,7 @@ def main():
         thinking_pattern = sys.argv[3] if len(sys.argv) > 3 else ""
         try:
             candidates = json.loads(candidates_str)
-        except:
+        except json.JSONDecodeError:
             candidates = []
         result = digital_twin_filter(candidates, thinking_pattern)
         _safe_print(result)
@@ -580,7 +580,7 @@ def main():
         thinking_pattern = sys.argv[5] if len(sys.argv) > 5 else ""
         try:
             candidates = json.loads(candidates_str)
-        except:
+        except json.JSONDecodeError:
             candidates = []
         result = cognitive_crack_hunter(source, content, candidates, thinking_pattern)
         _safe_print(result)

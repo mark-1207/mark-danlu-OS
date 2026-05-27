@@ -93,7 +93,7 @@ def generate_clarification_questions(user_input: str, input_type: str) -> List[s
         questions = data.get("questions", [])
         if isinstance(questions, list) and len(questions) > 0:
             return questions
-    except:
+    except (json.JSONDecodeError, ValueError):
         pass
 
     # fallback: 尝试从字符串中提取
@@ -103,7 +103,7 @@ def generate_clarification_questions(user_input: str, input_type: str) -> List[s
             questions = json.loads(match.group(0))
             if isinstance(questions, list):
                 return questions
-    except:
+    except (json.JSONDecodeError, ValueError):
         pass
 
     return []
@@ -369,7 +369,7 @@ def _parse_llm_json(text: str) -> Optional[Dict]:
         end = text.rfind("}") + 1
         if start >= 0 and end > start:
             return json.loads(text[start:end])
-    except:
+    except (json.JSONDecodeError, ValueError):
         pass
 
     return None

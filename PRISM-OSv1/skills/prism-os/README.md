@@ -76,7 +76,7 @@ ZHIPU_API_KEY=your-zhipu-key
 
 **方式一：直接触发（推荐）**
 ```bash
-python prism_os.py run "你的话题" [--fast] [--no-ext]
+python prism_os.py run "你的话题" [--no-ext]
 ```
 
 **方式二：HTTP 监听模式（跨机器）**
@@ -138,25 +138,30 @@ python prism_os.py listen
 ## CLI 命令
 
 ```bash
-# 完整流程（用户输入）
-python prism_os.py run "<用户输入>" [--format] [--no-ext] [--fast]
+# ═══════ 完整流程 ═══════
+# 完整流程（无法跳过 Phase 1 苏格拉底网关）
+python prism_os.py run "<用户输入>" [--format] [--no-ext]
 
 # HTTP 监听模式（跨机器触发，新增 v1.0.10）
 python prism_os.py listen [--port 8080]
 
-# 短期记忆
-python prism_os.py recall
+# ═══════ 逐阶段执行（推荐 AI 使用，按 SKILL.md 流程） ═══════
+python prism_os.py classify "<输入>"    # Phase 0: 意图识别
+python prism_os.py gateway "<输入>"     # Phase 1: 苏格拉底网关（熵值计算）
+python prism_os.py prism "<命题>"        # Phase 2: 棱镜引擎（生成正交标题候选）
+python prism_os.py anchor --input <file> # Phase 3: 现实校验锚（验证候选标题）
+python prism_os.py twin --input <file>   # Phase 3.5: 数字分身筛选
+python prism_os.py gap "<命题>"          # Phase 4.6: 素材就绪度分析
+python prism_os.py logic --input <file>  # Phase 5: 逻辑压力测试 + 认知旅程
+python prism_os.py save --thesis "<命题>" # Phase 6: 数据持久化
+python prism_os.py assassin              # Phase 7: 刺客机制
 
-# 从队列选择裂缝进入主流程（v1.0.9）
-python prism_os.py run --from-queue
-
-# 输入时匹配队列中的相关裂缝（v1.0.9）
-python prism_os.py run "<用户输入>" --match-queue
-
-# 队列管理（v1.0.9）
-python prism_os.py queue --list                # 列出所有待消费裂缝
-python prism_os.py queue --tag <id> <标签>      # 打标签（如"战略级"）
-python prism_os.py queue --dismiss <id>         # 删除无用条目
+# ═══════ 其他功能 ═══════
+python prism_os.py ccos "<命题>" --platform both   # CCOS v2.0 大纲生成
+python prism_os.py generate "<标题>" --platform wechat # Phase 5 内容生成
+python prism_os.py confirm "<标题>"     # 确认选题并写入飞书
+python prism_os.py queue --list         # 队列管理
+python prism_os.py archive --search <关键词> # 归档查询
 python prism_os.py queue --stats               # 查看队列统计
 
 # CCOS 大纲生成

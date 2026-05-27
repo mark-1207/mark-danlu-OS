@@ -316,8 +316,8 @@ def _parse_llm_json(text: str) -> Optional[Dict]:
         end = text.rfind("}") + 1
         if start >= 0 and end > start:
             return json.loads(text[start:end])
-    except:
-        pass
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"[Warning] JSON 解析失败: {e}", file=sys.stderr)
 
     return None
 

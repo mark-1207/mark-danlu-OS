@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 """
 PRISM-OS 主流程脚本
-整合 Phase 0-8：意图识别 → 熵值计算 → 标题生成 → 现实校验 → Gap分析 → 逻辑审计 → 刺客机制
+逐阶段 CLI：每阶段独立命令，AI 按 SKILL.md 对话流逐步调用
 
 用法:
-    python prism_os.py run "<用户输入>"          # 完整流程（JSON输出）
-    python prism_os.py run "<用户输入>" --format  # 完整流程（可读格式）
-    python prism_os.py run "<用户输入>" --no-ext   # 仅 Phase 0-3
-    python prism_os.py classify "<用户输入>"       # Phase 0: 意图识别
-    python prism_os.py gateway "<用户输入>"        # Phase 1: 苏格拉底网关
+    python prism_os.py run "<用户输入>"            # 完整流程（JSON输出）
+    python prism_os.py run "<用户输入>" --format    # 完整流程（可读格式）
+    python prism_os.py run "<用户输入>" --no-ext     # 仅 Phase 0-3
+    python prism_os.py classify "<用户输入>"         # Phase 0: 意图识别
+    python prism_os.py gateway "<用户输入>"          # Phase 1: 苏格拉底网关
+    python prism_os.py prism "<命题>"               # Phase 2: 棱镜引擎
+    python prism_os.py anchor --input <file>        # Phase 3: 现实校验锚
+    python prism_os.py twin --input <file>          # Phase 3.5: 数字分身筛选
+    python prism_os.py gap "<命题>"                  # Phase 4.6: Gap Analysis
+    python prism_os.py logic --input <file>         # Phase 5: 逻辑压力测试
+    python prism_os.py save --thesis "<命题>"        # Phase 6: 数据持久化
 """
 
 import sys
@@ -535,21 +541,6 @@ def format_prism_os_output(result: Dict) -> str:
             lines.append(f"  📌 {m.get('title', '')}（相似度 {sim}%）")
         lines.append("")
 
-    # 素材缺口
-    gap = result.get("gap")
-    if gap:
-        readiness = gap.get("readiness", 0)
-        missing = gap.get("missing_evidence", [])
-        recommendation = gap.get("recommendation", "")
-
-        lines.append("■ 素材缺口")
-        lines.append(f"  当前就绪度: {int(readiness * 100)}%")
-        if missing:
-            lines.append(f"  缺口: {', '.join(missing[:3])}")
-        if recommendation:
-            lines.append(f"  建议: {recommendation}")
-        lines.append("")
-
     # 认知大纲（CCOS v2.0 / 旧版兼容）
     ccos = result.get("ccos_outline")
     if ccos:
@@ -691,12 +682,19 @@ def main():
         _safe_print({
             "error": "用法: python prism_os.py <命令> [选项]",
             "commands": {
-                "run": "python prism_os.py run \"<用户输入>\" [--format] [--no-ext] [--fast] - 完整流程",
+                "run": "python prism_os.py run \"<用户输入>\" [--format] [--no-ext] - 完整流程（无法跳过 Phase 1）",
+                "classify": "Phase 0: 意图识别",
+                "gateway": "Phase 1: 苏格拉底网关（熵值计算）",
+                "prism": "Phase 2: 棱镜引擎（生成正交标题候选）",
+                "anchor": "Phase 3: 现实校验锚（验证候选标题）",
+                "twin": "Phase 3.5: 数字分身筛选",
+                "gap": "Phase 4.6: 素材就绪度分析",
+                "logic": "Phase 5: 逻辑压力测试 + 认知旅程",
+                "save": "Phase 6: 数据持久化",
+                "assassin": "Phase 7: 刺客机制（历史爆款逻辑反转）",
                 "run --from-queue": "从队列选择裂缝（多选）进入主流程",
                 "run --match-queue": "输入时匹配队列中的相关裂缝",
                 "queue": "队列管理：--list/--tag/--dismiss/--stats",
-                "classify": "意图识别",
-                "gateway": "苏格拉底网关（熵值计算）",
                 "confirm": "python prism_os.py confirm \"<标题>\" - 确认选题并写入飞书",
                 "generate": "python prism_os.py generate \"<命题>\" [--platform wechat|xiaohongshu] [--interactive] - Phase 5 内容生成",
                 "ccos": "CCOS v2.0 认知推进流大纲生成"
@@ -704,7 +702,6 @@ def main():
             "options": {
                 "--format, -f": "格式化输出（可读报告）",
                 "--no-ext": "跳过 Phase 4-8（仅 Phase 0-3）",
-                "--fast, -F": "跳过 Phase 1 熵值判断（快速模式）",
                 "--from-queue": "从 crack_queue 选择裂缝进入主流程",
                 "--match-queue": "输入时匹配 crack_queue 中的相关裂缝"
             }
@@ -714,14 +711,14 @@ def main():
     command = sys.argv[1]
 
     # 短触发：未知命令 → 当作 run 处理（天然语言一句话直接跑）
-    known_commands = {"run", "classify", "gateway", "confirm", "ccos", "generate", "queue", "archive"}
+    known_commands = {"run", "classify", "gateway", "prism", "anchor", "twin", "gap", "logic", "save", "assassin", "confirm", "ccos", "generate", "narrate", "queue", "archive"}
     if command not in known_commands:
         # 第一个参数不是命令 → 当作 user_input 走完整流程
         user_input = command
         # 剩余参数合并
         for arg in sys.argv[2:]:
             user_input += " " + arg
-        result = run_prism_os(user_input, include_phase_4_8=True, skip_gateway=False)
+        result = run_prism_os(user_input, include_phase_4_8=True)
         output = format_prism_os_output(result)
         sys.stdout.buffer.write(output.encode("utf-8"))
         sys.exit(0)
@@ -730,7 +727,6 @@ def main():
         user_input = ""
         include_ext = True
         use_format = False
-        skip_gateway = False
         from_queue = False
         match_queue = False
 
@@ -739,8 +735,6 @@ def main():
                 use_format = True
             elif arg == "--no-ext":
                 include_ext = False
-            elif arg == "--fast" or arg == "-F":
-                skip_gateway = True
             elif arg == "--from-queue":
                 from_queue = True
             elif arg == "--match-queue":
@@ -879,7 +873,7 @@ def main():
         except Exception:
             history_topics = []
 
-        result = run_prism_os(user_input, include_phase_4_8=include_ext, skip_gateway=skip_gateway, history_topics=history_topics)
+        result = run_prism_os(user_input, include_phase_4_8=include_ext, history_topics=history_topics)
 
         if use_format:
             output = format_prism_os_output(result)
@@ -1025,6 +1019,327 @@ def main():
         else:
             result = content_generation_workflow(topic, ccos_outline, platform)
             _safe_print(result)
+
+    elif command == "narrate":
+        # Phase 5: 叙事驱动内容生成（新方案）
+        # 用法: python prism_os.py narrate "<命题>" [--platform wechat|xiaohongshu] [--interactive] [--search]
+        topic = ""
+        platform = "wechat"
+        interactive = False
+        auto_scrape = False
+
+        i = 2
+        while i < len(sys.argv):
+            arg = sys.argv[i]
+            if arg == "--platform" and i + 1 < len(sys.argv):
+                platform = sys.argv[i + 1]
+                i += 2
+            elif arg == "--interactive":
+                interactive = True
+                i += 1
+            elif arg == "--search":
+                auto_scrape = True
+                i += 1
+            elif not topic and not arg.startswith("--"):
+                topic = arg
+                i += 1
+            else:
+                i += 1
+
+        if not topic:
+            _safe_print({"error": '请提供命题: python prism_os.py narrate "<命题>" [--platform wechat] [--interactive]'})
+            sys.exit(1)
+
+        from content_generator import (
+            narrative_generation_workflow,
+            interactive_narrative_workflow,
+            _load_ccos_for_topic
+        )
+
+        ccos_outline = _load_ccos_for_topic(topic, platform)
+        if not ccos_outline:
+            _safe_print({
+                "error": f'未找到命题 "{topic}" 的 CCOS 大纲，请先运行: python prism_os.py ccos "{topic}"',
+                "topic": topic,
+                "platform": platform
+            })
+            sys.exit(1)
+
+        if interactive:
+            result = interactive_narrative_workflow(topic, ccos_outline, platform)
+            _safe_print({"status": result["status"], "topic": topic, "platform": platform})
+        else:
+            result = narrative_generation_workflow(topic, ccos_outline, platform, auto_scrape=auto_scrape)
+            # 输出摘要
+            output = {
+                "status": result["status"],
+                "topic": result["topic"],
+                "platform": result["platform"],
+                "strategy": result.get("strategy", {}).get("strategy", ""),
+                "word_count": result.get("word_count", 0),
+                "materials_used": len(result.get("materials_used", [])),
+                "draft_preview": result.get("full_draft", "")[:200] + "..." if len(result.get("full_draft", "")) > 200 else result.get("full_draft", ""),
+            }
+            _safe_print(output)
+            # 同时输出到文件
+            draft = result.get("full_draft", "")
+            if draft:
+                out_path = Path(f"output_narrative_{platform}.md")
+                out_path.write_text(f"# {topic}\n\n---\n\n" + draft, encoding="utf-8")
+
+
+                print(f"[输出] 草稿已保存至 {out_path.resolve()}", file=sys.stderr)
+
+    elif command == "prism":
+        # Phase 2: 棱镜引擎 - 生成正交标题候选
+        # 用法: python prism_os.py prism "<thesis>" [--identity <role>] [--audience <target>]
+        thesis = ""
+        identity_role = ""
+        audience = ""
+        i = 2
+        while i < len(sys.argv):
+            arg = sys.argv[i]
+            if arg == "--identity" and i + 1 < len(sys.argv):
+                identity_role = sys.argv[i + 1]
+                i += 2
+            elif arg == "--audience" and i + 1 < len(sys.argv):
+                audience = sys.argv[i + 1]
+                i += 2
+            elif not thesis and not arg.startswith("--"):
+                thesis = arg
+                i += 1
+            else:
+                i += 1
+
+        if not thesis:
+            _safe_print({"error": "请提供命题: python prism_os.py prism \"<thesis>\""})
+            sys.exit(1)
+
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from prism_engine import prism_engine
+        result = prism_engine(thesis, identity_role, audience)
+        _safe_print(result)
+
+    elif command == "anchor":
+        # Phase 3: 现实校验锚 - 验证候选标题
+        # 用法: python prism_os.py anchor [--input candidates.json]
+        input_file = None
+        i = 2
+        while i < len(sys.argv):
+            arg = sys.argv[i]
+            if arg == "--input" and i + 1 < len(sys.argv):
+                input_file = sys.argv[i + 1]
+                i += 2
+            else:
+                i += 1
+
+        candidates = None
+        if input_file:
+            with open(input_file, "r", encoding="utf-8") as f:
+                candidates = json.load(f)
+        else:
+            try:
+                candidates = json.loads(sys.stdin.read())
+            except json.JSONDecodeError:
+                _safe_print({"error": "请通过 --input 或 stdin 提供候选标题数据"})
+                sys.exit(1)
+
+        if not candidates:
+            _safe_print({"error": "候选标题数据为空"})
+            sys.exit(1)
+
+        # 兼容：如果传入的是 dict 且有 candidates 字段，自动提取
+        if isinstance(candidates, dict) and "candidates" in candidates:
+            candidates = candidates["candidates"]
+
+        if not isinstance(candidates, list) or len(candidates) == 0:
+            _safe_print({"error": "候选标题数据必须是包含 candidates 的非空数组", "received_type": type(candidates).__name__})
+            sys.exit(1)
+
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from reality_anchor import reality_anchor
+        result = reality_anchor(candidates)
+        _safe_print(result)
+
+    elif command == "twin":
+        # Phase 3.5: 数字分身筛选
+        # 用法: python prism_os.py twin --input candidates.json
+        input_file = None
+        i = 2
+        while i < len(sys.argv):
+            arg = sys.argv[i]
+            if arg == "--input" and i + 1 < len(sys.argv):
+                input_file = sys.argv[i + 1]
+                i += 2
+            else:
+                i += 1
+
+        candidates = None
+        if input_file:
+            with open(input_file, "r", encoding="utf-8") as f:
+                candidates = json.load(f)
+        else:
+            try:
+                candidates = json.loads(sys.stdin.read())
+            except json.JSONDecodeError:
+                _safe_print({"error": "请通过 --input 或 stdin 提供候选标题数据"})
+                sys.exit(1)
+
+        if not candidates:
+            _safe_print({"error": "候选标题数据为空"})
+            sys.exit(1)
+
+        if isinstance(candidates, dict) and "candidates" in candidates:
+            candidates = candidates["candidates"]
+
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from storage import load_config
+        from cognitive_crack import digital_twin_filter
+
+        config = load_config()
+        twin_config = config.get("digital_twin", {})
+        thinking_pattern = twin_config.get("thinking_pattern", "理性、克制、反常识")
+
+        result = digital_twin_filter(candidates, thinking_pattern)
+        _safe_print(result)
+
+    elif command == "gap":
+        # Phase 4.6: Gap Analysis - 素材就绪度分析
+        # 用法: python prism_os.py gap "<thesis>" [--materials <materials>]
+        thesis = ""
+        materials = ""
+        i = 2
+        while i < len(sys.argv):
+            arg = sys.argv[i]
+            if arg == "--materials" and i + 1 < len(sys.argv):
+                materials = sys.argv[i + 1]
+                i += 2
+            elif not thesis and not arg.startswith("--"):
+                thesis = arg
+                i += 1
+            else:
+                i += 1
+
+        if not thesis:
+            _safe_print({"error": "请提供命题: python prism_os.py gap \"<thesis>\""})
+            sys.exit(1)
+
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from gap_analysis import analyze_gap
+        result = analyze_gap(thesis, materials)
+        _safe_print(result)
+
+    elif command == "logic":
+        # Phase 5: 逻辑压力测试 + 认知旅程
+        # 用法: python prism_os.py logic --input candidates.json [--history "topic1" "topic2"]
+        input_file = None
+        history_topics = []
+        i = 2
+        while i < len(sys.argv):
+            arg = sys.argv[i]
+            if arg == "--input" and i + 1 < len(sys.argv):
+                input_file = sys.argv[i + 1]
+                i += 2
+            elif arg == "--history":
+                i += 1
+                while i < len(sys.argv) and not sys.argv[i].startswith("--"):
+                    history_topics.append(sys.argv[i])
+                    i += 1
+            else:
+                i += 1
+
+        candidates = None
+        if input_file:
+            with open(input_file, "r", encoding="utf-8") as f:
+                candidates = json.load(f)
+        else:
+            try:
+                candidates = json.loads(sys.stdin.read())
+            except json.JSONDecodeError:
+                _safe_print({"error": "请通过 --input 或 stdin 提供候选标题数据"})
+                sys.exit(1)
+
+        if not candidates:
+            _safe_print({"error": "候选标题数据为空"})
+            sys.exit(1)
+
+        if isinstance(candidates, dict) and "candidates" in candidates:
+            candidates = candidates["candidates"]
+
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from logic_pressure import logic_pressure
+        result = logic_pressure(candidates, history_topics if history_topics else None)
+        _safe_print(result)
+
+    elif command == "save":
+        # Phase 6: 数据持久化 - 写入 topic_log.yaml
+        # 用法: python prism_os.py save --thesis "<thesis>" [--status success|no_candidates]
+        thesis = ""
+        status = "success"
+        candidates_count = 0
+        entropy_score = 0
+        i = 2
+        while i < len(sys.argv):
+            arg = sys.argv[i]
+            if arg == "--thesis" and i + 1 < len(sys.argv):
+                thesis = sys.argv[i + 1]
+                i += 2
+            elif arg == "--status" and i + 1 < len(sys.argv):
+                status = sys.argv[i + 1]
+                i += 2
+            elif arg == "--count" and i + 1 < len(sys.argv):
+                try:
+                    candidates_count = int(sys.argv[i + 1])
+                except ValueError:
+                    pass
+                i += 2
+            elif arg == "--entropy" and i + 1 < len(sys.argv):
+                try:
+                    entropy_score = float(sys.argv[i + 1])
+                except ValueError:
+                    pass
+                i += 2
+            else:
+                i += 1
+
+        if not thesis:
+            _safe_print({"error": "请提供命题: python prism_os.py save --thesis \"<thesis>\""})
+            sys.exit(1)
+
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from storage import append_log
+
+        log_entry = {
+            "thesis": thesis,
+            "candidates_count": candidates_count,
+            "entropy_score": entropy_score,
+        }
+        storage_result = append_log(log_entry)
+        _safe_print({"status": "ok" if storage_result.get("status") == "ok" else "failed", "thesis": thesis})
+
+    elif command == "assassin":
+        # Phase 7: 刺客机制 - 历史爆款逻辑反转
+        # 用法: python prism_os.py assassin [--history "topic1" "topic2"]
+        history_topics = []
+        i = 2
+        while i < len(sys.argv):
+            arg = sys.argv[i]
+            if arg == "--history":
+                i += 1
+                while i < len(sys.argv) and not sys.argv[i].startswith("--"):
+                    history_topics.append(sys.argv[i])
+                    i += 1
+            else:
+                i += 1
+
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from assassin import assassin_mechanism
+        result = assassin_mechanism(
+            historical_topics=history_topics if history_topics else None,
+            entities=None,
+            relations=None
+        )
+        _safe_print(result)
 
     elif command == "queue":
         # 队列管理命令
@@ -1206,7 +1521,6 @@ def main():
 
                 # Run PRISM-OS
                 include_ext = req.get("include_phase_4_8", True)
-                skip_gateway = req.get("skip_gateway", False)
                 platform = req.get("platform", None)  # None = 让 run_prism_os 内部决定
 
                 print(f"[{self.address_string()}] POST /run  topic='{topic[:50]}...'")
@@ -1215,7 +1529,7 @@ def main():
                     result = run_prism_os(
                         topic,
                         include_phase_4_8=include_ext,
-                        skip_gateway=skip_gateway
+                        platform=platform,
                     )
                     self._send_json(200, {"status": "ok", "result": result})
                     print(f"[{self.address_string()}] 完成")
