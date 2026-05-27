@@ -1020,6 +1020,18 @@ export async function runCreate(
 // ─── Command registration ───────────────────────────────────────────────────────
 
 export function registerCreateCommand(program: Command): void {
+  // 重建素材向量索引（顶层命令，避免 commander requiredOption 继承问题）
+  program
+    .command('build-material-index')
+    .description('扫描 corpus/ 下所有 .md 文件，建立 embedding 索引')
+    .action(async () => {
+      const { ObsidianMaterialStore } = await import('../../scenarios/create/steps/obsidian-material-store.js');
+      const store = new ObsidianMaterialStore();
+      const count = await store.buildIndex();
+      console.log(chalk.green(`✅ 已索引 ${count} 个素材文件`));
+      console.log(chalk.gray(`   索引文件: output/corpus/material-embeddings.json`));
+    });
+
   program
     .command('create')
     .description('从关键词生成原创内容')
@@ -1030,7 +1042,6 @@ export function registerCreateCommand(program: Command): void {
     .option('--keep-artifacts', '保留中间产物（用于调试 CCOS 输出）')
     .action(async (opts) => {
       try {
-        // interactive defaults to true unless --no-interactive is passed
         const interactive = opts.interactive !== false;
         await runCreate(opts.keyword, {
           platforms: opts.platforms,
