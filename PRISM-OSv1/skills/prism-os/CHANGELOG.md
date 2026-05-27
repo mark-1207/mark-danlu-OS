@@ -4,6 +4,33 @@
 
 ---
 
+### v1.1.0 (2026-05-27)
+
+**状态**：当前版本
+
+#### 新增
+
+- **NVIDIA NIM 四级 fallback**：接入 NVIDIA NIM 作为 LLM 链第二级（Kimi → NVIDIA NIM → Gateway → OpenRouter）
+  - Endpoint: `https://integrate.api.nvidia.com/v1/chat/completions`（OpenAI兼容）
+  - 推荐模型：meta/llama-3.1-70b-instruct（quality）、meta/llama-3.1-8b-instruct（fast）、mistralai/mistral-large-2-instruct（long-context）
+  - 免费额度，可用 curl 直接调用
+
+- **叙事生成增强**：
+  - 五种叙事策略自动评估：人物线索型、数据驱动型、悬念解密型、观点碰撞型、时间线型
+  - 预叙事阶段（Pre-narrative）输出策略选择理由和核心叙事元素
+  - 字数扩充：草稿 < 2500 字时自动触发 LLM 扩充
+
+#### 修复
+
+- **bare except 全修复**：6 个文件（gap_analysis.py、cognitive_crack.py、logic_pressure.py、prism_engine.py、assassin.py、socratic_gateway.py）的 JSON 解析 fallback 从 `except:` 改为 `except (json.JSONDecodeError, ValueError)`，带 warning 日志
+
+#### 测试
+
+- 测试总数：253 个（27 个 gap_analysis + 新增 medium_fixes 等）
+- 全部通过
+
+---
+
 ### v1.0.10 (2026-05-26)
 
 **状态**：当前版本

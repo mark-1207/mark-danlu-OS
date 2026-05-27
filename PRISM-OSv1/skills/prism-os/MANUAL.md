@@ -63,6 +63,7 @@ pip install numpy requests
 编辑 `scripts/.env` 文件，填入你的 API key：
 ```bash
 KIMI_API_KEY=你的Kimi密钥
+NVIDIA_API_KEY=你的NVIDIA密钥    # 免费，可选
 OPENROUTER_API_KEY=你的OpenRouter密钥
 ZHIPU_API_KEY=你的智谱密钥
 ```
@@ -86,7 +87,8 @@ python prism_os.py run "你的话题" --no-ext
 ```bash
 # scripts/.env - PRISM-OS API 密钥集中管理
 KIMI_API_KEY=你的Kimi密钥          # 主路径（Moonshot平台）
-OPENROUTER_API_KEY=你的OpenRouter密钥  # 付费备用
+NVIDIA_API_KEY=你的NVIDIA密钥      # 免费备用（NVIDIA NIM）
+OPENROUTER_API_KEY=你的OpenRouter密钥  # 最终降级
 ZHIPU_API_KEY=你的智谱密钥         # 向量生成用
 ```
 
@@ -100,7 +102,14 @@ ZHIPU_API_KEY=你的智谱密钥         # 向量生成用
 - 国内可用，支持支付宝充值
 - 付费模型，按量计费
 
-#### OpenRouter — 付费备用
+#### NVIDIA NIM — 免费备用
+
+- 注册：https://ngc.nvidia.com
+- 获取 API Key：https://integrate.api.nvidia.com/
+- OpenAI-compatible 端点，免费额度充足
+- 推荐模型：meta/llama-3.1-70b-instruct
+
+#### OpenRouter — 最终降级
 
 - 注册：https://openrouter.ai
 - 统一接入多种模型，按量计费
@@ -144,7 +153,7 @@ python prism_os.py run "你的话题" --no-ext
 
 示例：
 ```bash
-python prism_os.py run "为何一人公司可能是失业群体的翻身之路" --fast --no-ext
+python prism_os.py run "为何一人公司可能是失业群体的翻身之路" --no-ext
 ```
 
 **方式二：HTTP 监听模式（跨机器使用）**
@@ -386,5 +395,5 @@ prism-os/
 
 ---
 
-**版本**：1.0.3
-**最后更新**：2026-04-30
+**版本**：1.1.0
+**最后更新**：2026-05-27

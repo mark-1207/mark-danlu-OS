@@ -16,6 +16,7 @@
 | V5.5 | ✓ | autocli 集成 + Obsidian 递归扫描 + 风格学习 |
 | V1.0.9 | ✓ | RSS-Hunter × PRISM-OS 整合（crack_queue + --from-queue/--match-queue） |
 | V1.0.10 | ✓ | Windows SSL 修复 + 跨机器密钥迁移 + HTTP 监听 + API 节流 |
+| V1.1.0 | ✓ | NVIDIA NIM 四级 fallback + 叙事生成增强（策略评估+预叙事+字数扩充）+ 253 测试 |
 
 ## 目录结构
 
@@ -68,6 +69,7 @@ prism-os/
 ```bash
 # scripts/.env
 KIMI_API_KEY=your-kimi-key
+NVIDIA_API_KEY=your-nvidia-nim-key   # 免费，可选
 OPENROUTER_API_KEY=your-openrouter-key
 ZHIPU_API_KEY=your-zhipu-key
 ```
@@ -169,9 +171,12 @@ python prism_os.py ccos "<命题>" [--platform wechat|xiaohongshu|both]
 
 # 内容生成（Phase 5）
 python prism_os.py generate "<标题>" [--platform wechat|xiaohongshu] [--interactive]
+
+# 叙事生成（策略评估+预叙事+字数扩充）
+python prism_os.py narrate "<命题>" [--platform wechat|xiaohongshu] [--search]
 ```
 
-## LLM 三级 Fallback 架构
+## LLM 四级 Fallback 架构
 
 ```
 1. Kimi（付费主路径） — 场景模型动态选择
@@ -181,10 +186,16 @@ python prism_os.py generate "<标题>" [--platform wechat|xiaohongshu] [--intera
    └─ fast          → moonshot-v1-32k (4096 tokens)
    └─ 重试 1 次，失败 →
 
-2. Gateway（免费模型） — 备用
+2. NVIDIA NIM（免费模型） — OpenAI兼容endpoint
+   └─ quality       → meta/llama-3.1-70b-instruct (16384 tokens)
+   └─ long-context  → mistralai/mistral-large-2-instruct (32768 tokens)
+   └─ fast          → meta/llama-3.1-8b-instruct (4096 tokens)
    └─ 未配置则跳过 →
 
-3. OpenRouter（付费备用） — 最终降级
+3. Gateway（免费模型） — 备用
+   └─ 未配置则跳过 →
+
+4. OpenRouter（付费备用） — 最终降级
    └─ qwen/qwen-2.5-72b-instruct（最强）
    └─ deepseek/deepseek-chat-v3（强）
    └─ google/gemma-4-26b-a4b-it
@@ -194,6 +205,11 @@ python prism_os.py generate "<标题>" [--platform wechat|xiaohongshu] [--intera
 
 全部失败 → 返回结构化错误
 ```
+
+**NVIDIA NIM 配置**：
+- API URL: `https://integrate.api.nvidia.com/v1/chat/completions`
+- API Key: `NVIDIA_API_KEY`（从 `.env` 读取）
+- OpenAI-compatible 格式，curl 直接调用
 
 **API 调用实现**：
 - 全部通过 curl subprocess（`-k` 参数），绕过 Windows Python SSL 问题
