@@ -13,6 +13,7 @@ import { registerTopicCommand } from './commands/topic.js';
 import { registerTopicEngineCommand } from './commands/topic-engine.js';
 import { registerArticleCommand } from './commands/article.js';
 import { registerContentCalendarCommand } from './commands/content-calendar.js';
+import { registerTopicGapCommand } from './commands/topic-gap.js';
 
 export function buildCLI(): Command {
   const program = new Command();
@@ -36,6 +37,7 @@ export function buildCLI(): Command {
   registerTopicEngineCommand(program);
   registerArticleCommand(program);
   registerContentCalendarCommand(program);
+  registerTopicGapCommand(program);
 
   return program;
 }
