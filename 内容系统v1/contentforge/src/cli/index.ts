@@ -11,6 +11,7 @@ import { registerStyleCommand } from './commands/style.js';
 import { registerComplianceCommand } from './commands/compliance.js';
 import { registerTopicCommand } from './commands/topic.js';
 import { registerTopicEngineCommand } from './commands/topic-engine.js';
+import { registerArticleCommand } from './commands/article.js';
 
 export function buildCLI(): Command {
   const program = new Command();
@@ -32,6 +33,7 @@ export function buildCLI(): Command {
   registerComplianceCommand(program);
   registerTopicCommand(program);
   registerTopicEngineCommand(program);
+  registerArticleCommand(program);
 
   return program;
 }
