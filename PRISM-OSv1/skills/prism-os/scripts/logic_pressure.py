@@ -211,8 +211,8 @@ def _parse_llm_json(text: str) -> Optional[Dict]:
         end = text.rfind("}") + 1
         if start >= 0 and end > start:
             return json.loads(text[start:end])
-    except:
-        pass
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"[Warning] JSON 解析失败: {e}", file=sys.stderr)
 
     return None
 
@@ -248,7 +248,7 @@ def main():
         history_str = sys.argv[3] if len(sys.argv) > 3 else "[]"
         try:
             history = json.loads(history_str)
-        except:
+        except json.JSONDecodeError:
             history = []
         result = calculate_cognitive_journey(thesis, history)
         _safe_print(result)
@@ -257,12 +257,12 @@ def main():
         candidates_str = sys.argv[2] if len(sys.argv) > 2 else "[]"
         try:
             candidates = json.loads(candidates_str)
-        except:
+        except json.JSONDecodeError:
             candidates = []
         history_str = sys.argv[3] if len(sys.argv) > 3 else "[]"
         try:
             history = json.loads(history_str)
-        except:
+        except json.JSONDecodeError:
             history = []
         result = logic_pressure(candidates, history)
         _safe_print(result)

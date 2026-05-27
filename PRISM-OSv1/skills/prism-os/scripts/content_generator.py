@@ -1649,7 +1649,632 @@ def interactive_content_generation_workflow(
     }
 
 
-# ============ CLI 入口 ============
+# ============ 叙事生成策略（Phase 5 重构）============
+
+NARRATIVE_STRATEGIES = {
+    "人物线索型": {
+        "description": "以多个人物故事为线索，串起全文论点",
+        "适合素材": "案例素材丰富（3+个真实人物故事）",
+        "核心张力模式": "每个人的故事证明一个侧面，多个故事叠加强化论点",
+        "prompt_hint": "用人物故事作为主线，每个案例带出一个认知",
+    },
+    "观点碰撞型": {
+        "description": "正方vs反方观点交锋，最终综合",
+        "适合素材": "理论/分析/洞察素材多",
+        "核心张力模式": "先对立，后统一，读者在碰撞中被说服",
+        "prompt_hint": "制造观点冲突，不同立场对话，最终指向你的真正立场",
+    },
+    "悬念解密型": {
+        "description": "先给反常识结论，再逐层揭示为什么",
+        "适合素材": "数据/洞察/反直觉素材多",
+        "核心张力模式": "开头扔结论，读者好奇凭什么这么说，然后逐段揭示",
+        "prompt_hint": "开头给出令人震惊的结论，后续段落逐步揭示为什么",
+    },
+    "数据驱动型": {
+        "description": "用数据做骨架，穿插叙事解读",
+        "适合素材": "统计数据/研究报告多",
+        "核心张力模式": "数字制造冲击，解读还原真相",
+        "prompt_hint": "用关键数字做段落转折点，每个数据后接深度解读",
+    },
+    "时间线型": {
+        "description": "按时间演变展开，呈现趋势或变化",
+        "适合素材": "历史素材/演变过程多",
+        "核心张力模式": "从A时刻到B时刻发生了什么，让变化本身说话",
+        "prompt_hint": "用时间线做叙事驱动，变化前后对比制造张力",
+    },
+}
+
+
+def evaluate_narrative_strategy(
+    topic: str,
+    ccos_outline: Dict,
+    materials: List[Dict],
+    search_results: List[Dict],
+) -> Dict:
+    """
+    综合知识库素材 + 搜索结果，评估并选择最优叙事策略
+
+    评分逻辑：
+    - 案例类素材 → 人物线索型 +分
+    - 数据类内容 → 数据驱动型 +分
+    - 洞察/反直觉 → 悬念解密型 +分
+    - 分析/理论 → 观点碰撞型 +分
+    - 时间序列 → 时间线型 +分
+    - CCOS 主结构加权（故事驱动型→人物线索，认知升级型→观点碰撞/悬念解密等）
+
+    Returns:
+        {
+            "strategy": str,           # 选中的策略名
+            "reasoning": str,           # 选择理由
+            "scores": Dict[str, float], # 各策略得分
+            "material_assignment": [   # 素材分配表
+                {"material": str, "position": str, "proves": str, "strategy_use": str}
+            ]
+        }
+    """
+    scores = {name: 0.0 for name in NARRATIVE_STRATEGIES}
+
+    # 统计素材类型分布
+    material_texts = []
+    for m in materials:
+        text = m.get("content", "") or m.get("name", "")
+        material_texts.append(text)
+
+    search_texts = []
+    for r in search_results:
+        text = f"{r.get('title', '')} {r.get('snippet', '')}"
+        search_texts.append(text)
+
+    all_text = " ".join(material_texts + search_texts)
+
+    # 关键词评分
+    keyword_indicators = {
+        "人物线索型": ["故事", "案例", "人物", "他/她", "创业", "转型", "成功", "经历", "真实"],
+        "数据驱动型": ["数据", "统计", "比例", "百分比", "%", "研究", "报告", "研究显示", "发现", "分析"],
+        "悬念解密型": ["真相", "揭秘", "实际上", "但其实", "不是", "误区", "盲点", "反直觉", "隐藏"],
+        "观点碰撞型": ["认为", "观点", "争议", "有人说", "另一方面", "vs", "对比", "正方", "反方"],
+        "时间线型": ["过去", "现在", "演变", "趋势", "历程", "发展", "周期", "早年", "至今", "起初", "后来", "回溯"],
+    }
+
+    for strategy, keywords in keyword_indicators.items():
+        for kw in keywords:
+            if kw in all_text:
+                scores[strategy] += 1
+
+    # CCOS 主结构加权
+    main_structure = ccos_outline.get("主结构", "")
+    if "故事驱动" in main_structure:
+        scores["人物线索型"] += 2
+    elif "认知升级" in main_structure:
+        scores["悬念解密型"] += 1
+        scores["观点碰撞型"] += 1
+    elif "问题拆解" in main_structure:
+        scores["数据驱动型"] += 1
+
+    # 内容目标加权
+    content_goal = ccos_outline.get("内容目标", "")
+    if "认知升级" in content_goal:
+        scores["悬念解密型"] += 1
+        scores["观点碰撞型"] += 1
+    elif "情绪共鸣" in content_goal or "情感" in content_goal:
+        scores["人物线索型"] += 2
+
+    # 素材数量阈值（太少时不触发对应策略）
+    total_material_score = sum(scores.values())
+    if total_material_score < 3:
+        # 素材太少时用悬念解密型保守策略
+        scores["悬念解密型"] += 1
+
+    best_strategy = max(scores, key=lambda k: scores[k])
+    best_score = scores[best_strategy]
+
+    # 生成素材分配表（简版，给预叙事用）
+    material_assignment = []
+    case_materials = [m for m in materials if "case" in m.get("type", "").lower()]
+    data_materials = [m for m in materials if any(kw in m.get("content", "") for kw in ["数据", "统计", "%"])]
+    insight_materials = [m for m in materials if "insight" in m.get("type", "").lower()]
+
+    for m in case_materials[:3]:
+        material_assignment.append({
+            "material": m.get("name", ""),
+            "position": "展开段落（案例切入）",
+            "proves": "论点：真实存在的转型路径",
+            "strategy_use": "人物线索型"
+        })
+    for m in data_materials[:3]:
+        material_assignment.append({
+            "material": m.get("name", ""),
+            "position": "论证段落（数据支撑）",
+            "proves": "论点：数字背后的趋势",
+            "strategy_use": "数据驱动型"
+        })
+
+    return {
+        "strategy": best_strategy,
+        "reasoning": f"基于{len(materials)}条知识库素材和{len(search_results)}条搜索结果，{best_strategy}得分最高（{best_score:.1f}分）",
+        "scores": scores,
+        "material_assignment": material_assignment,
+        "strategy_guide": NARRATIVE_STRATEGIES[best_strategy],
+    }
+
+
+def generate_prenarrative(
+    topic: str,
+    ccos_outline: Dict,
+    strategy: Dict,
+    materials: List[Dict],
+    search_results: List[Dict],
+    platform: str,
+) -> str:
+    """
+    生成预叙事（200字叙事策略）
+    包含：核心论点 + 主线叙事方向 + 素材分配表 + 各段落核心意图
+    """
+    # 构建素材上下文
+    all_materials_text = "\n".join([
+        f"- [{m.get('name', '')}]({m.get('type', '')}): {m.get('content', '')[:200]}"
+        for m in materials[:8]
+    ])
+    search_context = "\n".join([
+        f"- {r.get('title', '')}: {r.get('snippet', '')[:150]}"
+        for r in search_results[:6]
+    ])
+
+    prompt = f"""你是资深内容策划师。基于可用素材，为命题制定叙事策略。
+
+命题：{topic}
+CCOS大纲核心：{ccos_outline.get('最终动态认知大纲', '')[:200]}
+CCOS主结构：{ccos_outline.get('主结构', '')}
+CCOS推进方式：{ccos_outline.get('推进方式', '')}
+
+选定叙事策略：{strategy['strategy']}
+策略说明：{strategy['strategy_guide']['description']}
+策略理由：{strategy['reasoning']}
+
+知识库素材：
+{all_materials_text}
+
+搜索素材：
+{search_context}
+
+请生成200字以内的预叙事，包含：
+1. 核心论点（一句话，这篇文章最想传达什么）
+2. 主线叙事方向（怎么讲这个故事）
+3. 素材分配（每个素材用在哪个位置、证明什么）
+4. 段落节奏（开头/展开/深化/收尾各用什么情绪）
+
+平台：{platform}（公众号需更深度、更叙事感）
+目标字数：2500-3000字
+
+输出格式：直接输出预叙事文本，不要JSON。"""
+
+    raw = _call_llm_raw(prompt, temperature=0.5)
+    return raw or ""
+
+
+def generate_full_draft(
+    topic: str,
+    ccos_outline: Dict,
+    prenarrative: str,
+    strategy: Dict,
+    materials: List[Dict],
+    search_results: List[Dict],
+    platform: str,
+) -> str:
+    """
+    一稿生成：完整草稿，不按模块拼接
+    输入：预叙事 + 全部素材上下文
+    """
+    all_materials_text = "\n".join([
+        f"- [{m.get('name', '')}]({m.get('type', '')}): {m.get('content', '')[:300]}"
+        for m in materials[:10]
+    ])
+    search_context = "\n".join([
+        f"- {r.get('title', '')}: {r.get('snippet', '')[:200]}"
+        for r in search_results[:8]
+    ])
+
+    platform_hints = {
+        "wechat": "公众号深度叙事风格，理性与情绪交织，信息密度高，禁止空洞总结",
+        "xiaohongshu": "小红书风格，情绪共鸣强，第一人称，短段落，emoji点缀",
+    }
+    hints = platform_hints.get(platform, platform_hints["wechat"])
+
+    prompt = f"""你是资深内容策划师。基于预叙事策略，一稿生成完整文章。
+
+命题：{topic}
+
+【预叙事策略】
+{prenarrative}
+
+【CCOS大纲】
+内容目标：{ccos_outline.get('内容目标', '')}
+核心认知冲突：{ccos_outline.get('核心认知冲突', '')}
+内容立场：{ccos_outline.get('内容立场', '')}
+主结构：{ccos_outline.get('主结构', '')}
+推进方式：{ccos_outline.get('推进方式', '')}
+语言风格：{ccos_outline.get('语言风格', '')}
+Anti-AI要求：{ccos_outline.get('Anti-AI要求', '')}
+
+【可用素材】
+知识库：
+{all_materials_text}
+
+搜索素材：
+{search_context}
+
+【写作要求】
+- 平台：{hints}
+- **总字数必须达到2500-3000字（严格不低于2500字，不超过3000字）**
+- **结构要求：必须写5-7个自然段落，每个段落400-600字**
+- **写完后请用数字统计全文字数，如果低于2500字请务必扩充**
+- 风格：故事驱动、自然段落，不许用"一、二、三"或"第一章、第二章"这类模块式标题
+- 开头要有画面感/场景感，不要平铺直叙
+- 素材必须被真正消化后融入叙事，不是堆砌
+- 核心张力从头贯穿到尾，不能写着写着忘了论点
+- 禁止：同义反复、空洞总结、模板感、套话、数字编号式标题
+- 强制：真实细节、具体数字（必须用）、人物心理、时间感
+
+直接输出完整文章正文，不要解释，不要JSON，不要标题。"""
+
+    raw = _call_llm_raw(prompt, temperature=0.6)
+    return raw or ""
+
+
+def revise_paragraph(
+    topic: str,
+    current_draft: str,
+    paragraph_to_revise: str,
+    user_modification: str,
+    ccos_outline: Dict,
+    platform: str,
+) -> str:
+    """
+    段落级修改：用户指出要改某段，LLM在全文上下文下重写那一段
+
+    Args:
+        current_draft: 完整草稿（用于上下文）
+        paragraph_to_revise: 用户指定要改的段落内容
+        user_modification: 用户的修改方向/要求
+    """
+    prompt = f"""你是资深内容编辑。用户要求修改文章的某个段落。
+
+命题：{topic}
+CCOS核心立场：{ccos_outline.get('内容立场', '')}
+CCOS推进方式：{ccos_outline.get('推进方式', '')}
+
+【完整文章草稿】
+{current_draft}
+
+【用户要求修改的段落】
+{paragraph_to_revise}
+
+【用户的修改方向】
+{user_modification}
+
+要求：
+1. 在全文上下文中重写这个段落
+2. 保持与文章其他部分的连贯性（论点一致、情绪连贯）
+3. 不要破坏文章的叙事主线
+4. 输出：只输出修改后的段落内容（不要全文）
+
+直接输出修改后的段落，不要解释。"""
+
+    raw = _call_llm_raw(prompt, temperature=0.4)
+    return raw or paragraph_to_revise
+
+
+def check_ccos_structure(ccos_outline: Dict, article_text: str) -> Dict:
+    """
+    CCOS 结构预检查：生成前验证大纲是否完整，生成后检查文章覆盖了多少模块
+    这里用于生成前的预检查
+    """
+    required_modules = ["HOOK", "CASE", "COUNTER", "ACTION"]
+    if ccos_outline.get("主结构") == "认知升级型":
+        required_modules.append("MODEL")
+    if ccos_outline.get("主结构") == "问题拆解型":
+        required_modules.append("EXPLAIN")
+
+    module_flow = ccos_outline.get("认知模块流", [])
+    defined_modules = [m.get("模块", "") for m in module_flow]
+
+    missing = [m for m in required_modules if m not in defined_modules]
+
+    return {
+        "ccos_complete": len(missing) == 0,
+        "defined_modules": defined_modules,
+        "required_but_missing": missing,
+        "warning": f"建议在生成前补充缺失模块：{', '.join(missing)}" if missing else "",
+    }
+
+
+def narrative_generation_workflow(
+    topic: str,
+    ccos_outline: Dict,
+    platform: str,
+    vault_path: Path = None,
+    search_results: List[Dict] = None,
+    auto_scrape: bool = False
+) -> Dict:
+    """
+    Phase 5 重构后的叙事生成流程
+
+    流程：
+    1. CCOS 预检查（结构是否完整）
+    2. 收集素材（知识库召回 + 搜索结果）
+    3. 策略评估（综合素材类型选择最优叙事策略）
+    4. 预叙事生成（叙事策略文本化）
+    5. 一稿生成（完整草稿，2500-3000字）
+    6. 返回草稿供段落级修改
+
+    Returns:
+        {
+            "status": str,
+            "topic": str,
+            "platform": str,
+            "prenarrative": str,
+            "strategy": {...},
+            "full_draft": str,
+            "word_count": int,
+            "material_gaps": Dict,
+            "materials_used": List[str],
+        }
+    """
+    if vault_path is None:
+        vault_path = Path(r"D:\软件\obsidian笔记\内容素材库")
+    if search_results is None:
+        search_results = []
+
+    result = {
+        "status": "running",
+        "topic": topic,
+        "platform": platform,
+        "prenarrative": "",
+        "strategy": {},
+        "full_draft": "",
+        "word_count": 0,
+        "material_gaps": {},
+        "materials_used": [],
+    }
+
+    # Step 1: CCOS 预检查
+    ccos_check = check_ccos_structure(ccos_outline, "")
+    result["ccos_check"] = ccos_check
+    if ccos_check.get("warning"):
+        print(f"[CCOS Precheck] {ccos_check['warning']}", file=sys.stderr)
+
+    # Step 2: 素材收集
+    gaps = detect_material_gaps(topic, ccos_outline, vault_path)
+    result["material_gaps"] = gaps
+
+    # 合并搜索结果到素材池
+    all_materials = []
+    for mod_type, gap_info in gaps.items():
+        all_materials.extend(gap_info.get("materials", []))
+        # 如果有搜索结果，加入模拟素材（用于策略评估）
+        if gap_info.get("search_results"):
+            for sr in gap_info["search_results"][:3]:
+                all_materials.append({
+                    "name": sr.get("title", ""),
+                    "type": "search_result",
+                    "content": sr.get("snippet", ""),
+                    "url": sr.get("url", ""),
+                })
+    # 添加传入的搜索结果
+    for sr in search_results:
+        all_materials.append({
+            "name": sr.get("title", ""),
+            "type": "search_result",
+            "content": sr.get("snippet", ""),
+            "url": sr.get("url", ""),
+        })
+
+    result["materials_used"] = [m.get("name", "") for m in all_materials[:15]]
+
+    # Step 3: 策略评估
+    strategy = evaluate_narrative_strategy(topic, ccos_outline, all_materials, search_results)
+    result["strategy"] = strategy
+    print(f"[Narrative] 策略: {strategy['strategy']} (得分: {strategy['scores']})", file=sys.stderr)
+
+    # Step 4: 预叙事生成
+    prenarrative = generate_prenarrative(
+        topic, ccos_outline, strategy, all_materials, search_results, platform
+    )
+    result["prenarrative"] = prenarrative
+
+    # Step 5: 一稿生成
+    full_draft = generate_full_draft(
+        topic, ccos_outline, prenarrative, strategy, all_materials, search_results, platform
+    )
+
+    if not full_draft:
+        result["status"] = "llm_failed"
+        return result
+
+    # Step 5b: 字数校验与自动扩充
+    word_count = len(full_draft)
+    print(f"[字数] 草稿 {word_count} 字", file=sys.stderr)
+    if word_count < 2500:
+        print(f"[字数] 不足2500字，正在进行扩充...", file=sys.stderr)
+        expansion_prompt = f"""你是资深内容策划师。下面这篇文章需要扩充到2500-3000字。
+
+当前字数：{word_count}字
+目标字数：2500-3000字
+
+扩写要求：
+- 在现有内容基础上扩充，不要删除已有内容
+- 增加更多具体细节：人物对话、场景描写、心理活动、数据支撑
+- 每个段落至少扩充200-300字
+- 保持原有的叙事风格和核心论点
+- 不要添加新的模块式标题
+
+【原文】
+{full_draft}
+
+直接输出扩充后的完整文章，不要解释，不要JSON。"""
+
+        expanded = _call_llm_raw(expansion_prompt, temperature=0.6)
+        if expanded and len(expanded) > word_count:
+            full_draft = expanded
+            word_count = len(full_draft)
+            print(f"[字数] 扩充后 {word_count} 字", file=sys.stderr)
+
+    result["full_draft"] = full_draft
+    result["word_count"] = word_count
+    result["status"] = "completed"
+
+    return result
+
+
+# ============ 交互式叙事生成（CLI使用）============
+
+def interactive_narrative_workflow(
+    topic: str,
+    ccos_outline: Dict,
+    platform: str,
+    vault_path: Path = None
+) -> Dict:
+    """
+    交互式叙事生成流程
+    展示预叙事 → 生成一稿 → 用户选择段落修改 → 最终确认
+    """
+    if vault_path is None:
+        vault_path = Path(r"D:\软件\obsidian笔记\内容素材库")
+
+    print(f"\n{'='*60}")
+    print(f"叙事生成 | 命题：{topic}")
+    print(f"{'='*60}")
+
+    # 1. 缺口检测 + 搜索补货
+    gaps = detect_material_gaps(topic, ccos_outline, vault_path)
+    search_results_all = []
+    for mod_type, gap_info in gaps.items():
+        if gap_info.get("has_gap"):
+            sr = search_gap_articles(topic, mod_type, gap_info.get("gap_description", ""), max_results=3)
+            gap_info["search_results"] = sr
+            search_results_all.extend(sr)
+
+    # 2. 策略评估
+    all_materials = []
+    for gap_info in gaps.values():
+        all_materials.extend(gap_info.get("materials", []))
+        for sr in gap_info.get("search_results", []):
+            all_materials.append({
+                "name": sr.get("title", ""),
+                "type": "search_result",
+                "content": sr.get("snippet", ""),
+            })
+
+    strategy = evaluate_narrative_strategy(topic, ccos_outline, all_materials, search_results_all)
+    print(f"\n【策略评估】{strategy['strategy']} — {strategy['reasoning']}")
+    scores_str = ", ".join([f"{k}:{v}" for k, v in strategy['scores'].items()])
+    print(f"  得分：{scores_str}")
+
+    # 3. 预叙事
+    prenarrative = generate_prenarrative(
+        topic, ccos_outline, strategy, all_materials, search_results_all, platform
+    )
+    if prenarrative:
+        print(f"\n【预叙事】")
+        print(prenarrative[:300])
+        if len(prenarrative) > 300:
+            print("  ...")
+
+        confirm = input("\n预叙事确认 → [回车]继续生成 [e]编辑预叙事 → ").strip().lower()
+        if confirm == "e":
+            print("  请输入修改后的预叙事（空行结束）：")
+            lines = []
+            while True:
+                try:
+                    line = input()
+                    if line == "":
+                        break
+                    lines.append(line)
+                except (EOFError, KeyboardInterrupt):
+                    break
+            if lines:
+                prenarrative = "\n".join(lines)
+
+    # 4. 一稿生成
+    print(f"\n【生成中...】（基于预叙事 + {len(all_materials)} 条素材）")
+    full_draft = generate_full_draft(
+        topic, ccos_outline, prenarrative, strategy, all_materials, search_results_all, platform
+    )
+
+    if not full_draft:
+        print("[Error] 生成失败")
+        return {"status": "llm_failed", "topic": topic}
+
+    print(f"  草稿完成，共 {len(full_draft)} 字")
+
+    # 5. 段落级修改
+    paragraphs = split_into_paragraphs(full_draft)
+    confirmed_paragraphs = []
+
+    for i, para in enumerate(paragraphs, 1):
+        print(f"\n{'─'*40}")
+        print(f"段落 {i}/{len(paragraphs)}")
+        print(f"{'─'*40}")
+        print(para[:300])
+        if len(para) > 300:
+            print("  ...")
+
+        action = input("  操作：[回车]确认 [r]重写 [e]直接编辑 → ").strip().lower()
+
+        if action == "r":
+            # 重写这一段
+            revised = revise_paragraph(
+                topic, full_draft, para,
+                "重写这段，保持全文连贯性",
+                ccos_outline, platform
+            )
+            confirmed_paragraphs.append(revised)
+            full_draft = full_draft.replace(para, revised, 1)
+        elif action == "e":
+            print("  请输入修改后的段落（空行结束）：")
+            lines = []
+            while True:
+                try:
+                    line = input()
+                    if line == "":
+                        break
+                    lines.append(line)
+                except (EOFError, KeyboardInterrupt):
+                    break
+            edited = "\n".join(lines)
+            if edited:
+                confirmed_paragraphs.append(edited)
+                full_draft = full_draft.replace(para, edited, 1)
+            else:
+                confirmed_paragraphs.append(para)
+        else:
+            confirmed_paragraphs.append(para)
+
+    result_draft = "\n\n".join(confirmed_paragraphs)
+
+    print(f"\n{'='*60}")
+    print("【最终草稿】")
+    print(f"{'='*60}")
+    print(result_draft)
+
+    return {
+        "status": "completed",
+        "topic": topic,
+        "platform": platform,
+        "prenarrative": prenarrative,
+        "strategy": strategy.get("strategy", ""),
+        "full_draft": result_draft,
+        "word_count": len(result_draft),
+    }
+
+
+def split_into_paragraphs(text: str) -> List[str]:
+    """将文章按空行分割为段落"""
+    parts = text.split("\n\n")
+    return [p.strip() for p in parts if p.strip()]
+
+
+# ============ 辅助函数 ============
 
 def _safe_print(obj: Any) -> None:
     """Windows GBK 安全输出"""

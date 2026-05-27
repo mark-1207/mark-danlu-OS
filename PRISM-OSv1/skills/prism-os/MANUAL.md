@@ -72,7 +72,7 @@ ZHIPU_API_KEY=你的智谱密钥
 最简单的方式：
 ```bash
 cd scripts
-python prism_os.py run "你的话题" --fast --no-ext
+python prism_os.py run "你的话题" --no-ext
 ```
 
 ---
@@ -139,7 +139,7 @@ PRISM-OS：[生成标题候选] → [检查是否重复] → [输出结果]
 **方式一：直接命令（最简单）**
 ```bash
 cd scripts
-python prism_os.py run "你的话题" --fast --no-ext
+python prism_os.py run "你的话题" --no-ext
 ```
 
 示例：

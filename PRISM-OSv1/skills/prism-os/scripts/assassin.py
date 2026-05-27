@@ -154,7 +154,7 @@ def check_cooldown(last_reminder_time: str = None, days: int = 30) -> bool:
         from datetime import datetime, timedelta
         last_time = datetime.fromisoformat(last_reminder_time)
         return datetime.now() - last_time < timedelta(days=days)
-    except:
+    except (ValueError, OSError):
         return False
 
 
@@ -315,7 +315,7 @@ def read_backup_queue() -> List[Dict]:
     try:
         data = json.loads(stdout)
         records = data.get("data", {}).get("items") or []
-    except:
+    except (json.JSONDecodeError, OSError):
         return []
 
     result = []
@@ -817,7 +817,7 @@ def main():
         try:
             entities = json.loads(entities_str)
             relations = json.loads(relations_str)
-        except:
+        except (json.JSONDecodeError, ValueError):
             entities = []
             relations = []
         result = analyze_knowledge_topology(entities, relations)
@@ -828,7 +828,7 @@ def main():
         config_str = sys.argv[3] if len(sys.argv) > 3 else "{}"
         try:
             old_config = json.loads(config_str)
-        except:
+        except (json.JSONDecodeError, ValueError):
             old_config = {}
         result = evolve_prompt(trigger, old_config, "")
         _safe_print(result)
