@@ -12,6 +12,7 @@ import { registerComplianceCommand } from './commands/compliance.js';
 import { registerTopicCommand } from './commands/topic.js';
 import { registerTopicEngineCommand } from './commands/topic-engine.js';
 import { registerArticleCommand } from './commands/article.js';
+import { registerContentCalendarCommand } from './commands/content-calendar.js';
 
 export function buildCLI(): Command {
   const program = new Command();
@@ -34,6 +35,7 @@ export function buildCLI(): Command {
   registerTopicCommand(program);
   registerTopicEngineCommand(program);
   registerArticleCommand(program);
+  registerContentCalendarCommand(program);
 
   return program;
 }
