@@ -15,6 +15,7 @@ import { registerArticleCommand } from './commands/article.js';
 import { registerContentCalendarCommand } from './commands/content-calendar.js';
 import { registerTopicGapCommand } from './commands/topic-gap.js';
 import { registerPlatformAllocationCommand } from './commands/platform-allocation.js';
+import { registerCompetitorCommand } from './commands/competitor.js';
 
 export function buildCLI(): Command {
   const program = new Command();
@@ -40,6 +41,7 @@ export function buildCLI(): Command {
   registerContentCalendarCommand(program);
   registerTopicGapCommand(program);
   registerPlatformAllocationCommand(program);
+  registerCompetitorCommand(program);
 
   return program;
 }
