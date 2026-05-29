@@ -39,10 +39,84 @@ DIMENSIONS = {
     }
 }
 
+# ============ 读者标题原型（Phase 2 v2.0）============
+
+TITLE_ARCHETYPES = {
+    "opinion_assertion": {
+        "name": "观点断言型",
+        "description": "一个明确判断句，不解释、不铺垫，直接亮态度",
+        "formula": "核心观点+具体对象+反常识标签",
+        "reader_trigger": "立场/态度 - 这人敢这么说?"
+    },
+    "identity_label": {
+        "name": "身份标签型",
+        "description": "把读者划入一个身份，让ta觉得这说的就是我",
+        "formula": "身份标签+共同困境/特征+悬念",
+        "reader_trigger": "代入/归属 - XX的人，都..."
+    },
+    "scene_suspense": {
+        "name": "场景悬念型",
+        "description": "用具体场景开头，悬念不解释，逼读者点进来找答案",
+        "formula": "具体场景+反预期结果+不说为什么",
+        "reader_trigger": "好奇/画面 - 发生了什么?"
+    },
+    "data_counter_ask": {
+        "name": "数据反问型",
+        "description": "用具体数字制造冲击，再用反问让读者自己站队",
+        "formula": "数据+对立面+反问",
+        "reader_trigger": "冲击/反思 - 这个数字意味着什么?"
+    },
+    "story_hook": {
+        "name": "故事钩子型",
+        "description": "用第一人称真实经历开头，故事未讲完就截断",
+        "formula": "我/他+做了X+发现Y+没说结论",
+        "reader_trigger": "共情/代入 - 后来呢?"
+    }
+}
+
+# 认知维度 → 标题原型推荐映射
+DIMENSION_TO_ARCHETYPE = {
+    "reversal": ["opinion_assertion", "data_counter_ask"],
+    "micro_scene": ["scene_suspense", "story_hook"],
+    "systemic_flaw": ["opinion_assertion", "identity_label"],
+    "bridge": ["identity_label", "scene_suspense"],
+}
+
 BANNED_WORDS = [
     "赋能", "降维打击", "破圈", "必须知道", "震惊",
-    "惊呆了", "重磅", "震撼", "颠覆", "必看"
+    "惊呆了", "重磅", "震撼", "颠覆", "必看",
+    "绝了", "哭了", "全網", "全网", "藏不住了",
+    "太绝了", "一定要看", "后悔没早知道", "刷屏",
+    "炸裂", "沸腾", "刷爆", "都在看", "深度好文"
 ]
+
+
+def _estimate_dimension_scores(thesis: str) -> Dict[str, float]:
+    """
+    基于命题文本特征估算4维认知得分（规则版，不调用LLM）
+
+    Returns:
+        {"reversal": float, "micro_scene": float, "systemic_flaw": float, "bridge": float}
+    """
+    scores = {"reversal": 0.3, "micro_scene": 0.3, "systemic_flaw": 0.3, "bridge": 0.3}
+
+    # reversal: 反常识/逆向关键词
+    reversal_kw = ["其实", "却", "反直觉", "真相", "误区", "不是", "错了", "你以为", "颠覆"]
+    scores["reversal"] = min(0.3 + sum(1 for kw in reversal_kw if kw in thesis) * 0.15, 1.0)
+
+    # micro_scene: 具体场景/人称
+    scene_kw = ["在", "当", "一个", "我", "你", "他/她", "公司", "团队", "一个人", "身边", "每天"]
+    scores["micro_scene"] = min(0.3 + sum(1 for kw in scene_kw if kw in thesis) * 0.12, 1.0)
+
+    # systemic_flaw: 结构性问题/系统归因
+    flaw_kw = ["系统", "结构", "根源", "制度", "机制", "循环", "体系", "底层", "资本", "社会"]
+    scores["systemic_flaw"] = min(0.3 + sum(1 for kw in flaw_kw if kw in thesis) * 0.18, 1.0)
+
+    # bridge: 方法/工具/框架
+    bridge_kw = ["如何", "怎么", "方法", "模型", "框架", "步骤", "技巧", "策略", "方案", "工具"]
+    scores["bridge"] = min(0.3 + sum(1 for kw in bridge_kw if kw in thesis) * 0.15, 1.0)
+
+    return scores
 
 
 def check_banned_words(title: str) -> Tuple[bool, List[str]]:
@@ -138,9 +212,137 @@ def generate_dimension_titles(thesis: str, dimension: str, identity_role: str = 
     return valid_candidates
 
 
+def select_title_archetypes(dimension_scores: Dict[str, float]) -> List[str]:
+    """
+    根据认知维度得分，推荐最适合的标题原型（2-4个）
+
+    Args:
+        dimension_scores: {"reversal": float, "micro_scene": float, "systemic_flaw": float, "bridge": float}
+
+    Returns:
+        推荐的 archetype key 列表（按优先级排序）
+    """
+    archetype_scores = {}
+    for archetype_key in TITLE_ARCHETYPES:
+        archetype_scores[archetype_key] = 0.0
+
+    # 累计每个原型的得分（通过维度映射）
+    for dimension, score in dimension_scores.items():
+        if dimension in DIMENSION_TO_ARCHETYPE:
+            for archetype in DIMENSION_TO_ARCHETYPE[dimension]:
+                archetype_scores[archetype] = archetype_scores.get(archetype, 0.0) + score
+
+    # 按得分降序排列
+    ranked = sorted(archetype_scores.items(), key=lambda x: x[1], reverse=True)
+
+    # 取前2-4个（得分>0.2的优先）
+    selected = [k for k, v in ranked if v > 0.2]
+    if len(selected) < 2:
+        selected = [k for k, v in ranked[:2]]  # 至少2个
+    if len(selected) > 4:
+        selected = selected[:4]  # 至多4个
+
+    return selected
+
+
+def generate_archetype_titles(thesis: str, archetype: str,
+                               identity_role: str = "", audience: str = "",
+                               count: int = 2) -> List[Dict]:
+    """
+    按指定原型生成候选标题
+
+    Args:
+        thesis: 命题
+        archetype: 原型 key（如 "opinion_assertion"）
+        identity_role: 用户身份
+        audience: 目标受众
+        count: 生成几个（1-3）
+
+    Returns:
+        [{"title": str, "rationale": str, "archetype": str, "char_count": int}, ...]
+    """
+    arch_config = TITLE_ARCHETYPES.get(archetype)
+    if not arch_config:
+        return []
+
+    prompt = f"""你是顶级选题策划师，专注爆款内容策划。用「{arch_config['name']}」的方式为命题生成 {count} 个候选标题。
+
+**原型定义：**
+- 名称：{arch_config['name']}
+- 核心手法：{arch_config['description']}
+- 公式：{arch_config['formula']}
+- 读者触发点：{arch_config['reader_trigger']}
+
+**爆款标题核心特征：**
+1. **有观点**：标题像一个人在说话，不是一个主题概括
+2. **有节奏**：短-长-短、问-答-问、数-感-问，读起来有呼吸感
+3. **有人称**：出现"你"或"我"，制造对话感
+4. **有情绪**：愤怒/惊讶/好奇/共鸣，不能是中性陈述
+5. **有悬念**：说完一半，留一半，逼人点进去
+
+**禁止格式：**
+- 禁止：为什么XX，其实是YY？（AI腔过重）
+- 禁止：XX的本质是YY（教科书标题）
+- 禁止：你必须知道的XX个ZZ（说教式）
+- 禁止以"如何"开头除非是故事钩子型
+
+**长度要求：**
+- 公众号：20-30字
+- 小红书：15-22字（如有平台参数）
+
+用户命题：{thesis}
+{f"用户身份：{identity_role}" if identity_role else ""}
+{f"目标受众：{audience}" if audience else ""}
+原型：{arch_config['name']}
+
+返回JSON：
+{{
+  "candidates": [
+    {{"title": "标题1", "rationale": "标题理由（说明使用了什么手法、触发什么情绪）"}},
+    ...
+  ]
+}}"""
+
+    result = _call_llm_raw(prompt)
+    if not result:
+        return []
+
+    parsed = _parse_llm_json(result)
+    if not parsed or "candidates" not in parsed:
+        return []
+
+    valid_candidates = []
+    for c in parsed["candidates"]:
+        title = c.get("title", "").strip()
+        rationale = c.get("rationale", "").strip()
+
+        if not title:
+            continue
+
+        # 检查禁用词
+        has_banned, found = check_banned_words(title)
+        if has_banned:
+            continue
+
+        valid_candidates.append({
+            "title": title,
+            "rationale": rationale,
+            "archetype": archetype,
+            "char_count": len(title)
+        })
+
+    return valid_candidates[:count]
+
+
 def generate_all_titles(thesis: str, identity_role: str = "", audience: str = "") -> List[Dict]:
     """
-    生成所有四个维度的候选标题（共12个）
+    基于原型选择，生成 6-10 个候选标题
+
+    流程：
+    1. 先用LLM评估4个认知维度的得分（保留4维度作为分析信号）
+    2. 根据维度得分推荐2-4个标题原型
+    3. 每个原型生成2-3个标题
+    4. 总计6-10个标题，不凑数
 
     Args:
         thesis: 命题
@@ -150,13 +352,27 @@ def generate_all_titles(thesis: str, identity_role: str = "", audience: str = ""
     Returns:
         所有候选标题列表
     """
-    all_candidates = []
+    # Step 1: 获取维度得分（从CCOS或LLM那里来，这里先用prism_engine自己的评估）
+    # 简单规则：基于命题文本特征估算4维得分
+    dimension_scores = _estimate_dimension_scores(thesis)
 
-    for dimension in DIMENSIONS.keys():
-        candidates = generate_dimension_titles(thesis, dimension, identity_role, audience)
+    # Step 2: 选择原型
+    selected_archetypes = select_title_archetypes(dimension_scores)
+
+    # Step 3: 按原型生成标题
+    all_candidates = []
+    for i, arch in enumerate(selected_archetypes):
+        # 前面原型给3个，后面给2个
+        count = 3 if i == 0 else (3 if i == 1 and len(selected_archetypes) <= 3 else 2)
+        candidates = generate_archetype_titles(thesis, arch, identity_role, audience, count)
         all_candidates.extend(candidates)
 
-    return all_candidates
+    # 目标6-10个，不凑数
+    if len(all_candidates) < 6:
+        # 补到6个
+        return all_candidates  # 不凑数，有多少是多少
+
+    return all_candidates[:10]  # 上限10个
 
 
 def calculate_jaccard_similarity(title_a: str, title_b: str) -> float:
@@ -276,7 +492,7 @@ def prism_engine(thesis: str, identity_role: str = "", audience: str = "") -> Di
         if not c["orthogonal"]:
             warnings.append(f"标题 '{c['title'][:20]}...' 与其他候选相似度较高")
 
-    status = "success" if orthogonal_count >= 8 else "partial"
+    status = "success" if orthogonal_count >= 5 else "partial"
 
     return {
         "status": status,
