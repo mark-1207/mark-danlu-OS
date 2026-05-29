@@ -143,14 +143,16 @@ class TestQualityCheck(unittest.TestCase):
     @patch("content_generator._call_llm_raw", _mock_llm_quality_pass)
     def test_pass_article_returns_pass_status(self):
         from content_generator import quality_check
-        result = quality_check("这是一篇很好的文章，有真实案例和数据支撑。", "wechat")
+        article = "这是一篇很好的文章，有真实案例和数据支撑。" * 5  # 95 chars, >50 threshold
+        result = quality_check(article, "wechat")
         self.assertEqual(result["status"], "pass")
         self.assertGreaterEqual(result["score"], 90)
 
     @patch("content_generator._call_llm_raw", _mock_llm_quality_issues)
     def test_issues_found_returns_problems(self):
         from content_generator import quality_check
-        result = quality_check("赋能企业的数字化转型...", "wechat")
+        article = "赋能企业的数字化转型是当前最重要的战略方向之一。" * 5
+        result = quality_check(article, "wechat")
         self.assertEqual(result["status"], "issues_found")
         self.assertGreater(len(result["issues"]), 0)
         self.assertGreater(len(result["ai_mannerisms"]), 0)
@@ -187,7 +189,8 @@ class TestQualityCheck(unittest.TestCase):
     @patch("content_generator._call_llm_raw", return_value=None)
     def test_returns_default_on_llm_failure(self, mock_llm):
         from content_generator import quality_check
-        result = quality_check("test", "wechat")
+        article = "这是一篇测试文章内容用于验证质量检查模块在LLM失败时的降级行为。" * 3
+        result = quality_check(article, "wechat")
         self.assertIn("status", result)
         self.assertEqual(result["status"], "check_failed")
         self.assertEqual(result["score"], 0)
