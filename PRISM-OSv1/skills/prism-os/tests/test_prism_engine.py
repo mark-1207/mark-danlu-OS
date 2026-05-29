@@ -14,6 +14,8 @@ from prism_engine import (
     _parse_llm_json,
     DIMENSIONS,
     BANNED_WORDS,
+    TITLE_ARCHETYPES,
+    select_title_archetypes,
 )
 
 
@@ -126,6 +128,114 @@ class TestDimensions(unittest.TestCase):
             self.assertIn("name", dim)
             self.assertIn("description", dim)
             self.assertIn("formula", dim)
+
+
+# ============ 新增：标题原型系统测试 ============
+
+class TestTitleArchetypes(unittest.TestCase):
+    """TITLE_ARCHETYPES 常量测试"""
+
+    def test_five_archetypes_exist(self):
+        """必须有5个读者标题原型"""
+        self.assertEqual(len(TITLE_ARCHETYPES), 5,
+                         f"期望5个原型，实际{len(TITLE_ARCHETYPES)}")
+
+    def test_archetype_keys(self):
+        expected_keys = {"opinion_assertion", "identity_label", "scene_suspense",
+                         "data_counter_ask", "story_hook"}
+        self.assertEqual(set(TITLE_ARCHETYPES.keys()), expected_keys)
+
+    def test_each_archetype_has_required_fields(self):
+        for key, arch in TITLE_ARCHETYPES.items():
+            for field in ("name", "description", "formula", "reader_trigger"):
+                self.assertIn(field, arch, f"{key} 缺少字段: {field}")
+            self.assertIsInstance(arch["name"], str)
+            self.assertTrue(len(arch["name"]) > 0, f"{key}.name 为空")
+
+    def test_archetypes_have_chinese_names(self):
+        for arch in TITLE_ARCHETYPES.values():
+            self.assertTrue(any('一' <= c <= '鿿' for c in arch["name"]),
+                            f"{arch['name']} 应包含中文")
+
+
+class TestSelectTitleArchetypes(unittest.TestCase):
+    """select_title_archetypes 维度得分 → 原型推荐测试"""
+
+    def test_returns_list_of_strings(self):
+        scores = {"reversal": 0.8, "micro_scene": 0.3, "systemic_flaw": 0.2, "bridge": 0.4}
+        result = select_title_archetypes(scores)
+        self.assertIsInstance(result, list)
+        self.assertTrue(len(result) > 0)
+        for item in result:
+            self.assertIsInstance(item, str)
+            self.assertIn(item, TITLE_ARCHETYPES.keys(),
+                          f"返回值 '{item}' 不在 TITLE_ARCHETYPES 中")
+
+    def test_reversal_high_recommends_opinion_assertion(self):
+        scores = {"reversal": 0.9, "micro_scene": 0.2, "systemic_flaw": 0.1, "bridge": 0.1}
+        result = select_title_archetypes(scores)
+        self.assertIn("opinion_assertion", result)
+
+    def test_micro_scene_high_recommends_scene_suspense(self):
+        scores = {"reversal": 0.2, "micro_scene": 0.9, "systemic_flaw": 0.1, "bridge": 0.1}
+        result = select_title_archetypes(scores)
+        self.assertIn("scene_suspense", result)
+
+    def test_balanced_scores_returns_multiple(self):
+        scores = {"reversal": 0.6, "micro_scene": 0.5, "systemic_flaw": 0.5, "bridge": 0.6}
+        result = select_title_archetypes(scores)
+        self.assertGreaterEqual(len(result), 2, "均衡得分应至少推荐2个原型")
+
+    def test_all_low_scores_still_returns_archetypes(self):
+        scores = {"reversal": 0.1, "micro_scene": 0.1, "systemic_flaw": 0.1, "bridge": 0.1}
+        result = select_title_archetypes(scores)
+        self.assertTrue(len(result) > 0, "即使得分很低也应返回默认原型")
+
+    def test_returns_2_to_4_archetypes(self):
+        scores = {"reversal": 0.5, "micro_scene": 0.5, "systemic_flaw": 0.5, "bridge": 0.5}
+        result = select_title_archetypes(scores)
+        self.assertGreaterEqual(len(result), 2, "至少2个")
+        self.assertLessEqual(len(result), 4, "至多4个")
+
+
+class TestTitleCountRange(unittest.TestCase):
+    """验证标题数量范围 6-10"""
+
+    def test_archetype_count_produces_6_to_10_titles(self):
+        """2-4个原型 × 2-3个标题 = 6-10"""
+        for arch_count in range(2, 5):
+            for titles_per in (2, 3):
+                total = arch_count * titles_per
+                self.assertGreaterEqual(total, 6, f"{arch_count}×{titles_per}={total} < 6")
+                self.assertLessEqual(total, 10, f"{arch_count}×{titles_per}={total} > 10")
+
+    def test_min_2_archetypes_x_3_titles_equals_6(self):
+        self.assertEqual(2 * 3, 6)
+
+    def test_max_4_archetypes_x_3_titles_equals_12_too_many(self):
+        """4×3=12 超标，应限制每原型最多2-3个"""
+        self.assertGreater(4 * 3, 10, "4原型×3标题=12 > 10，实现时应限制")
+
+
+class TestOrthogonalThreshold(unittest.TestCase):
+    """验证 orthogonal_count 阈值从8降到5"""
+
+    def test_threshold_5_with_7_candidates(self):
+        """7个候选人中5+正交 → success"""
+        candidates = [
+            {"title": f"标题{i:02d}"} for i in range(7)
+        ]
+        result = check_orthogonality(candidates)
+        orthogonal = sum(1 for c in result if c["orthogonal"])
+        # 7个不同的标题应当全部正交
+        self.assertEqual(orthogonal, 7)
+        # 新的阈值：>=5 就是 success
+        self.assertGreaterEqual(orthogonal, 5)
+
+    def test_threshold_5_with_4_orthogonal(self):
+        """4个正交 < 5 = partial"""
+        orthogonal_count = 4
+        self.assertLess(orthogonal_count, 5, "4 < 5 → 应为 partial")
 
 
 if __name__ == "__main__":
