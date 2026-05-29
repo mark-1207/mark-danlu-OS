@@ -2274,6 +2274,580 @@ def split_into_paragraphs(text: str) -> List[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
+# ============ v2 新增：写作框架改造（Commit 6-9）============
+
+# 5种文章原型（卡兹克 khazix-writer）
+ARTICLE_ARCHETYPES = {
+    "调查实验型": {
+        "name": "调查实验型",
+        "description": "通过调查、实验或数据收集来验证/推翻一个假设",
+        "typical_modules": ["HOOK", "CASE", "EXPLAIN", "EVIDENCE", "ACTION"],
+        "best_for": "有数据/实验支撑的选题，需要展示过程",
+        "reader_value": "跟着作者一起发现真相的过程感"
+    },
+    "产品体验型": {
+        "name": "产品体验型",
+        "description": "深度体验某个产品/服务，给出真实评价和洞察",
+        "typical_modules": ["HOOK", "CASE", "EXPLAIN", "BOUNDARY", "ACTION"],
+        "best_for": "产品测评/工具推荐/服务对比",
+        "reader_value": "省去自己试错的时间成本"
+    },
+    "现象解读型": {
+        "name": "现象解读型",
+        "description": "对某个社会/行业现象进行多维度解读，揭示本质",
+        "typical_modules": ["HOOK", "CASE", "EXPLAIN", "MODEL", "COUNTER", "ACTION"],
+        "best_for": "社会现象/行业趋势/认知升级类选题",
+        "reader_value": "看到现象背后的本质，认知升级"
+    },
+    "工具分享型": {
+        "name": "工具分享型",
+        "description": "分享好用工具/方法/资源，注重实操性",
+        "typical_modules": ["HOOK", "CASE", "MODEL", "ACTION"],
+        "best_for": "效率工具/工作方法/资源合集",
+        "reader_value": "直接可用的方法论/工具清单"
+    },
+    "方法论分享型": {
+        "name": "方法论分享型",
+        "description": "分享自己验证过的做事方法/思维框架",
+        "typical_modules": ["HOOK", "CASE", "EXPLAIN", "MODEL", "ACTION", "BOUNDARY"],
+        "best_for": "个人经验总结/方法论提炼/框架分享",
+        "reader_value": "可复用的思维框架和行动指南"
+    },
+}
+
+
+# ============ v2.1: 写作前真实经历询问 ============
+
+def prompt_real_experience(
+    topic: str,
+    ccos_outline: Dict,
+    platform: str
+) -> Dict:
+    """
+    Gap分析后、预叙事前，询问用户是否有真实经历可补充
+
+    Returns:
+        {"prompt": str, "question_areas": List[str]}
+    """
+    platform_hint = "公众号深度叙事" if platform == "wechat" else "小红书生活化分享"
+
+    prompt = f"""你是资深内容策划师。为以下命题设计"真实经历询问"文案。
+
+命题：{topic}
+平台：{platform}（{platform_hint}）
+核心冲突：{ccos_outline.get('核心认知冲突', '')}
+内容立场：{ccos_outline.get('内容立场', '')}
+
+请设计一个问题，引导用户回忆和分享相关的真实经历。要求：
+1. 语气自然，像朋友聊天
+2. 引导用户回忆具体场景，而非抽象观点
+3. 给出2-3个具体的问题方向（如：自己经历的/朋友经历的/观察到的）
+
+返回JSON：
+{{
+  "prompt": "询问文案（50-100字）",
+  "question_areas": ["方向1", "方向2", "方向3"]
+}}"""
+
+    raw = _call_llm_raw(prompt, temperature=0.5)
+    if raw:
+        parsed = _parse_llm_json(raw)
+        if parsed:
+            return parsed
+
+    return {
+        "prompt": f"在开始写'{topic}'之前，你有什么相关的真实经历或观察吗？可以是自己的故事、朋友的案例、或者你看到的真实事件。这些会让文章更有说服力。",
+        "question_areas": ["个人亲身经历", "朋友/同事的案例", "观察到的社会现象"]
+    }
+
+
+# ============ v2.2: 质量自检 L1-L4 + AI腔识别 ============
+
+# L1 硬性规则：禁用词列表（自动拦截，不依赖 LLM）
+QUALITY_L1_BANNED_WORDS = [
+    "赋能", "抓手", "闭环", "拉通", "对齐", "落地", "打法", "底层逻辑",
+    "降本增效", "颗粒度", "组合拳", "颠覆性", "前所未有的",
+]
+
+QUALITY_L1_BANNED_PATTERNS = [
+    (r"在.{0,5}的今天", "AI腔：'在...的今天'句式"),
+    (r"众所周知", "AI腔：'众所周知'"),
+    (r"总而言之", "AI腔：'总而言之'式结尾"),
+    (r"不仅.{0,10}而且", "排比句式（允许但标记）"),
+]
+
+
+def quality_check(article_text: str, platform: str) -> Dict:
+    """
+    写作后质量自检：L1自动拦截 + L2-L4 + AI腔 LLM审核
+
+    Args:
+        article_text: 文章全文
+        platform: wechat / xiaohongshu
+
+    Returns:
+        {
+            "status": "pass" | "issues_found" | "check_failed",
+            "platform": str,
+            "issues": [{"level": "L1"|"L2"|"L3"|"L4", "type": str, "location": str, "suggestion": str, "severity": "error"|"warning"}],
+            "ai_mannerisms": [{"type": str, "count": int, "examples": [str]}],
+            "score": float  # 0-100
+        }
+    """
+    if not article_text or len(article_text) < 50:
+        return {
+            "status": "check_failed",
+            "platform": platform,
+            "issues": [{"level": "L1", "type": "内容不足", "location": "全文", "suggestion": "文章少于50字，无法进行质量检查", "severity": "error"}],
+            "ai_mannerisms": [],
+            "score": 0
+        }
+
+    issues = []
+
+    # L1: 硬性规则自动拦截
+    for word in QUALITY_L1_BANNED_WORDS:
+        count = article_text.count(word)
+        if count > 0:
+            issues.append({
+                "level": "L1",
+                "type": "禁用词",
+                "location": f"正文（出现{count}次）",
+                "suggestion": f"删除或替换'{word}'",
+                "severity": "error"
+            })
+
+    for pattern, desc in QUALITY_L1_BANNED_PATTERNS:
+        matches = re.findall(pattern, article_text)
+        if matches:
+            severity = "warning" if "允许但标记" in desc else "error"
+            issues.append({
+                "level": "L1",
+                "type": "AI句式",
+                "location": f"正文（出现{len(matches)}次）",
+                "suggestion": desc,
+                "severity": severity
+            })
+
+    # L2-L4 + AI腔：LLM 审核
+    prompt = f"""你是资深内容审校专家。对以下文章进行L2-L4质量审核。
+
+【审核标准】
+L2 风格层：
+- AI腔（句式工整对称、排比滥用、过渡词套路化）
+- 书面腔（过于正式，缺少口语节奏）
+- 模板感（像填空模板，每个段落结构一样）
+
+L3 内容层：
+- 逻辑漏洞（前后矛盾、因果不成立）
+- 数据无来源（引用了数据但未注明出处）
+- 事实存疑（声称的事实需要验证）
+
+L4 活人感：
+- 是否有真实细节（时间/地点/人物/数字）
+- 是否有情绪起伏（不是从头到尾一个调）
+- 是否像真人写的（有判断、有偏见、有不确定性）
+
+平台：{platform}
+
+【文章】
+{article_text[:3000]}
+
+返回JSON（仅JSON，不要解释）：
+{{
+  "issues": [
+    {{"level": "L2", "type": "AI腔", "location": "第X段", "suggestion": "...", "severity": "warning"}},
+    {{"level": "L3", "type": "数据无来源", "location": "第X段", "suggestion": "...", "severity": "warning"}},
+    {{"level": "L4", "type": "缺少真实细节", "location": "全文", "suggestion": "...", "severity": "warning"}}
+  ],
+  "ai_mannerisms": [
+    {{"type": "排比句", "count": 3, "examples": ["不仅...而且..."]}}
+  ],
+  "score": 85
+}}"""
+
+    raw = _call_llm_raw(prompt, temperature=0.3)
+    if raw:
+        parsed = _parse_llm_json(raw)
+        if parsed:
+            llm_issues = parsed.get("issues", [])
+            for issue in llm_issues:
+                if "level" not in issue:
+                    issue["level"] = "L2"
+                if "severity" not in issue:
+                    issue["severity"] = "warning"
+                if "location" not in issue:
+                    issue["location"] = "全文"
+            issues.extend(llm_issues)
+
+            ai_mannerisms = parsed.get("ai_mannerisms", [])
+            score = parsed.get("score", 70)
+
+            l1_error_count = sum(1 for i in issues if i["severity"] == "error")
+            l1_deduction = l1_error_count * 10
+            score = max(0, min(100, score - l1_deduction))
+
+            status = "issues_found" if issues else "pass"
+            if any(i["severity"] == "error" for i in issues):
+                status = "issues_found"
+
+            return {
+                "status": status,
+                "platform": platform,
+                "issues": issues,
+                "ai_mannerisms": ai_mannerisms,
+                "score": score
+            }
+
+    return {
+        "status": "check_failed",
+        "platform": platform,
+        "issues": issues,
+        "ai_mannerisms": [],
+        "score": 0
+    }
+
+
+# ============ v2.3: 工具箱架构 — 按话题动态选原型+模块 ============
+
+def select_article_architecture(
+    topic: str,
+    ccos_outline: Dict,
+    platform: str
+) -> Dict:
+    """
+    工具箱模式：根据话题内容动态选择合适的文章原型和模块组合
+
+    Returns:
+        {
+            "archetype": str,
+            "modules": [str],
+            "module_flow": [{"module": str, "purpose": str, "estimated_words": int}],
+            "reasoning": str
+        }
+    """
+    # 先基于规则做初步选择
+    content_goal = ccos_outline.get("内容目标", "")
+    main_structure = ccos_outline.get("主结构", "")
+    combined = f"{content_goal} {main_structure}"
+
+    rule_scores = {}
+    if any(kw in combined for kw in ["认知升级", "现象", "解读", "趋势"]):
+        rule_scores["现象解读型"] = 2
+    if any(kw in combined for kw in ["方法", "工具", "实操", "步骤"]):
+        rule_scores["工具分享型"] = 1
+        rule_scores["方法论分享型"] = 1
+    if any(kw in combined for kw in ["实验", "调查", "数据驱动", "验证"]):
+        rule_scores["调查实验型"] = 2
+    if any(kw in combined for kw in ["体验", "测评", "产品", "试用"]):
+        rule_scores["产品体验型"] = 2
+    if any(kw in combined for kw in ["故事", "案例", "人物"]):
+        rule_scores["现象解读型"] = rule_scores.get("现象解读型", 0) + 1
+
+    if not rule_scores:
+        rule_scores["现象解读型"] = 1
+
+    # LLM 增强选择
+    prompt = f"""你是资深内容架构师。为以下命题选择最合适的文章原型和模块组合。
+
+命题：{topic}
+内容目标：{content_goal}
+主结构：{main_structure}
+平台：{platform}
+
+可选原型：
+{json.dumps({k: {"name": v["name"], "description": v["description"], "typical_modules": v["typical_modules"]} for k, v in ARTICLE_ARCHETYPES.items()}, ensure_ascii=False, indent=2)}
+
+规则初步评分：{json.dumps(rule_scores, ensure_ascii=False)}
+
+要求：
+1. 选择1个最合适的原型
+2. 从原型的 typical_modules 中选 4-6 个模块
+3. 为每个模块写一行 purpose（这个模块在这篇文章里做什么）
+4. 为每个模块估算字数
+
+返回JSON：
+{{
+  "archetype": "原型名",
+  "modules": ["HOOK", "CASE", ...],
+  "module_flow": [
+    {{"module": "HOOK", "purpose": "制造认知冲突", "estimated_words": 200}},
+    ...
+  ],
+  "reasoning": "为什么选这个原型"
+}}"""
+
+    raw = _call_llm_raw(prompt, temperature=0.4)
+    if raw:
+        parsed = _parse_llm_json(raw)
+        if parsed and parsed.get("archetype") in ARTICLE_ARCHETYPES:
+            arch = ARTICLE_ARCHETYPES[parsed["archetype"]]
+            return {
+                "archetype": parsed["archetype"],
+                "modules": parsed.get("modules", arch["typical_modules"]),
+                "module_flow": parsed.get("module_flow", []),
+                "reasoning": parsed.get("reasoning", "")
+            }
+
+    # Fallback: 用得分最高的原型
+    best_arch = max(rule_scores, key=lambda k: rule_scores[k])
+    arch = ARTICLE_ARCHETYPES[best_arch]
+    default_modules = arch["typical_modules"][:5] if platform == "xiaohongshu" else arch["typical_modules"][:6]
+    return {
+        "archetype": best_arch,
+        "modules": default_modules,
+        "module_flow": [{"module": m, "purpose": "", "estimated_words": 300} for m in default_modules],
+        "reasoning": f"基于规则选择{best_arch}"
+    }
+
+
+# ============ v2.4: 并行双引擎搜索 ============
+
+def search_parallel(query: str, max_results: int = 5) -> List[Dict]:
+    """
+    Tavily + SerpAPI(engine=baidu) 同query并行，合并去重，DDG兜底
+
+    Returns:
+        [{"title": str, "url": str, "snippet": str, "source": str}, ...]
+    """
+    import concurrent.futures
+    import urllib.request
+    import urllib.error
+
+    results = []
+    seen_urls = set()
+
+    def _search_tavily(q: str, n: int) -> List[Dict]:
+        tavily_key = os.environ.get("TAVILY_API_KEY")
+        if not tavily_key:
+            return []
+        try:
+            payload = json.dumps({
+                "query": q, "max_results": n, "api_key": tavily_key
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                "https://api.tavily.com/search",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            return [
+                {
+                    "title": item.get("title", ""),
+                    "url": item.get("url", ""),
+                    "snippet": item.get("content", "")[:200],
+                    "source": "tavily"
+                }
+                for item in data.get("results", [])[:n]
+            ]
+        except Exception:
+            return []
+
+    def _search_serpapi_baidu(q: str, n: int) -> List[Dict]:
+        serpapi_key = os.environ.get("SERPAPI_API_KEY")
+        if not serpapi_key:
+            return []
+        try:
+            encoded_q = urllib.request.quote(q)
+            url = f"https://serpapi.com/search.json?q={encoded_q}&api_key={serpapi_key}&engine=baidu&num={n}"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            return [
+                {
+                    "title": item.get("title", ""),
+                    "url": item.get("link", ""),
+                    "snippet": item.get("snippet", "")[:200],
+                    "source": "serpapi_baidu"
+                }
+                for item in data.get("organic_results", [])[:n]
+            ]
+        except Exception:
+            return []
+
+    def _search_ddg(q: str, n: int) -> List[Dict]:
+        try:
+            import html
+            encoded_q = urllib.request.quote(q)
+            ddg_url = f"https://api.duckduckgo.com/?q={encoded_q}&format=json&no_html=1"
+            req = urllib.request.Request(ddg_url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            results_list = []
+            for topic_item in data.get("RelatedTopics", [])[:n]:
+                if topic_item.get("Text") and topic_item.get("FirstURL"):
+                    results_list.append({
+                        "title": html.unescape(topic_item.get("Text", "")[:100]),
+                        "url": topic_item.get("FirstURL", ""),
+                        "snippet": topic_item.get("Text", "")[:200],
+                        "source": "duckduckgo"
+                    })
+            return results_list
+        except Exception:
+            return []
+
+    # 并行调用 Tavily + SerpAPI百度
+    tavily_results = []
+    serpapi_results = []
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            future_tavily = executor.submit(_search_tavily, query, max_results)
+            future_serpapi = executor.submit(_search_serpapi_baidu, query, max_results)
+            tavily_results = future_tavily.result(timeout=20) or []
+            serpapi_results = future_serpapi.result(timeout=20) or []
+    except Exception:
+        pass
+
+    # 合并去重（按 URL）
+    for r in tavily_results + serpapi_results:
+        url = r.get("url", "")
+        if url and url not in seen_urls:
+            seen_urls.add(url)
+            results.append(r)
+
+    # DDG 兜底
+    if len(results) < 2:
+        ddg_results = _search_ddg(query, max_results)
+        for r in ddg_results:
+            url = r.get("url", "")
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                results.append(r)
+
+    return results[:max_results]
+
+
+# ============ v2.5: crawl4ai 抓取层 ============
+
+def _try_crawl4ai(url: str) -> Optional[Dict]:
+    """尝试用 crawl4ai 抓取（异步转同步）"""
+    try:
+        import asyncio
+        from crawl4ai import AsyncWebCrawler
+
+        async def _crawl():
+            async with AsyncWebCrawler() as crawler:
+                result = await crawler.arun(url=url)
+                return {
+                    "title": getattr(result, "title", "") or "",
+                    "content": getattr(result, "markdown", "") or getattr(result, "html", "") or "",
+                    "url": url
+                }
+
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import nest_asyncio
+            nest_asyncio.apply()
+        return asyncio.run(_crawl())
+    except ImportError:
+        pass
+    except Exception:
+        pass
+    return None
+
+
+def scrape_with_crawl4ai(url: str, format: str = "json") -> Optional[Dict]:
+    """
+    抓取文章：非微信URL优先用 crawl4ai，失败回退到原有 urllib 路径
+    微信URL保持三级降级不变
+
+    Returns:
+        {"title": str, "content": str, "url": str} 或 None
+    """
+    # 微信URL不走 crawl4ai
+    if "mp.weixin.qq.com" in url:
+        return None
+
+    # 尝试 crawl4ai
+    result = _try_crawl4ai(url)
+    if result and result.get("content"):
+        return result
+
+    # 回退到原有 scrape_article（urllib 路径）
+    return scrape_article(url, format=format)
+
+
+# ============ v2.6: 数据溯源 ============
+
+def extract_data_sources(article_text: str, use_llm: bool = False) -> List[Dict]:
+    """
+    正则+LLM扫描数据声明，标注来源情况
+
+    Args:
+        article_text: 文章全文
+        use_llm: 是否启用LLM增强（标注置信度）
+
+    Returns:
+        [{"text": str, "has_source": bool, "source_text": str, "confidence": str}, ...]
+    """
+    if not article_text:
+        return []
+
+    claims = []
+
+    # 正则扫描：百分比、数字区间、统计数据
+    patterns = [
+        (r"(\d+(?:\.\d+)?%)", "percentage"),
+        (r"(\d+(?:\.\d+)?[-~]\d+(?:\.\d+)?[万亿千百]?)", "range"),
+        (r"(\d+[万亿千百]?\s*(?:人|元|美元|亿|万))", "quantity"),
+        (r"(根据|据|来源|[A-Za-z]+\s*(?:研究院|报告|数据|调查|统计))", "source_marker"),
+    ]
+
+    for pattern, claim_type in patterns:
+        for match in re.finditer(pattern, article_text):
+            text = match.group(0)
+            # 检查前后文是否有来源标记
+            start = max(0, match.start() - 50)
+            end = min(len(article_text), match.end() + 50)
+            context = article_text[start:end]
+
+            has_source = bool(re.search(r"根据|据|来源|报告|研究院|调查|统计|发布", context))
+            source_match = re.search(r"(?:根据|据|来源)([^，。,\.]{0,30})", context)
+            source_text = source_match.group(0) if source_match else ""
+
+            claims.append({
+                "text": text,
+                "has_source": has_source,
+                "source_text": source_text,
+                "claim_type": claim_type,
+            })
+
+    # LLM 增强
+    if use_llm and claims:
+        prompt = f"""你是事实核查专家。分析以下文章中数据声明是否可信。
+
+文章节选：
+{article_text[:2000]}
+
+数据声明：
+{json.dumps([c["text"] for c in claims[:10]], ensure_ascii=False)}
+
+对每个声明标注置信度（high/medium/low/unverified）：
+返回JSON：
+{{"data_claims": [
+  {{"text": "数据声明原文", "has_source": true/false, "source_text": "来源", "confidence": "high"}}
+]}}"""
+
+        raw = _call_llm_raw(prompt, temperature=0.2)
+        if raw:
+            parsed = _parse_llm_json(raw)
+            if parsed and parsed.get("data_claims"):
+                enhanced = parsed["data_claims"]
+                # 合并 LLM 结果
+                claim_map = {c["text"]: c for c in claims}
+                for ec in enhanced:
+                    text = ec.get("text", "")
+                    if text in claim_map:
+                        claim_map[text]["confidence"] = ec.get("confidence", "unverified")
+                        claim_map[text]["has_source"] = ec.get("has_source", claim_map[text]["has_source"])
+                return list(claim_map.values())
+
+    return claims
+
+
 # ============ 辅助函数 ============
 
 def _safe_print(obj: Any) -> None:
