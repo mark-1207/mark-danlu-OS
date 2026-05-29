@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 from socratic_gateway import (
     classify_input,
     calculate_entropy,
+    calculate_hkr,
     socratic_gateway,
     _rule_object_clarity,
     _rule_conflict_tension,
@@ -36,67 +37,62 @@ def _mock_llm_raw(prompt, temperature=0.7, **kwargs):
 class TestCalculateHKR(unittest.TestCase):
     """HKR 三维评分测试 — 规则版，无 LLM 调用"""
 
-    @classmethod
-    def setUpClass(cls):
-        from socratic_gateway import calculate_hkr
-        cls.calculate_hkr = calculate_hkr
-
     def test_hkr_returns_four_keys(self):
-        result = self.calculate_hkr("AI时代普通人如何建立优势")
+        result = calculate_hkr("AI时代普通人如何建立优势")
         for key in ("h", "k", "r", "hkr_avg"):
             self.assertIn(key, result, f"缺少 key: {key}")
 
     def test_hkr_scores_in_range(self):
-        result = self.calculate_hkr("AI时代普通人如何建立优势")
+        result = calculate_hkr("AI时代普通人如何建立优势")
         for key in ("h", "k", "r", "hkr_avg"):
             val = result[key]
             self.assertGreaterEqual(val, 0.0, f"{key} < 0")
             self.assertLessEqual(val, 1.0, f"{key} > 1")
 
     def test_h_happy_high_with_emotional_words(self):
-        result = self.calculate_hkr("这太离谱了！AI居然能写出比人更好的文章，笑死了")
+        result = calculate_hkr("这太离谱了！AI居然能写出比人更好的文章，笑死了")
         self.assertGreater(result["h"], 0.3, f"H过低: {result['h']}")
 
     def test_h_happy_low_with_dry_input(self):
-        result = self.calculate_hkr("企业数字化转型路径研究")
+        result = calculate_hkr("企业数字化转型路径研究")
         self.assertLess(result["h"], 0.3, f"H过高: {result['h']}")
 
     def test_k_knowledge_high_with_research_words(self):
-        result = self.calculate_hkr("研究发现：AI模型训练成本每年降低47%")
+        result = calculate_hkr("研究发现：AI模型训练成本每年降低47%")
         self.assertGreater(result["k"], 0.3, f"K过低: {result['k']}")
 
     def test_k_knowledge_low_with_emotional_input(self):
-        result = self.calculate_hkr("上班好累啊怎么会这么累")
+        result = calculate_hkr("上班好累啊怎么会这么累")
         self.assertLess(result["k"], 0.3, f"K过高: {result['k']}")
 
     def test_r_resonance_high_with_first_person(self):
-        result = self.calculate_hkr("我经历过三次裁员，每次都让我焦虑到睡不着")
+        result = calculate_hkr("我经历过三次裁员，每次都让我焦虑到睡不着")
         self.assertGreater(result["r"], 0.3, f"R过低: {result['r']}")
 
     def test_r_resonance_low_with_abstract_input(self):
-        result = self.calculate_hkr("量子计算加密算法演进")
+        result = calculate_hkr("量子计算加密算法演进")
         self.assertLess(result["r"], 0.3, f"R过高: {result['r']}")
 
     def test_hkr_avg_is_correct(self):
-        result = self.calculate_hkr("测试")
+        result = calculate_hkr("测试")
         expected_avg = (result["h"] + result["k"] + result["r"]) / 3
         self.assertAlmostEqual(result["hkr_avg"], expected_avg, places=4)
 
     def test_empty_input(self):
-        result = self.calculate_hkr("")
+        result = calculate_hkr("")
         self.assertEqual(result["h"], 0.0)
         self.assertEqual(result["k"], 0.0)
         self.assertEqual(result["r"], 0.0)
         self.assertEqual(result["hkr_avg"], 0.0)
 
     def test_very_short_input(self):
-        result = self.calculate_hkr("AI")
+        result = calculate_hkr("AI")
         for key in ("h", "k", "r"):
             self.assertGreaterEqual(result[key], 0.0)
 
     def test_balanced_input_all_dimensions(self):
         """既有知识增量、又有情感共鸣、又有趣味性的综合输入"""
-        result = self.calculate_hkr(
+        result = calculate_hkr(
             "我发现了一个离谱的真相：那些天天研究AI方法论的人，其实是最容易被替代的，我自己就是这样"
         )
         # 至少两个维度应该有分
@@ -129,13 +125,13 @@ class TestEntropyThresholdFix(unittest.TestCase):
                          f"满分输入应 pass，实际: {result['decision']}")
         self.assertEqual(result["entropy_score"], 1.0)
 
-    @patch("socratic_gateway._rule_object_clarity", return_value=0.8)
-    @patch("socratic_gateway._rule_conflict_tension", return_value=0.8)
-    @patch("socratic_gateway._rule_fact_support", return_value=0.5)
+    @patch("socratic_gateway._rule_object_clarity", return_value=0.95)
+    @patch("socratic_gateway._rule_conflict_tension", return_value=0.95)
+    @patch("socratic_gateway._rule_fact_support", return_value=0.8)
     def test_strong_input_returns_pass(self, mock_fact, mock_conflict, mock_obj):
-        """高分输入 (0.78) 应该 pass"""
-        result = calculate_entropy("AI程序员裁员潮")
-        expected = 0.8 * 0.4 + 0.8 * 0.4 + 0.5 * 0.2  # = 0.74
+        """高分输入应该 pass (0.95*0.4+0.95*0.4+0.8*0.2=0.92 >= 0.8)"""
+        result = calculate_entropy("AI程序员裁员潮分析")
+        expected = 0.95 * 0.4 + 0.95 * 0.4 + 0.8 * 0.2  # = 0.92
         self.assertAlmostEqual(result["entropy_score"], expected, places=2)
         self.assertEqual(result["decision"], "pass",
                          f"高分输入应 pass，实际: {result['decision']}")
@@ -297,14 +293,14 @@ class TestCombinedDecisionLogic(unittest.TestCase):
     @patch("socratic_gateway.calculate_entropy")
     @patch("socratic_gateway.calculate_hkr")
     def test_borderline_entropy_ok_hkr_ok_pass(self, mock_hkr, mock_entropy):
-        """边界值：entropy=0.31, hkr=0.31 → 刚好过门槛 → pass"""
+        """边界值：entropy=0.60, hkr=0.55 → combined=0.57 >= 0.5 → pass"""
         mock_entropy.return_value = {
-            "object_clarity": 0.4, "conflict_tension": 0.3, "fact_support": 0.2,
-            "entropy_score": 0.32, "decision": "clarify", "reason": "borderline"
+            "object_clarity": 0.7, "conflict_tension": 0.6, "fact_support": 0.4,
+            "entropy_score": 0.60, "decision": "pass", "reason": "borderline"
         }
-        mock_hkr.return_value = {"h": 0.3, "k": 0.4, "r": 0.3, "hkr_avg": 0.33}
+        mock_hkr.return_value = {"h": 0.5, "k": 0.6, "r": 0.5, "hkr_avg": 0.55}
 
-        result = socratic_gateway("职场内卷的原因")
+        result = socratic_gateway("职场内卷的原因分析")
         self.assertEqual(result["status"], "ready_for_generation")
 
 
