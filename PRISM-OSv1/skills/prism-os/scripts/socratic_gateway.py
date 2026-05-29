@@ -109,6 +109,81 @@ def generate_clarification_questions(user_input: str, input_type: str) -> List[s
     return []
 
 
+# ============ Phase 1: HKR 内容价值评估 ============
+
+def calculate_hkr(user_input: str) -> Dict:
+    """
+    计算 HKR 三维内容价值评分（规则版，不调用 LLM）
+
+    H (Happy/愉悦度): 话题是否自带趣味性/传播性
+    K (Knowledge/知识增量): 话题是否包含新知/洞察
+    R (Resonance/情感共鸣): 话题是否引发"这说的就是我"的共鸣
+
+    Returns:
+        {"h": float, "k": float, "r": float, "hkr_avg": float}
+    """
+    text = user_input.strip()
+    if not text:
+        return {"h": 0.0, "k": 0.0, "r": 0.0, "hkr_avg": 0.0}
+
+    # --- H: 愉悦度/传播性 ---
+    h_keywords_strong = ["离谱", "笑死", "绝了", "震惊", "刺激", "神奇", "惊艳", "治愈", "炸裂", "疯狂"]
+    h_keywords_moderate = ["有趣", "好笑", "好玩", "有趣", "反转", "意外", "没想到", "居然", "竟然"]
+    h_patterns = ["!", "！", "？？", "!!"]
+
+    h_score = 0.0
+    strong_h = sum(1 for kw in h_keywords_strong if kw in text)
+    moderate_h = sum(1 for kw in h_keywords_moderate if kw in text)
+    h_score += min(strong_h * 0.4, 1.0)
+    h_score += min(moderate_h * 0.2, 0.4)
+    if any(p in text for p in h_patterns):
+        h_score += 0.1
+    # 极短且有趣的输入
+    if len(text) < 30 and strong_h > 0:
+        h_score += 0.2
+    h_score = min(h_score, 1.0)
+
+    # --- K: 知识增量 ---
+    k_keywords_strong = ["研究", "数据", "真相", "原理", "规律", "模型", "框架", "方法论", "机制"]
+    k_keywords_moderate = ["发现", "分析", "拆解", "解读", "趋势", "报告", "实验", "调查"]
+    k_patterns = [r"\d+%", r"\d+万", r"\d+亿", r"\d+年"]
+
+    k_score = 0.0
+    strong_k = sum(1 for kw in k_keywords_strong if kw in text)
+    moderate_k = sum(1 for kw in k_keywords_moderate if kw in text)
+    k_score += min(strong_k * 0.4, 1.0)
+    k_score += min(moderate_k * 0.2, 0.4)
+    if any(re.search(p, text) for p in k_patterns):
+        k_score += 0.2
+    # 因果推理结构加分
+    if any(kw in text for kw in ["因为", "所以", "导致", "原因", "根源", "本质"]):
+        k_score += 0.15
+    k_score = min(k_score, 1.0)
+
+    # --- R: 情感共鸣 ---
+    r_keywords_strong = ["我", "我们", "每个人", "自己", "亲身", "经历"]
+    r_keywords_moderate = ["共鸣", "同样", "压抑", "焦虑", "迷茫", "困惑", "担忧", "害怕"]
+    r_shared_exp = ["打工人", "社畜", "普通人", "年轻人", "中年人", "父母", "孩子"]
+
+    r_score = 0.0
+    strong_r = sum(1 for kw in r_keywords_strong if kw in text)
+    moderate_r = sum(1 for kw in r_keywords_moderate if kw in text)
+    shared = sum(1 for kw in r_shared_exp if kw in text)
+    r_score += min(strong_r * 0.3, 0.7)
+    r_score += min(moderate_r * 0.2, 0.4)
+    r_score += min(shared * 0.3, 0.5)
+    r_score = min(r_score, 1.0)
+
+    avg = (h_score + k_score + r_score) / 3
+
+    return {
+        "h": round(h_score, 2),
+        "k": round(k_score, 2),
+        "r": round(r_score, 2),
+        "hkr_avg": round(avg, 2)
+    }
+
+
 # ============ Phase 1: 熵值计算（规则版 Phase 4.7） ============
 
 def _rule_object_clarity(text: str) -> float:
@@ -225,14 +300,14 @@ def calculate_entropy(user_input: str, user_config: Optional[Dict] = None) -> Di
     entropy = object_score * 0.4 + conflict_score * 0.4 + fact_score * 0.2
     is_short = len(user_input.strip()) < 25
 
-    if entropy >= 1.2:
+    if entropy >= 0.8:
         decision = "pass"
         reason = "命题清晰、有张力"
-    elif entropy >= 0.7:
+    elif entropy >= 0.5:
         decision = "clarify"
         reason = "命题基本合格，建议补充具体对象或事实"
     else:
-        # entropy < 0.7：短标题/疑问句不直接 block，转追问
+        # entropy < 0.5：短标题/疑问句不直接 block，转追问
         if is_short:
             decision = "clarify"
             reason = "命题较简短，需要补充更多背景才能判断价值"
@@ -274,8 +349,9 @@ def socratic_gateway(user_input: str, user_config: Optional[Dict] = None) -> Dic
     # Step 1: 输入分类
     input_type = classify_input(user_input)
 
-    # Step 2: 熵值计算
+    # Step 2: 熵值计算 + HKR 价值评估
     entropy_result = calculate_entropy(user_input, user_config)
+    hkr_result = calculate_hkr(user_input)
 
     if entropy_result["decision"] == "error":
         return {
@@ -284,24 +360,61 @@ def socratic_gateway(user_input: str, user_config: Optional[Dict] = None) -> Dic
             "entropy_score": 0.0,
             "decision": "error",
             "reason": entropy_result["reason"],
+            "hkr": hkr_result,
             "questions": []
         }
 
-    # Step 3: 决策处理
-    decision = entropy_result["decision"]
+    # Step 3: 联合决策（硬门槛 + 加权排名）
+    entropy_score = entropy_result["entropy_score"]
+    hkr_avg = hkr_result["hkr_avg"]
+    combined = entropy_score * 0.4 + hkr_avg * 0.6
 
-    if decision == "blocked":
+    is_pass = False
+    is_blocked = entropy_result["decision"] == "blocked"
+
+    if not is_blocked:
+        # 硬门槛：两维都必须 > 0.3
+        if entropy_score > 0.3 and hkr_avg > 0.3:
+            # 过门槛 → 加权排名
+            if combined >= 0.5:
+                is_pass = True
+            else:
+                is_pass = False  # clarify
+        else:
+            is_pass = False  # clarify（某个维度不达标）
+
+    if is_blocked:
         return {
             "status": "blocked",
             "input_type": input_type,
-            "entropy_score": entropy_result["entropy_score"],
+            "entropy_score": entropy_score,
             "decision": "blocked",
             "reason": entropy_result["reason"],
+            "hkr": hkr_result,
             "questions": []
         }
 
-    elif decision == "clarify":
-        # 生成追问问题（保持原有逻辑）
+    elif is_pass:
+        return {
+            "status": "ready_for_generation",
+            "input_type": input_type,
+            "entropy_score": entropy_score,
+            "decision": "pass",
+            "reason": f"命题清晰有张力（熵值{entropy_score:.2f}，HKR{hkr_avg:.2f}）",
+            "hkr": hkr_result,
+            "questions": []
+        }
+
+    else:
+        # clarify 路径
+        # 生成具体原因
+        clarify_reasons = []
+        if entropy_score <= 0.3:
+            clarify_reasons.append("命题清晰度不足")
+        if hkr_avg <= 0.3:
+            clarify_reasons.append("内容价值偏低（缺乏知识增量或情感共鸣）")
+        clarify_reason = "；".join(clarify_reasons) if clarify_reasons else entropy_result["reason"]
+
         questions = generate_clarification_questions(user_input, input_type)
         if not questions:
             questions = [
@@ -310,7 +423,6 @@ def socratic_gateway(user_input: str, user_config: Optional[Dict] = None) -> Dic
                 "你希望读者看完后有什么行动？"
             ]
 
-        # 生成方向选项（追加到返回结果，不影响追问逻辑）
         directions = generate_directions(user_input, input_type)
         if not directions:
             directions = [
@@ -322,21 +434,13 @@ def socratic_gateway(user_input: str, user_config: Optional[Dict] = None) -> Dic
         return {
             "status": "need_clarification",
             "input_type": input_type,
-            "entropy_score": entropy_result["entropy_score"],
+            "entropy_score": entropy_score,
             "decision": "clarify",
-            "reason": entropy_result["reason"],
-            "questions": questions,  # 原有追问逻辑保持不变
-            "directions": directions  # 追加方向选项供备选队列使用
-        }
-
-    else:  # pass
-        return {
-            "status": "ready_for_generation",
-            "input_type": input_type,
-            "entropy_score": entropy_result["entropy_score"],
-            "decision": "pass",
-            "reason": entropy_result["reason"],
-            "questions": []
+            "reason": clarify_reason,
+            "combined_score": round(combined, 2),
+            "hkr": hkr_result,
+            "questions": questions,
+            "directions": directions
         }
 
 
