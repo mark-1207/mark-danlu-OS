@@ -501,6 +501,19 @@ def format_prism_os_output(result: Dict) -> str:
         ""
     ]
 
+    # HKR 评分展示
+    hkr = result.get("hkr")
+    if hkr:
+        lines.append("■ HKR 选题质量评分")
+        lines.append(f"  H(愉悦度): {'█' * max(1, int(hkr.get('h', 0) * 10))} {hkr.get('h', 0):.1f}")
+        lines.append(f"  K(知识增量): {'█' * max(1, int(hkr.get('k', 0) * 10))} {hkr.get('k', 0):.1f}")
+        lines.append(f"  R(情感共鸣): {'█' * max(1, int(hkr.get('r', 0) * 10))} {hkr.get('r', 0):.1f}")
+        lines.append(f"  综合: {hkr.get('hkr_avg', 0):.1f}")
+        combined = result.get("combined_score")
+        if combined is not None:
+            lines.append(f"  联合评分(entropy×0.4+HKR×0.6): {combined:.1f}")
+        lines.append("")
+
     # 候选标题
     candidates = result.get("candidates", [])
     if candidates:
@@ -560,6 +573,12 @@ def format_prism_os_output(result: Dict) -> str:
                     if modules:
                         module_names = " → ".join([m.get("模块", "") for m in modules[:5]])
                         lines.append(f"    模块流: {module_names}")
+                        for m in modules[:6]:
+                            mod_name = m.get("模块", "")
+                            func = m.get("功能", "")
+                            words = m.get("篇幅", "") or m.get("estimated_words", "")
+                            if func or words:
+                                lines.append(f"      {mod_name}: {func}（{words}）")
                     lines.append(f"    最终大纲: {outline.get('最终动态认知大纲', '')}")
                     lines.append("")
         # 单平台 CCOS 格式
@@ -571,9 +590,32 @@ def format_prism_os_output(result: Dict) -> str:
             if modules:
                 module_names = " → ".join([m.get("模块", "") for m in modules[:5]])
                 lines.append(f"    模块流: {module_names}")
+                for m in modules[:6]:
+                    mod_name = m.get("模块", "")
+                    func = m.get("功能", "")
+                    words = m.get("篇幅", "") or m.get("estimated_words", "")
+                    if func or words:
+                        lines.append(f"      {mod_name}: {func}（{words}）")
             lines.append(f"    最终大纲: {ccos.get('最终动态认知大纲', '')}")
             lines.append("")
         lines.append("")
+
+    # 素材缺口摘要
+    material_gaps = result.get("material_gaps", {})
+    if material_gaps:
+        gap_count = sum(1 for g in material_gaps.values() if isinstance(g, dict) and g.get("has_gap"))
+        if gap_count > 0:
+            lines.append(f"■ 素材就绪度: {gap_count}个模块有缺口")
+            for mod_type, gap_info in material_gaps.items():
+                if isinstance(gap_info, dict) and gap_info.get("has_gap"):
+                    lines.append(f"  ⚠ {mod_type}: {gap_info.get('gap_description', '缺素材')[:60]}")
+                    search_results = gap_info.get("search_results", [])
+                    if search_results:
+                        for sr in search_results[:2]:
+                            lines.append(f"     🔍 {sr.get('title', '')[:40]} — {sr.get('source', '')}")
+                elif isinstance(gap_info, dict):
+                    lines.append(f"  ✓ {mod_type}: 已召回{gap_info.get('recalled_count', 0)}条")
+            lines.append("")
 
     # 旧版双端大纲（向后兼容）
     outlines = result.get("outlines")
@@ -1022,12 +1064,14 @@ def main():
             _safe_print(result)
 
     elif command == "narrate":
-        # Phase 5: 叙事驱动内容生成（新方案）
-        # 用法: python prism_os.py narrate "<命题>" [--platform wechat|xiaohongshu] [--interactive] [--search]
+        # Phase 5: 叙事驱动内容生成（新方案，主命令）
+        # 用法: python prism_os.py narrate "<命题>" [--platform wechat|xiaohongshu] [--interactive] [--search] [--skip-experience] [--quality-check]
         topic = ""
         platform = "wechat"
         interactive = False
         auto_scrape = False
+        skip_experience = False
+        quality_check_flag = False
 
         i = 2
         while i < len(sys.argv):
@@ -1041,6 +1085,12 @@ def main():
             elif arg == "--search":
                 auto_scrape = True
                 i += 1
+            elif arg == "--skip-experience":
+                skip_experience = True
+                i += 1
+            elif arg == "--quality-check":
+                quality_check_flag = True
+                i += 1
             elif not topic and not arg.startswith("--"):
                 topic = arg
                 i += 1
@@ -1048,13 +1098,15 @@ def main():
                 i += 1
 
         if not topic:
-            _safe_print({"error": '请提供命题: python prism_os.py narrate "<命题>" [--platform wechat] [--interactive]'})
+            _safe_print({"error": '请提供命题: python prism_os.py narrate "<命题>" [--platform wechat] [--interactive] [--skip-experience] [--quality-check]'})
             sys.exit(1)
 
         from content_generator import (
             narrative_generation_workflow,
             interactive_narrative_workflow,
-            _load_ccos_for_topic
+            _load_ccos_for_topic,
+            prompt_real_experience,
+            quality_check,
         )
 
         ccos_outline = _load_ccos_for_topic(topic, platform)
@@ -1066,11 +1118,29 @@ def main():
             })
             sys.exit(1)
 
+        # 真实经历询问
+        if not skip_experience and not interactive:
+            experience_prompt = prompt_real_experience(topic, ccos_outline, platform)
+            print(f"\n[真实经历] {experience_prompt.get('prompt', '')}", file=sys.stderr)
+            if experience_prompt.get("question_areas"):
+                for area in experience_prompt["question_areas"]:
+                    print(f"  - {area}", file=sys.stderr)
+
         if interactive:
             result = interactive_narrative_workflow(topic, ccos_outline, platform)
             _safe_print({"status": result["status"], "topic": topic, "platform": platform})
         else:
             result = narrative_generation_workflow(topic, ccos_outline, platform, auto_scrape=auto_scrape)
+
+            # 质量自检
+            qc_result = None
+            if quality_check_flag and result.get("full_draft"):
+                qc_result = quality_check(result["full_draft"], platform)
+                print(f"\n[质量自检] 评分: {qc_result.get('score', 0)}/100", file=sys.stderr)
+                if qc_result.get("issues"):
+                    for issue in qc_result["issues"][:5]:
+                        print(f"  [{issue.get('level', '')}] {issue.get('type', '')}: {issue.get('suggestion', '')}", file=sys.stderr)
+
             # 输出摘要
             output = {
                 "status": result["status"],
@@ -1081,13 +1151,17 @@ def main():
                 "materials_used": len(result.get("materials_used", [])),
                 "draft_preview": result.get("full_draft", "")[:200] + "..." if len(result.get("full_draft", "")) > 200 else result.get("full_draft", ""),
             }
+            if qc_result:
+                output["quality_check"] = {
+                    "score": qc_result.get("score", 0),
+                    "issue_count": len(qc_result.get("issues", [])),
+                }
             _safe_print(output)
             # 同时输出到文件
             draft = result.get("full_draft", "")
             if draft:
                 out_path = Path(f"output_narrative_{platform}.md")
                 out_path.write_text(f"# {topic}\n\n---\n\n" + draft, encoding="utf-8")
-
 
                 print(f"[输出] 草稿已保存至 {out_path.resolve()}", file=sys.stderr)
 
