@@ -4,7 +4,10 @@
  */
 export function sanitizeFilename(name: string): string {
   return name
-    .replace(/[<>:"/\\|?*]/g, '')
+    .replace(/[<>:"/\\|?*：，（）；？]/g, '') // remove ASCII/broken punctuation including Chinese variants
+    .replace(/[？]/g, '')           // remove Chinese question mark
+    .replace(/[：，]/g, '_')       // replace Chinese colon/comma with underscore
     .replace(/\s+/g, '_')
+    .replace(/_+/g, '_')
     .slice(0, 100);
 }

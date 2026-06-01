@@ -62,7 +62,13 @@ export async function cleanupIntermediateFiles(runDir: string): Promise<void> {
   const files = await fs.readdir(runDir);
   await Promise.all(
     files
-      .filter((f) => !KEEP.has(f) && !f.endsWith('.md'))
+      .filter((f) => {
+        if (KEEP.has(f)) return false;
+        if (f.endsWith('.md')) return false;
+        if (f.startsWith('confirmed-outline-')) return false;
+        if (f.startsWith('outline-seed-material-')) return false;
+        return true;
+      })
       .map((f) => fs.unlink(path.join(runDir, f))),
   );
 }
@@ -372,6 +378,10 @@ async function resumeFromOutline(
 
   // Restore saved context (all artifacts including non-step keys)
   const context = await PipelineContext.restore(runId, outputDir);
+
+  // Persist restored context so confirmed-outline-* and outline-seed-material-*
+  // artifacts survive cleanup at the end of the run
+  await context.persist();
 
   // Re-load config and providers
   const config = await loadConfig();
