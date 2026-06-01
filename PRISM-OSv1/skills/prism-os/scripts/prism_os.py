@@ -26,6 +26,21 @@ from datetime import datetime
 import subprocess
 import shutil
 
+# ============ 终端 UTF-8 编码（修复 Windows 中文乱码）============
+
+if sys.platform == "win32":
+    # Windows 终端默认 GBK，强制 UTF-8
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        # Python < 3.7 降级
+        import io
+        if hasattr(sys.stdout, "buffer"):
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "buffer"):
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
 # ============ lark-cli 工具函数 ============
 
 FEISHU_TABLE_ID = "tblOoR71Q3DSa33t"
@@ -218,7 +233,8 @@ def run_prism_os(
     materials: str = "",
     history_topics: List[str] = None,
     skip_gateway: bool = False,
-    platform: str = "both"
+    platform: str = "both",
+    interactive: bool = True
 ) -> Dict:
     """
     PRISM-OS 完整工作流程
@@ -399,15 +415,52 @@ def run_prism_os(
             result["twin_selected"] = []
 
     # ============ Phase 4-8: 扩展功能（可选） ============
+    # ============ Phase 3.5 → Phase 4.5 用户决策点 ============
+    selected_candidate = final_candidates[0] if final_candidates else {}
+    if (
+        interactive
+        and include_phase_4_8
+        and final_candidates
+        and len(final_candidates) > 1
+    ):
+        print("\n━━━ 候选标题选择 ━━━", file=sys.stderr)
+        for i, c in enumerate(final_candidates, 1):
+            print(f"  {i}. {c.get('title', '')}", file=sys.stderr)
+        print("请选择标题编号（输入 q 退出，默认第一个）:", file=sys.stderr)
+
+        while True:
+            try:
+                user_choice = input("> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("[stdin 不可用，使用默认第一个候选]", file=sys.stderr)
+                break
+
+            if user_choice.lower() == "q":
+                print("[用户退出，使用默认第一个候选]", file=sys.stderr)
+                break
+
+            if user_choice == "":
+                break
+
+            try:
+                idx = int(user_choice) - 1
+                if 0 <= idx < len(final_candidates):
+                    selected_candidate = final_candidates[idx]
+                    result["user_selected_candidate"] = True
+                    break
+                else:
+                    print(f"无效编号，请输入 1-{len(final_candidates)} 之间的数字", file=sys.stderr)
+            except ValueError:
+                print("请输入数字或 q", file=sys.stderr)
+
     if include_phase_4_8 and final_candidates:
         # Phase 4: CCOS v2.0 认知推进流大纲（替代旧版 gap_analysis 大纲）
         try:
             from cognitive_outline import cognitive_outline_workflow, generate_dual_platform_outline
 
             result["phase"] = "ccos"
-            first_candidate = final_candidates[0] if final_candidates else {}
-            title = first_candidate.get("title", "")
-            dimension = first_candidate.get("dimension", "")
+            title = selected_candidate.get("title", "")
+            dimension = selected_candidate.get("dimension", "")
             if platform == "both":
                 ccos_result = generate_dual_platform_outline(title, dimension)
             else:
