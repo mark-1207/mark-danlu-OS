@@ -809,6 +809,7 @@ def main():
             "options": {
                 "--format, -f": "格式化输出（可读报告）",
                 "--no-ext": "跳过 Phase 4-8（仅 Phase 0-3）",
+                "--no-interactive": "跳过 Phase 3.5 → Phase 4.5 用户选标题决策点（默认选第一个）",
                 "--from-queue": "从 crack_queue 选择裂缝进入主流程",
                 "--match-queue": "输入时匹配 crack_queue 中的相关裂缝"
             }
@@ -836,12 +837,15 @@ def main():
         use_format = False
         from_queue = False
         match_queue = False
+        run_interactive = True
 
         for arg in sys.argv[2:]:
             if arg == "--format" or arg == "-f":
                 use_format = True
             elif arg == "--no-ext":
                 include_ext = False
+            elif arg == "--no-interactive":
+                run_interactive = False
             elif arg == "--from-queue":
                 from_queue = True
             elif arg == "--match-queue":
@@ -980,7 +984,12 @@ def main():
         except Exception:
             history_topics = []
 
-        result = run_prism_os(user_input, include_phase_4_8=include_ext, history_topics=history_topics)
+        result = run_prism_os(
+            user_input,
+            include_phase_4_8=include_ext,
+            history_topics=history_topics,
+            interactive=(run_interactive and not from_queue),
+        )
 
         if use_format:
             output = format_prism_os_output(result)
@@ -1852,6 +1861,7 @@ def main():
                         topic,
                         include_phase_4_8=include_ext,
                         platform=platform,
+                        interactive=False,  # HTTP 无 stdin，不能阻塞
                     )
                     self._send_json(200, {"status": "ok", "result": result})
                     print(f"[{self.address_string()}] 完成")
