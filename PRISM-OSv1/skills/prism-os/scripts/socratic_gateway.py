@@ -327,7 +327,7 @@ def calculate_entropy(user_input: str, user_config: Optional[Dict] = None) -> Di
 
 # ============ Phase 1: 苏格拉底网关主流程 ============
 
-def socratic_gateway(user_input: str, user_config: Optional[Dict] = None) -> Dict:
+def socratic_gateway(user_input: str, user_config: Optional[Dict] = None, user_clarification: Optional[str] = None) -> Dict:
     """
     苏格拉底网关主流程
 
@@ -348,6 +348,10 @@ def socratic_gateway(user_input: str, user_config: Optional[Dict] = None) -> Dic
     """
     # Step 1: 输入分类
     input_type = classify_input(user_input)
+
+    # 如果提供了 user_clarification，合并到 user_input 后重新评估
+    if user_clarification:
+        user_input = f"{user_input}\n\n补充说明：{user_clarification}"
 
     # Step 2: 熵值计算 + HKR 价值评估
     entropy_result = calculate_entropy(user_input, user_config)
@@ -402,7 +406,8 @@ def socratic_gateway(user_input: str, user_config: Optional[Dict] = None) -> Dic
             "decision": "pass",
             "reason": f"命题清晰有张力（熵值{entropy_score:.2f}，HKR{hkr_avg:.2f}）",
             "hkr": hkr_result,
-            "questions": []
+            "questions": [],
+            "user_clarification": user_clarification,
         }
 
     else:
@@ -437,6 +442,7 @@ def socratic_gateway(user_input: str, user_config: Optional[Dict] = None) -> Dic
             "entropy_score": entropy_score,
             "decision": "clarify",
             "reason": clarify_reason,
+            "user_clarification_received": bool(user_clarification),
             "combined_score": round(combined, 2),
             "hkr": hkr_result,
             "questions": questions,

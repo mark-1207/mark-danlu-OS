@@ -234,7 +234,8 @@ def run_prism_os(
     history_topics: List[str] = None,
     skip_gateway: bool = False,
     platform: str = "both",
-    interactive: bool = True
+    interactive: bool = True,
+    user_clarification: str = None
 ) -> Dict:
     """
     PRISM-OS 完整工作流程
@@ -275,7 +276,7 @@ def run_prism_os(
 
     if not skip_gateway:
         result["phase"] = "gateway"
-        gateway_result = socratic_gateway(user_input)
+        gateway_result = socratic_gateway(user_input, user_clarification=user_clarification)
         result["gateway"] = gateway_result
 
         if gateway_result["status"] == "blocked":
@@ -825,6 +826,7 @@ def main():
                 "--no-ext": "跳过 Phase 4-8（仅 Phase 0-3）",
                 "--no-interactive": "跳过 Phase 3.5 → Phase 4.5 用户选标题决策点（默认选第一个）",
                 "--skip-gateway": "跳过 Phase 1 苏格拉底网关（调试用）",
+                "--clarification <text>": "提供网关追问的澄清答案（避免 need_clarification 阻塞）",
                 "--from-queue": "从 crack_queue 选择裂缝进入主流程",
                 "--match-queue": "输入时匹配 crack_queue 中的相关裂缝"
             }
@@ -854,22 +856,37 @@ def main():
         match_queue = False
         run_interactive = True
         run_skip_gateway = False
+        run_clarification = None
 
-        for arg in sys.argv[2:]:
+        i = 2
+        while i < len(sys.argv):
+            arg = sys.argv[i]
             if arg == "--format" or arg == "-f":
                 use_format = True
+                i += 1
             elif arg == "--no-ext":
                 include_ext = False
+                i += 1
             elif arg == "--no-interactive":
                 run_interactive = False
+                i += 1
             elif arg == "--skip-gateway":
                 run_skip_gateway = True
+                i += 1
             elif arg == "--from-queue":
                 from_queue = True
+                i += 1
             elif arg == "--match-queue":
                 match_queue = True
-            elif not user_input:
+                i += 1
+            elif arg == "--clarification" and i + 1 < len(sys.argv):
+                run_clarification = sys.argv[i + 1]
+                i += 2
+            elif not user_input and not arg.startswith("--"):
                 user_input = arg
+                i += 1
+            else:
+                i += 1
 
         if from_queue:
             # 从队列选择
@@ -1008,6 +1025,7 @@ def main():
             history_topics=history_topics,
             interactive=(run_interactive and not from_queue),
             skip_gateway=run_skip_gateway,
+            user_clarification=run_clarification,
         )
 
         if use_format:
