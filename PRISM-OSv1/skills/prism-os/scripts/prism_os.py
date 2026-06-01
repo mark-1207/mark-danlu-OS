@@ -824,6 +824,7 @@ def main():
                 "--format, -f": "格式化输出（可读报告）",
                 "--no-ext": "跳过 Phase 4-8（仅 Phase 0-3）",
                 "--no-interactive": "跳过 Phase 3.5 → Phase 4.5 用户选标题决策点（默认选第一个）",
+                "--skip-gateway": "跳过 Phase 1 苏格拉底网关（调试用）",
                 "--from-queue": "从 crack_queue 选择裂缝进入主流程",
                 "--match-queue": "输入时匹配 crack_queue 中的相关裂缝"
             }
@@ -852,6 +853,7 @@ def main():
         from_queue = False
         match_queue = False
         run_interactive = True
+        run_skip_gateway = False
 
         for arg in sys.argv[2:]:
             if arg == "--format" or arg == "-f":
@@ -860,6 +862,8 @@ def main():
                 include_ext = False
             elif arg == "--no-interactive":
                 run_interactive = False
+            elif arg == "--skip-gateway":
+                run_skip_gateway = True
             elif arg == "--from-queue":
                 from_queue = True
             elif arg == "--match-queue":
@@ -1003,6 +1007,7 @@ def main():
             include_phase_4_8=include_ext,
             history_topics=history_topics,
             interactive=(run_interactive and not from_queue),
+            skip_gateway=run_skip_gateway,
         )
 
         if use_format:
