@@ -784,6 +784,20 @@ def _safe_print(obj):
     sys.stdout.buffer.write(output.encode("utf-8") + b"\n")
 
 
+def _health_check_warn(command_name: str) -> None:
+    """
+    单命令健康检查：建议通过 run 走完整流程
+    - 默认打印到 stderr
+    - 检查 argv 中是否有 --suppress-warning 标志
+    """
+    if "--suppress-warning" in sys.argv:
+        return
+    print(
+        f"[提示] '{command_name}' 是单阶段命令，建议通过 'python prism_os.py run \"<命题>\"' 走完整流程（Phase 0-7）",
+        file=sys.stderr,
+    )
+
+
 def main():
     if len(sys.argv) < 2:
         _safe_print({
@@ -1054,6 +1068,7 @@ def main():
         _safe_print(result)
 
     elif command == "ccos":
+        _health_check_warn("ccos")
         # CCOS v2.0 交互式大纲生成
         # 用法: python prism_os.py ccos "<命题>" [--platform wechat|xiaohongshu|both] [--skip-alignment]
         topic = ""
@@ -1167,6 +1182,7 @@ def main():
             _safe_print(result)
 
     elif command == "narrate":
+        _health_check_warn("narrate")
         # Phase 5: 叙事驱动内容生成（新方案，主命令）
         # 用法: python prism_os.py narrate "<命题>" [--platform wechat|xiaohongshu] [--interactive] [--search] [--skip-experience] [--quality-check]
         topic = ""
@@ -1272,6 +1288,7 @@ def main():
                 print(f"[输出] 草稿已保存至 {out_path.resolve()}", file=sys.stderr)
 
     elif command == "prism":
+        _health_check_warn("prism")
         # Phase 2: 棱镜引擎 - 生成正交标题候选 + 交互式选择
         # 用法: python prism_os.py prism "<thesis>" [--identity <role>] [--audience <target>]
         thesis = ""
@@ -1456,6 +1473,7 @@ def main():
         _safe_print(result)
 
     elif command == "gap":
+        _health_check_warn("gap")
         # Phase 4.6: Gap Analysis - 素材就绪度分析
         # 用法: python prism_os.py gap "<thesis>" [--materials <materials>] [--no-block]
         thesis = ""
