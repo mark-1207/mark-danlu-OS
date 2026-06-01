@@ -87,6 +87,64 @@ def append_log(entry: Dict) -> Dict:
     else:
         raise PRISMError("保存失败:未产生有效候选")
 
+
+def append_selected_title(
+    title: str,
+    platform: str,
+    source: str = "prism",
+    metadata: Dict = None
+) -> Dict:
+    """
+    记录用户从 prism 交互中选中的标题
+
+    Args:
+        title: 选中的标题
+        platform: wechat / xiaohongshu / both
+        source: 来源（prism/manual/adjust）
+        metadata: 额外元数据（如 dimension、archetype 等）
+
+    Returns:
+        {"status": "ok", "entry": {...}}
+    """
+    log_path = os.path.join(get_data_dir(), "topic_log.yaml")
+    logs = load_yaml(log_path)
+
+    entry = {
+        "selected_title": title,
+        "platform": platform,
+        "source": source,
+        "timestamp": datetime.now().isoformat(),
+    }
+    if metadata:
+        entry["metadata"] = metadata
+
+    logs.append(entry)
+
+    if save_yaml(log_path, logs):
+        return {"status": "ok", "message": "选中标题已记录", "entry": entry}
+    else:
+        raise PRISMError("保存选中标题失败")
+
+
+def get_latest_selected_title(platform: str = None) -> Optional[Dict]:
+    """
+    获取最近一次用户选中的标题
+
+    Args:
+        platform: 可选，筛选平台
+
+    Returns:
+        {"selected_title": str, "platform": str, "timestamp": str} 或 None
+    """
+    log_path = os.path.join(get_data_dir(), "topic_log.yaml")
+    logs = load_yaml(log_path)
+
+    for entry in reversed(logs):
+        if "selected_title" in entry:
+            if platform is None or entry.get("platform") == platform:
+                return entry
+    return None
+
 def load_log(limit: int = 10) -> List[Dict]:
     """加载最近的选题日志"""
     log_path = os.path.join(get_data_dir(), "topic_log.yaml")
