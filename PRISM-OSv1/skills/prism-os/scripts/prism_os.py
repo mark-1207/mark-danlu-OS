@@ -959,12 +959,13 @@ def main():
 
             print("\n━━━ 选题追问 ━━━", file=sys.stderr)
             for i, q in enumerate(questions, 1):
-                q_type = q.get("类型", "")
-                q_content = q.get("内容", "")
-                q_options = q.get("可选方向", [])
-                print(f"  {i}. {q_content}", file=sys.stderr)
-                if q_options:
-                    print(f"     快捷方向: {' / '.join(q_options)}", file=sys.stderr)
+                # questions 是 List[str]
+                if isinstance(q, str):
+                    print(f"  {i}. {q}", file=sys.stderr)
+                else:
+                    print(f"  {i}. {q.get('内容', str(q))}", file=sys.stderr)
+                    if q.get("可选方向"):
+                        print(f"     快捷: {'/'.join(q.get('可选方向', []))}", file=sys.stderr)
             print("━━━━━━━━━━━━━━━━━━━━━━━━", file=sys.stderr)
             print("请回答上述问题（直接输入 / 选项编号+内容 / skip跳过）：", file=sys.stderr)
 
