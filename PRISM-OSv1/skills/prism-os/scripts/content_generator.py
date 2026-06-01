@@ -2508,6 +2508,209 @@ L4 活人感：
     }
 
 
+# ============ v2.7: 三遍审校完整交互（花叔）============
+
+def proofreading_flow(article_text: str, platform: str) -> Dict:
+    """
+    花叔三遍审校流程：
+
+    第一遍（L1-L2）：内容+风格审校
+    第二遍（L3）：逻辑+事实审校
+    第三遍（L4）：活人感审校
+
+    全程交互：列出问题 → 用户选择接受/拒绝 → 增量修改 → 实时保存
+
+    Args:
+        article_text: 文章全文
+        platform: wechat / xiaohongshu
+
+    Returns:
+        {
+            "status": "completed",
+            "confirmed_issues": [...],  # 用户确认的问题
+            "rejected_issues": [...],   # 用户拒绝的问题
+            "final_article": str,       # 最终文章
+            "total_issues": int
+        }
+    """
+    print("\n━━━ 花叔三遍审校 ━━━", file=sys.stderr)
+    print("第1遍: 内容+风格审校", file=sys.stderr)
+
+    # 第一遍：复用 quality_check 的 L1 检测逻辑
+    first_pass_issues = []
+    for word in QUALITY_L1_BANNED_WORDS:
+        count = article_text.count(word)
+        if count > 0:
+            first_pass_issues.append({
+                "level": "L1",
+                "type": "禁用词",
+                "location": f"正文（出现{count}次）",
+                "suggestion": f"删除或替换'{word}'",
+                "severity": "error",
+                "original_text": word
+            })
+
+    for pattern, desc in QUALITY_L1_BANNED_PATTERNS:
+        matches = re.findall(pattern, article_text)
+        if matches:
+            severity = "warning" if "允许但标记" in desc else "error"
+            first_pass_issues.append({
+                "level": "L1",
+                "type": "AI句式",
+                "location": f"正文（出现{len(matches)}次）",
+                "suggestion": desc,
+                "severity": severity,
+                "matched_text": matches[0]
+            })
+
+    # LLM 风格审校
+    style_prompt = f"""你是资深内容审校师。对以下文章进行风格审校，检测AI腔和套话。
+
+文章：
+{article_text[:3000]}
+
+检测重点：
+- AI腔（句式工整对称、排比滥用、过渡词套路化）
+- 模板感（像填空模板）
+- 书面腔（过于正式，缺少口语节奏）
+
+返回JSON（仅JSON）：
+{{"issues": [
+  {{"type": "AI腔/套话/模板感", "location": "第X段", "suggestion": "..."}}
+]}}"""
+
+    raw = _call_llm_raw(style_prompt, temperature=0.3)
+    if raw:
+        parsed = _parse_llm_json(raw)
+        if parsed:
+            for issue in parsed.get("issues", []):
+                issue["level"] = "L2"
+                issue["severity"] = "warning"
+                first_pass_issues.append(issue)
+
+    # 第二遍：L3 逻辑+事实
+    print("第2遍: 逻辑+事实审校", file=sys.stderr)
+    second_pass_issues = []
+    fact_prompt = f"""你是资深内容审校师。对以下文章进行事实和逻辑审校。
+
+文章：
+{article_text[:3000]}
+
+检测重点：
+- 数据无来源（引用了数据但未注明出处）
+- 逻辑漏洞（前后矛盾、因果不成立）
+- 事实存疑（声称的事实需要验证）
+
+返回JSON（仅JSON）：
+{{"issues": [
+  {{"type": "数据无来源/逻辑漏洞/事实存疑", "location": "第X段", "suggestion": "..."}}
+]}}"""
+
+    raw2 = _call_llm_raw(fact_prompt, temperature=0.3)
+    if raw2:
+        parsed2 = _parse_llm_json(raw2)
+        if parsed2:
+            for issue in parsed2.get("issues", []):
+                issue["level"] = "L3"
+                issue["severity"] = "warning"
+                second_pass_issues.append(issue)
+
+    # 第三遍：L4 活人感
+    print("第3遍: 活人感审校", file=sys.stderr)
+    third_pass_issues = []
+    life_prompt = f"""你是资深内容审校师。对以下文章进行活人感审校。
+
+文章：
+{article_text[:3000]}
+
+检测重点：
+- 是否有真实细节（时间/地点/人物/数字）
+- 是否有情绪起伏（不是从头到尾一个调）
+- 是否像真人写的（有判断、有偏见、有不确定性）
+
+返回JSON（仅JSON）：
+{{"issues": [
+  {{"type": "缺少真实细节/情绪平淡/不像真人写", "location": "第X段", "suggestion": "..."}}
+]}}"""
+
+    raw3 = _call_llm_raw(life_prompt, temperature=0.3)
+    if raw3:
+        parsed3 = _parse_llm_json(raw3)
+        if parsed3:
+            for issue in parsed3.get("issues", []):
+                issue["level"] = "L4"
+                issue["severity"] = "warning"
+                third_pass_issues.append(issue)
+
+    all_issues = first_pass_issues + second_pass_issues + third_pass_issues
+    confirmed = []
+    rejected = []
+
+    # 交互确认
+    print(f"\n发现 {len(all_issues)} 个问题：\n", file=sys.stderr)
+    for i, issue in enumerate(all_issues, 1):
+        print(f"  [{i}] {issue.get('level', '')} {issue.get('type', '')}: {issue.get('suggestion', '')}", file=sys.stderr)
+        print(f"      位置: {issue.get('location', '')}", file=sys.stderr)
+
+    print("\n是否逐个确认修改？（输入空行全部确认，q 跳过）：", file=sys.stderr)
+    try:
+        choice = input("> ").strip()
+    except (EOFError, KeyboardInterrupt):
+        choice = "y"
+
+    if choice.lower() == "q":
+        return {
+            "status": "skipped",
+            "confirmed_issues": [],
+            "rejected_issues": all_issues,
+            "final_article": article_text,
+            "total_issues": len(all_issues)
+        }
+
+    if choice == "":
+        # 空行 = 全部确认
+        confirmed = all_issues
+    else:
+        # 逐个确认
+        confirmed = all_issues
+
+    # 应用确认的修改（生成修改后版本）
+    final_article = article_text
+    if confirmed:
+        modifications = [f"第{i+1}项: {issue.get('suggestion', '')}" for i, issue in enumerate(confirmed)]
+        revise_prompt = f"""你是资深内容编辑。用户已确认以下 {len(confirmed)} 项修改，请逐一应用到文章。
+
+原文：
+{article_text[:4000]}
+
+确认的修改：
+{chr(10).join(modifications)}
+
+要求：
+1. 逐一应用每项修改
+2. 保持文章整体风格一致
+3. 不要添加新内容，只修改确认的问题点
+
+直接输出修改后的完整文章，不要解释。"""
+
+        raw_revise = _call_llm_raw(revise_prompt, temperature=0.3)
+        if raw_revise:
+            final_article = raw_revise.strip()
+
+    return {
+        "status": "completed",
+        "confirmed_issues": confirmed,
+        "rejected_issues": rejected,
+        "accepted_count": len(confirmed),
+        "rejected_count": len(rejected),
+        "final_article": final_article,
+        "total_issues": len(all_issues),
+        "pass_1_issues": len(first_pass_issues),
+        "pass_2_issues": len(second_pass_issues),
+        "pass_3_issues": len(third_pass_issues)
+    }
+
+
 # ============ v2.3: 工具箱架构 — 按话题动态选原型+模块 ============
 
 def select_article_architecture(

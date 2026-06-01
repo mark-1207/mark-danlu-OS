@@ -487,7 +487,18 @@ def run_prism_os(
     return result
 
 
-# ============ 输出格式化 ============
+# ============ 辅助函数 ============
+
+def _safe_filename(title: str) -> str:
+    """将标题转为合法的文件名（去除 <>:"|?* 等非法字符）"""
+    safe = title
+    for ch in "<>:\"|?*":
+        safe = safe.replace(ch, "_")
+    # 去除连续下划线和首尾空格
+    while "__" in safe:
+        safe = safe.replace("__", "_")
+    safe = safe.strip("_ ")
+    return safe or "untitled"
 
 def format_prism_os_output(result: Dict) -> str:
     """
@@ -940,6 +951,35 @@ def main():
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         from socratic_gateway import socratic_gateway
         result = socratic_gateway(user_input)
+
+        # need_clarification 时停在 stdin 等用户回答追问
+        if result.get("status") == "need_clarification":
+            questions = result.get("questions", [])
+            directions = result.get("directions", [])
+
+            print("\n━━━ 选题追问 ━━━", file=sys.stderr)
+            for i, q in enumerate(questions, 1):
+                q_type = q.get("类型", "")
+                q_content = q.get("内容", "")
+                q_options = q.get("可选方向", [])
+                print(f"  {i}. {q_content}", file=sys.stderr)
+                if q_options:
+                    print(f"     快捷方向: {' / '.join(q_options)}", file=sys.stderr)
+            print("━━━━━━━━━━━━━━━━━━━━━━━━", file=sys.stderr)
+            print("请回答上述问题（直接输入 / 选项编号+内容 / skip跳过）：", file=sys.stderr)
+
+            try:
+                user_answer = input("> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                user_answer = "skip"
+
+            if user_answer.lower() == "skip":
+                print("[跳过] 直接进入后续流程", file=sys.stderr)
+            else:
+                print(f"[用户回答] {user_answer}", file=sys.stderr)
+                result["user_answer"] = user_answer
+                result["status"] = "answered"
+
         _safe_print(result)
 
     elif command == "confirm":
@@ -1160,13 +1200,16 @@ def main():
             # 同时输出到文件
             draft = result.get("full_draft", "")
             if draft:
-                out_path = Path(f"output_narrative_{platform}.md")
+                safe_title = _safe_filename(topic)
+                from datetime import date
+                date_str = date.today().strftime("%Y%m%d")
+                out_path = Path(f"{safe_title}_{date_str}.md")
                 out_path.write_text(f"# {topic}\n\n---\n\n" + draft, encoding="utf-8")
 
                 print(f"[输出] 草稿已保存至 {out_path.resolve()}", file=sys.stderr)
 
     elif command == "prism":
-        # Phase 2: 棱镜引擎 - 生成正交标题候选
+        # Phase 2: 棱镜引擎 - 生成正交标题候选 + 交互式选择
         # 用法: python prism_os.py prism "<thesis>" [--identity <role>] [--audience <target>]
         thesis = ""
         identity_role = ""
@@ -1192,8 +1235,79 @@ def main():
 
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         from prism_engine import prism_engine
+        from storage import append_selected_title
+
         result = prism_engine(thesis, identity_role, audience)
-        _safe_print(result)
+        candidates = result.get("candidates", [])
+
+        if not candidates:
+            _safe_print(result)
+            sys.exit(0)
+
+        # 显示候选标题列表供选择
+        print("\n【候选标题列表】", file=sys.stderr)
+        dim_names = {
+            "reversal": "逆向拆解",
+            "micro_scene": "微观切片",
+            "systemic_flaw": "系统归因",
+            "bridge": "认知脚手架"
+        }
+        archetype_names = {
+            "opinion_assertion": "观点断言",
+            "identity_label": "身份标签",
+            "scene_suspense": "场景悬念",
+            "data_counter_ask": "数据反问",
+            "story_hook": "故事钩子"
+        }
+        for i, c in enumerate(candidates, 1):
+            dim = c.get("dimension", "")
+            arch = c.get("archetype", "")
+            dim_name = dim_names.get(dim, dim)
+            arch_name = archetype_names.get(arch, arch)
+            print(f"  {i}. [{dim_name}] {c.get('title', '')}", file=sys.stderr)
+        print("", file=sys.stderr)
+
+        # 交互式选择
+        while True:
+            print("请输入数字选择标题（1-{}），或 q 退出：".format(len(candidates)), file=sys.stderr)
+            try:
+                choice = input("> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\n取消选择", file=sys.stderr)
+                sys.exit(0)
+
+            if choice.lower() == "q":
+                print("退出", file=sys.stderr)
+                sys.exit(0)
+
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(candidates):
+                    selected = candidates[idx]
+                    selected_title = selected.get("title", "")
+                    # 写入 topic_log
+                    append_selected_title(
+                        title=selected_title,
+                        platform="wechat",
+                        source="prism",
+                        metadata={
+                            "dimension": selected.get("dimension", ""),
+                            "archetype": selected.get("archetype", ""),
+                            "thesis": thesis
+                        }
+                    )
+                    _safe_print({
+                        "status": "selected",
+                        "selected_title": selected_title,
+                        "dimension": selected.get("dimension", ""),
+                        "archetype": selected.get("archetype", ""),
+                        "thesis": thesis
+                    })
+                    break
+                else:
+                    print(f"无效选择，请输入 1-{len(candidates)} 之间的数字", file=sys.stderr)
+            except ValueError:
+                print("请输入数字或 q", file=sys.stderr)
 
     elif command == "anchor":
         # Phase 3: 现实校验锚 - 验证候选标题
@@ -1280,15 +1394,19 @@ def main():
 
     elif command == "gap":
         # Phase 4.6: Gap Analysis - 素材就绪度分析
-        # 用法: python prism_os.py gap "<thesis>" [--materials <materials>]
+        # 用法: python prism_os.py gap "<thesis>" [--materials <materials>] [--no-block]
         thesis = ""
         materials = ""
+        no_block = False
         i = 2
         while i < len(sys.argv):
             arg = sys.argv[i]
             if arg == "--materials" and i + 1 < len(sys.argv):
                 materials = sys.argv[i + 1]
                 i += 2
+            elif arg == "--no-block":
+                no_block = True
+                i += 1
             elif not thesis and not arg.startswith("--"):
                 thesis = arg
                 i += 1
@@ -1302,7 +1420,82 @@ def main():
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         from gap_analysis import analyze_gap
         result = analyze_gap(thesis, materials)
-        _safe_print(result)
+
+        # --no-block 模式：直接返回 JSON
+        if no_block:
+            _safe_print(result)
+            sys.exit(0)
+
+        # 阻塞模式：展示缺口，等待用户选择
+        print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", file=sys.stderr)
+        print("【素材就绪度分析】", file=sys.stderr)
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", file=sys.stderr)
+        gap_score = result.get("gap_score", 0)
+        readiness = result.get("readiness", 0)
+        print(f"  Gap Score:   {gap_score:.2f} {'(缺口较大)' if gap_score > 0.5 else '(缺口较小)'}", file=sys.stderr)
+        print(f"  就绪度:      {readiness:.0%}", file=sys.stderr)
+        missing = result.get("missing_evidence", [])
+        if missing:
+            print(f"  缺失证据:   {', '.join(missing[:5])}", file=sys.stderr)
+        search_results = result.get("knowledge", {}).get("knowledge_results", [])
+        if search_results:
+            print(f"  搜索命中:   {len(search_results)} 条", file=sys.stderr)
+        print("", file=sys.stderr)
+
+        print("请选择下一步操作：", file=sys.stderr)
+        print("  [1] 补充手写素材入库", file=sys.stderr)
+        print("  [2] 调整大纲方向（重新生成CCOS）", file=sys.stderr)
+        print("  [3] 直接使用搜到的数据生成草稿", file=sys.stderr)
+        print("  [q] 退出", file=sys.stderr)
+        print("", file=sys.stderr)
+
+        while True:
+            print("请输入选项（1/2/3/q）：", file=sys.stderr)
+            try:
+                choice = input("> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\n退出", file=sys.stderr)
+                sys.exit(0)
+
+            if choice.lower() == "q":
+                print("退出", file=sys.stderr)
+                sys.exit(0)
+
+            if choice == "1":
+                # 补充手写素材
+                print("请输入素材内容（输入空行结束）：", file=sys.stderr)
+                lines = []
+                try:
+                    while True:
+                        line = input()
+                        if not line.strip():
+                            break
+                        lines.append(line)
+                except (EOFError, KeyboardInterrupt):
+                    lines = []
+
+                user_material = "\n".join(lines).strip()
+                if user_material:
+                    print(f"[素材入库] 已记录 {len(user_material)} 字素材", file=sys.stderr)
+                _safe_print({"status": "material_added", "material": user_material, "thesis": thesis})
+                break
+
+            elif choice == "2":
+                # 重新生成 CCOS
+                print("[操作] 重新生成 CCOS 大纲，请运行：", file=sys.stderr)
+                print(f'  python prism_os.py ccos "{thesis}" --platform wechat', file=sys.stderr)
+                _safe_print({"status": "restart_ccos", "thesis": thesis})
+                break
+
+            elif choice == "3":
+                # 直接进入 narrate
+                print("[操作] 进入叙事生成，请运行：", file=sys.stderr)
+                print(f'  python prism_os.py narrate "{thesis}" --platform wechat --quality-check', file=sys.stderr)
+                _safe_print({"status": "go_narrate", "thesis": thesis})
+                break
+
+            else:
+                print("无效选项，请输入 1、2、3 或 q", file=sys.stderr)
 
     elif command == "logic":
         # Phase 5: 逻辑压力测试 + 认知旅程
