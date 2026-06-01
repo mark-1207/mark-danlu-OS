@@ -142,7 +142,7 @@ class TestE2ECCOSFlow:
                 "我想写一篇关于AI时代内容创作的文章",
                 include_phase_4_8=True,
                 skip_gateway=True  # 跳过网关（规则计算不通过），专注测试 LLM 阶段
-            )
+            , interactive=False)
 
             # Phase 0 触发检查
             assert result.get("intent", {}).get("trigger") == True, "应触发 PRISM-OS"
@@ -189,7 +189,7 @@ class TestE2ECCOSFlow:
                 "AI时代内容创作者该何去何从",
                 include_phase_4_8=True,
                 skip_gateway=True  # 跳过网关，专注测试 CCOS 生成
-            )
+            , interactive=False)
 
             ccos = result.get("ccos_outline")
             assert ccos is not None, "CCOS 结果不应为空"
