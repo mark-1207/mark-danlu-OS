@@ -235,7 +235,8 @@ def run_prism_os(
     skip_gateway: bool = False,
     platform: str = "both",
     interactive: bool = True,
-    user_clarification: str = None
+    user_clarification: str = None,
+    ccos_review: bool = True
 ) -> Dict:
     """
     PRISM-OS 完整工作流程
@@ -468,6 +469,46 @@ def run_prism_os(
                 ccos_result = cognitive_outline_workflow(title, dimension, platform)
 
             result["ccos_outline"] = ccos_result
+
+            # Phase 4.5 → Phase 4.6 CCOS 审核决策点
+            if ccos_review:
+                ccos_display = _format_ccos_review(ccos_result, title, platform)
+                print(ccos_display, file=sys.stderr)
+                print("\n请选择：", file=sys.stderr)
+                print("  [c] 继续 (使用此大纲)", file=sys.stderr)
+                print("  [r] 重新生成", file=sys.stderr)
+                print("  [e] 手动编辑（暂不实现，直接 [c] 跳过）", file=sys.stderr)
+                print("  [q] 退出", file=sys.stderr)
+
+                while True:
+                    try:
+                        ccos_choice = input("> ").strip()
+                    except (EOFError, KeyboardInterrupt):
+                        print("[stdin 不可用，默认继续]", file=sys.stderr)
+                        break
+
+                    if ccos_choice.lower() == "q":
+                        print("[用户退出，CCOS 大纲未通过]", file=sys.stderr)
+                        result["status"] = "ccos_rejected"
+                        return result
+
+                    if ccos_choice.lower() == "c" or ccos_choice == "":
+                        print("[CCOS 大纲确认通过]", file=sys.stderr)
+                        result["ccos_review_passed"] = True
+                        break
+
+                    if ccos_choice.lower() == "r":
+                        print("[重新生成 CCOS...]", file=sys.stderr)
+                        if platform == "both":
+                            ccos_result = generate_dual_platform_outline(title, dimension)
+                        else:
+                            ccos_result = cognitive_outline_workflow(title, dimension, platform)
+                        result["ccos_outline"] = ccos_result
+                        ccos_display = _format_ccos_review(ccos_result, title, platform)
+                        print(ccos_display, file=sys.stderr)
+                        continue
+
+                    print("无效选择，请输入 c/r/q", file=sys.stderr)
         except Exception as e:
             print(f"[Warning] Phase 4.5 CCOS 失败: {e}", file=sys.stderr)
             result["ccos_outline"] = None
@@ -553,6 +594,54 @@ def _safe_filename(title: str) -> str:
         safe = safe.replace("__", "_")
     safe = safe.strip("_ ")
     return safe or "untitled"
+
+
+def _format_ccos_review(ccos_outline: Dict, title: str, platform: str) -> str:
+    """
+    格式化 CCOS 大纲审核显示：每个模块的"模块名 + 功能 + 篇幅"
+    目的是让用户理解"为何是这个模块用这个"
+    """
+    lines = [
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "【CCOS 大纲审核】",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        f"标题: {title}",
+        f"平台: {platform}",
+        "",
+    ]
+
+    # 核心信息
+    content_goal = ccos_outline.get("内容目标", "未指定")
+    main_structure = ccos_outline.get("主结构", "未指定")
+    progression = ccos_outline.get("推进方式", "未指定")
+    lines.append(f"内容目标: {content_goal}")
+    lines.append(f"主结构: {main_structure}")
+    lines.append(f"推进方式: {progression}")
+    lines.append("")
+
+    # 模块流（每个模块：模块名 + 功能 + 篇幅 + 内容摘要）
+    modules = ccos_outline.get("认知模块流", [])
+    if modules:
+        lines.append("模块流：")
+        for i, m in enumerate(modules, 1):
+            mod_name = m.get("模块", "?")
+            mod_func = m.get("功能", "未指定")
+            mod_length = m.get("篇幅", "未指定")
+            mod_summary = m.get("内容摘要", "")
+            lines.append(f"  {i}. {mod_name} ({mod_length}) — {mod_func}")
+            if mod_summary:
+                lines.append(f"     {mod_summary[:80]}")
+        lines.append("")
+
+    # 最终大纲
+    final_outline = ccos_outline.get("最终动态认知大纲", "")
+    if final_outline:
+        lines.append("最终大纲：")
+        lines.append(f"  {final_outline[:200]}{'...' if len(final_outline) > 200 else ''}")
+        lines.append("")
+
+    return "\n".join(lines)
 
 def format_prism_os_output(result: Dict) -> str:
     """
@@ -827,6 +916,7 @@ def main():
                 "--no-interactive": "跳过 Phase 3.5 → Phase 4.5 用户选标题决策点（默认选第一个）",
                 "--skip-gateway": "跳过 Phase 1 苏格拉底网关（调试用）",
                 "--clarification <text>": "提供网关追问的澄清答案（避免 need_clarification 阻塞）",
+                "--no-ccos-review": "跳过 Phase 4.5 CCOS 大纲人工审核（默认开启审核）",
                 "--from-queue": "从 crack_queue 选择裂缝进入主流程",
                 "--match-queue": "输入时匹配 crack_queue 中的相关裂缝"
             }
@@ -857,6 +947,7 @@ def main():
         run_interactive = True
         run_skip_gateway = False
         run_clarification = None
+        run_ccos_review = True
 
         i = 2
         while i < len(sys.argv):
@@ -872,6 +963,9 @@ def main():
                 i += 1
             elif arg == "--skip-gateway":
                 run_skip_gateway = True
+                i += 1
+            elif arg == "--no-ccos-review":
+                run_ccos_review = False
                 i += 1
             elif arg == "--from-queue":
                 from_queue = True
@@ -1026,6 +1120,7 @@ def main():
             interactive=(run_interactive and not from_queue),
             skip_gateway=run_skip_gateway,
             user_clarification=run_clarification,
+            ccos_review=run_ccos_review,
         )
 
         if use_format:
