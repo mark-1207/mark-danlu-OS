@@ -17,6 +17,7 @@
 | V1.0.9 | ✓ | RSS-Hunter × PRISM-OS 整合（crack_queue + --from-queue/--match-queue） |
 | V1.0.10 | ✓ | Windows SSL 修复 + 跨机器密钥迁移 + HTTP 监听 + API 节流 |
 | V1.1.0 | ✓ | NVIDIA NIM 四级 fallback + 叙事生成增强（策略评估+预叙事+字数扩充）+ 253 测试 |
+| V1.2.0 | ✓ | run 命令决策点（Phase 3.5 选标题）+ interactive 开关 + --no-interactive/--skip-gateway/--clarification 标志 + 单命令健康检查 + 熵值/HKR 规则扩展 + 419 测试 |
 
 ## 目录结构
 

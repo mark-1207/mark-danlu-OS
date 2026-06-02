@@ -4,6 +4,73 @@
 
 ---
 
+### v1.2.0 (2026-06-02)
+
+**状态**：当前版本
+
+#### 新增
+
+- **`run` 命令决策点 + 交互式开关**（Commit 1）：
+  - `run_prism_os` 新增 `interactive: bool = True` 参数
+  - Phase 3.5 → Phase 4.5 之间插入用户决策点：展示候选标题列表，等用户输入数字选择
+  - `interactive=True` 时阻塞等用户选（默认选 1 = 第一个候选）
+  - `interactive=False` 时不阻塞（如 HTTP server）
+  - `include_phase_4_8=False` 时不阻塞
+  - stdin 不可用时降级到第一个候选
+  - 选中的候选用于 CCOS 大纲生成（不是默认第一个）
+
+- **调用方适配**（Commit 2）：
+  - `run` 命令加 `--no-interactive` 标志（默认 interactive=True）
+  - `--from-queue` 自动非交互（用户已选过）
+  - HTTP server 调用 `run_prism_os` 时强制 `interactive=False`（无 stdin）
+  - 短触发默认 `interactive=True`（用户场景）
+
+- **单命令健康检查**（Commit 3）：
+  - `prism` / `gap` / `ccos` / `narrate` 单独调用时 stderr 打印建议
+  - "建议通过 `python prism_os.py run "<命题>"` 走完整流程（Phase 0-7）"
+  - `--suppress-warning` 标志可关闭提示
+  - 不污染 stdout JSON 输出
+
+- **`run` 命令 `--skip-gateway` 标志**（Commit 5）：
+  - 跳过 Phase 1 苏格拉底网关（调试用）
+  - help 文本加 `--skip-gateway <text>` 说明
+
+- **`run` 命令 `--clarification` 标志**（Commit 6）：
+  - 接收网关追问的澄清答案（避免 need_clarification 阻塞）
+  - socratic_gateway 加 `user_clarification: Optional[str]` 参数
+  - 合并到 user_input 后重新评估 entropy + HKR
+
+#### 修复
+
+- **熵值/HKR 规则过严 bug**（Commit 7）：
+  - bug：合理命题（含 clarifications）打分过低，entropy=0.6、HKR=0.1、combined=0.3，无法 pass gateway
+  - 修复：扩展 object/conflict/fact/h/k/r 各类关键词集合
+  - object_clarity：增加年龄+职业、危机类、求职类关键词
+  - conflict_tension：增加裁员/转型/错配等职场危机词
+  - fact_support：增加行动/方法/原因/步骤类关键词
+  - hkr_h：增加如何/怎么/怎样疑问词
+  - hkr_k：增加思路/提升/适应/核心/问题/转型等方法论词
+  - hkr_r：增加 35岁/大龄/中年/裁员/被裁等共同经历词
+
+#### 更新
+
+- SKILL.md 新增 `run` 命令规范入口章节（Commit 4）
+- CLAUDE.md（项目根目录）置顶 4 个屡次犯的错误（错误 1: 直接调单步命令 / 错误 2: 审计前没核实代码 / 错误 3: 替用户定义"想写什么" / 错误 4: echo "skip" 自动应答）
+- MEMORY 增加 feedback：feedback_dont_skip_flow_again / feedback_audit_verify_with_code / feedback_run_is_canonical_entry / feedback_quality_gate
+
+#### 测试
+
+- 测试总数：419 个
+- 新增测试文件：
+  - `test_run_prism_os_interactive.py`（6 测试）— 决策点
+  - `test_run_callers.py`（3 测试）— 调用方
+  - `test_command_healthcheck.py`（3 测试）— 健康检查
+  - `test_run_clarification.py`（5 测试）— --clarification
+  - `test_entropy_hkr_strict.py`（7 测试）— 规则扩展
+- 全部通过
+
+---
+
 ### v1.1.0 (2026-05-27)
 
 **状态**：当前版本
