@@ -31,17 +31,19 @@ version: 1.2.0
 # 标准用法
 python prism_os.py run "<命题>"              # 完整流程（Phase 0-7，交互式）
 python prism_os.py run "<命题>" --no-interactive  # 跳过用户决策点（默认选第一个）
+python prism_os.py run "<命题>" --no-ccos-review  # 跳过 CCOS 大纲人工审核
 python prism_os.py run "<命题>" --no-ext    # 仅 Phase 0-3，不生成大纲
 python prism_os.py run --from-queue        # 从队列选裂缝进入主流程
 python prism_os.py run "<命题>" --format  # 格式化输出（可读报告）
 ```
 
 **为什么用 `run`**：
-- `run` 自动走完 Phase 0 意图识别 → Phase 1 苏格拉底 → Phase 1.5 备选检查 → Phase 2 棱镜 → Phase 3 现实校验 → Phase 3.5 数字分身 → 用户选标题 → Phase 4.5 CCOS → Phase 4.6 Gap → Phase 5 逻辑 → Phase 6 存储 → Phase 7 刺客
+- `run` 自动走完 Phase 0 意图识别 → Phase 1 苏格拉底 → Phase 1.5 备选检查 → Phase 2 棱镜 → Phase 3 现实校验 → Phase 3.5 数字分身 → 用户选标题 → Phase 4.5 CCOS → CCOS 审核 → Phase 4.6 Gap → Phase 5 逻辑 → Phase 6 存储 → Phase 7 刺客
 - 跳过任何单步会导致流程不完整（如没选标题就生成大纲，用的是默认第一个而不是你想写的）
 
 **用户决策点（run 命令在以下位置会暂停等你输入）**：
 - Phase 3.5 → Phase 4.5：候选标题选择（默认 1）
+- Phase 4.5 → Phase 4.6：CCOS 大纲审核（[c]继续 / [r]重生成 / [q]退出）
 - Phase 4.6 Gap：素材缺口处理（补充/调整/直接生成/退出）
 
 **单阶段命令（仅供调试）**：

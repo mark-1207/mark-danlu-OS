@@ -40,6 +40,14 @@
   - socratic_gateway 加 `user_clarification: Optional[str]` 参数
   - 合并到 user_input 后重新评估 entropy + HKR
 
+- **CCOS 大纲人工审核决策点**（Commit 8）：
+  - Phase 4.5 → Phase 4.6 之间插入用户审核点（CCOS 大纲生成后）
+  - 新增 `ccos_review: bool = True` 参数到 `run_prism_os`
+  - 新增 `_format_ccos_review()` 展示：模块名 + 功能 + 篇幅（让用户理解"为何是这个模块用这个"）
+  - 用户选择：[c] 继续 / [r] 重新生成 / [q] 退出（[e] 手动编辑暂不实现）
+  - 新增 CLI 标志 `--no-ccos-review` 跳过审核
+  - `test_ccos_review.py`：7 个测试覆盖参数存在 / 阻塞行为 / 展示格式 / CLI 解析
+
 #### 修复
 
 - **熵值/HKR 规则过严 bug**（Commit 7）：
@@ -60,13 +68,14 @@
 
 #### 测试
 
-- 测试总数：419 个
+- 测试总数：426 个
 - 新增测试文件：
   - `test_run_prism_os_interactive.py`（6 测试）— 决策点
   - `test_run_callers.py`（3 测试）— 调用方
   - `test_command_healthcheck.py`（3 测试）— 健康检查
   - `test_run_clarification.py`（5 测试）— --clarification
   - `test_entropy_hkr_strict.py`（7 测试）— 规则扩展
+  - `test_ccos_review.py`（7 测试）— CCOS 大纲审核
 - 全部通过
 
 ---
@@ -451,4 +460,4 @@ major.minor.patch
 
 ---
 
-**最后更新**：2026-05-26
+**最后更新**：2026-06-02
