@@ -5,6 +5,7 @@ import type { LLMProvider } from '../../../llm/types.js';
 import { getCachedConfig } from '../../../config/loader.js';
 import { callWithFallback } from '../../../utils/llm-call.js';
 import { logger } from '../../../utils/logger.js';
+import { ObsidianMaterialStore } from './obsidian-material-store.js';
 import {
   MaterialSearchOutputSchema,
   type MaterialSearchOutput,
@@ -187,6 +188,40 @@ export function extractQueriesFromOutlines(
   }
 
   return queries;
+}
+
+/**
+ * Extract just the case slot text strings from an outline (for obsidian semantic search).
+ * Returns array of slot texts, deduplicated.
+ */
+function extractCaseSlotTexts(outline: WechatOutline | XiaohongshuOutline | DouyinOutline | undefined): string[] {
+  const slots: string[] = [];
+
+  if (!outline) return slots;
+
+  if ('sections' in outline) {
+    for (const section of (outline as WechatOutline).sections ?? []) {
+      if (section.caseSlot && !section.caseSlot.includes('无需') && !section.caseSlot.includes('不需要')) {
+        slots.push(section.caseSlot);
+      }
+    }
+  }
+
+  if ('tips' in outline) {
+    for (const tip of (outline as XiaohongshuOutline).tips ?? []) {
+      if (tip.caseSlot && !tip.caseSlot.includes('无需') && !tip.caseSlot.includes('不需要')) {
+        slots.push(tip.caseSlot);
+      }
+    }
+  }
+
+  if ('miniCase' in outline) {
+    const douyin = outline as DouyinOutline;
+    if (douyin.miniCase) slots.push(douyin.miniCase);
+    if (douyin.corePoint?.statement) slots.push(douyin.corePoint.statement);
+  }
+
+  return [...new Set(slots)];
 }
 
 /**
@@ -411,6 +446,38 @@ export class MaterialSearchStep extends PipelineStep<z.infer<typeof InputSchema>
       );
 
       results[key] = materials;
+    }
+
+    // Obsidian local material channel: supplement when web results are sparse
+    if (searchConfig.obsidianEnabled) {
+      const store = new ObsidianMaterialStore();
+      try {
+        await store.loadIndex();
+      } catch {
+        logger.warn('[Step:material-search] obsidian store loadIndex failed, skipping obsidian channel');
+      }
+
+      const topK = searchConfig.obsidianTopK ?? 3;
+      for (const { key } of platforms) {
+        // Only supplement if web results are empty or very sparse (<2 items)
+        if (results[key].length >= 2) continue;
+
+        const slotTexts = extractCaseSlotTexts(outlines[key]);
+        for (const slot of slotTexts.slice(0, 3)) {
+          const matches = await store.search(slot, topK);
+          for (const m of matches) {
+            results[key].push({
+              forSection: m.filePath,
+              type: 'case',
+              content: m.content,
+              source: `obsidian:${m.filePath}`,
+              reliability: 'high',
+            });
+          }
+        }
+      }
+
+      logger.info('[Step:material-search] obsidian channel completed');
     }
 
     logger.info('[Step:material-search] completed', {

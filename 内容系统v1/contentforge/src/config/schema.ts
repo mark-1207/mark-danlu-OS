@@ -61,6 +61,9 @@ const ConfigSchema = z.object({
       enabled: z.boolean().default(false),
       provider: z.enum(['tavily', 'serper', 'bing']).optional(),
       apiKey: z.string().optional(),
+      obsidianEnabled: z.boolean().default(false),
+      obsidianTopK: z.number().default(3),
+      obsidianThreshold: z.number().min(0).max(1).default(0.80),
     })
     .optional(),
   embedding: z

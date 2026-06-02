@@ -3,6 +3,7 @@ import { readdirSync } from 'fs';
 import path from 'path';
 import { logger } from '../../../utils/logger.js';
 import { computeEmbedding, cosineSimilarity, SIMILARITY_THRESHOLD } from '../../../utils/embedding.js';
+import { getCachedConfig } from '../../../config/loader.js';
 
 export interface MaterialDoc {
   id: string;
@@ -105,7 +106,7 @@ export class ObsidianMaterialStore {
             const id = String(frontmatter['id'] ?? path.basename(filePath, '.md'));
             const tags = Array.isArray(frontmatter['tags']) ? (frontmatter['tags'] as string[]) : [];
             const platform = frontmatter['platform'] as 'wechat' | 'xiaohongshu' | 'douyin' | undefined;
-            const contentPreview = body.trim().slice(0, 200);
+            const contentPreview = body.trim().slice(0, 1000);
             let embedding: number[] = [];
             try {
               const result = await computeEmbedding({ text: contentPreview });
@@ -151,9 +152,10 @@ export class ObsidianMaterialStore {
     if (this.index.length === 0) return [];
 
     const queryEmb = (await computeEmbedding({ text: query })).embedding;
+    const threshold = getCachedConfig()?.search?.obsidianThreshold ?? SIMILARITY_THRESHOLD;
     return this.index
       .map((doc) => ({ ...doc, similarity: cosineSimilarity(queryEmb, doc.embedding) }))
-      .filter((d) => d.similarity > SIMILARITY_THRESHOLD)
+      .filter((d) => d.similarity > threshold)
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, topK);
   }

@@ -16,7 +16,21 @@ import {
   type XiaohongshuOutline,
   type DouyinOutline,
   type TopicAnalysis,
+  type MaterialSearchOutput,
 } from '../types.js';
+
+// ── Material search (obsidian channel) loader ──────────────────────────
+
+function loadMaterialSearchMaterials(context: PipelineContext, platform: 'wechat' | 'xiaohongshu' | 'douyin'): string {
+  const output = context.get<MaterialSearchOutput>('material-search');
+  if (!output) return '';
+  const materials = output[platform] ?? [];
+  if (materials.length === 0) return '';
+  return materials
+    .filter((m) => m.source?.startsWith('obsidian:'))
+    .map((m) => `[${m.type}] ${m.content}`)
+    .join('\n');
+}
 
 // ── Obsidian material loader ────────────────────────────────────────────
 
@@ -94,8 +108,9 @@ export class ContentWechatStep extends PipelineStep<ContentInput, string> {
     const template = await promptLoader.load('create', 'content', 'wechat');
     const systemPrompt = promptLoader.render(template.system, {});
     const obsidianMaterials = await loadObsidianMaterials(context);
+    const storeMaterials = loadMaterialSearchMaterials(context, 'wechat');
     const seedMaterial = context.get<string>('outline-seed-material-wechat') ?? '';
-    const allMaterials = [seedMaterial, input.materials, obsidianMaterials].filter(Boolean).join('\n\n');
+    const allMaterials = [seedMaterial, input.materials, obsidianMaterials, storeMaterials].filter(Boolean).join('\n\n');
     const userPrompt = promptLoader.render(template.user, {
       topicCard: JSON.stringify(assignments.wechat, null, 2),
       outline: JSON.stringify(outline, null, 2),
@@ -131,8 +146,9 @@ export class ContentXiaohongshuStep extends PipelineStep<ContentInput, string> {
     const template = await promptLoader.load('create', 'content', 'xiaohongshu');
     const systemPrompt = promptLoader.render(template.system, {});
     const obsidianMaterials = await loadObsidianMaterials(context);
+    const storeMaterials = loadMaterialSearchMaterials(context, 'xiaohongshu');
     const seedMaterial = context.get<string>('outline-seed-material-xiaohongshu') ?? '';
-    const allMaterials = [seedMaterial, input.materials, obsidianMaterials].filter(Boolean).join('\n\n');
+    const allMaterials = [seedMaterial, input.materials, obsidianMaterials, storeMaterials].filter(Boolean).join('\n\n');
     const userPrompt = promptLoader.render(template.user, {
       topicCard: JSON.stringify(assignments.xiaohongshu, null, 2),
       outline: JSON.stringify(outline, null, 2),
@@ -168,8 +184,9 @@ export class ContentDouyinStep extends PipelineStep<ContentInput, string> {
     const template = await promptLoader.load('create', 'content', 'douyin');
     const systemPrompt = promptLoader.render(template.system, {});
     const obsidianMaterials = await loadObsidianMaterials(context);
+    const storeMaterials = loadMaterialSearchMaterials(context, 'douyin');
     const seedMaterial = context.get<string>('outline-seed-material-douyin') ?? '';
-    const allMaterials = [seedMaterial, input.materials, obsidianMaterials].filter(Boolean).join('\n\n');
+    const allMaterials = [seedMaterial, input.materials, obsidianMaterials, storeMaterials].filter(Boolean).join('\n\n');
     const userPrompt = promptLoader.render(template.user, {
       topicCard: JSON.stringify(assignments.douyin, null, 2),
       outline: JSON.stringify(outline, null, 2),
