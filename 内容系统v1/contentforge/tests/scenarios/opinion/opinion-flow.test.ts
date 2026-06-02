@@ -4,6 +4,8 @@ import type { RefinedOpinion, ConfirmedOpinion } from '../../../src/scenarios/op
 import { validateRefinedOpinion, validateConfirmedOpinion } from '../../../src/scenarios/opinion/types.js';
 import { sanitizeFilename } from '../../../src/utils/sanitize.js';
 import { PipelineContext } from '../../../src/core/context.js';
+import { L1ForbiddenWordScanner, L1_REPLACEMENTS } from '../../../src/scenarios/opinion/quality/l1-forbidden.js';
+import { L2StyleChecker } from '../../../src/scenarios/opinion/quality/l2-style.js';
 
 // ── T1-T8: parseIntent opinion detection ───────────────────────────
 
@@ -252,5 +254,103 @@ describe('opinion context persistence', () => {
 
     expect(ctx.get('topic-analysis')).toBeTruthy();
     expect((ctx.get('topic-analysis') as any).subTopics).toEqual([]);
+  });
+});
+
+// ── T23-T28: L1 禁词扫描 ─────────────────────────────────────────
+
+describe('L1 forbidden word scanner', () => {
+  it('T23: detects 说白了 as forbidden', () => {
+    const scanner = new L1ForbiddenWordScanner();
+    const result = scanner.scan('说白了，这就是AI的真相。');
+    expect(result.hits.some(h => h.word === '说白了')).toBe(true);
+  });
+
+  it('T24: detects 这意味着 as forbidden', () => {
+    const scanner = new L1ForbiddenWordScanner();
+    const result = scanner.scan('这意味着AI时代来了。');
+    expect(result.hits.some(h => h.word === '这意味着')).toBe(true);
+  });
+
+  it('T25: detects 本质上 as forbidden', () => {
+    const scanner = new L1ForbiddenWordScanner();
+    const result = scanner.scan('本质上是一种工具。');
+    expect(result.hits.some(h => h.word === '本质上')).toBe(true);
+  });
+
+  it('T26: detects 不可否认 as forbidden', () => {
+    const scanner = new L1ForbiddenWordScanner();
+    const result = scanner.scan('不可否认的事实。');
+    expect(result.hits.some(h => h.word === '不可否认')).toBe(true);
+  });
+
+  it('T27: clean text has no hits', () => {
+    const scanner = new L1ForbiddenWordScanner();
+    const result = scanner.scan('这篇文章写得很清楚，观点也明确。');
+    expect(result.hits.length).toBe(0);
+  });
+
+  it('T28: replacement map has all forbidden words (keys present)', () => {
+    // 注意：空字符串表示"删除该词"，是合法的 replacement
+    expect('说白了' in L1_REPLACEMENTS).toBe(true);
+    expect('这意味着' in L1_REPLACEMENTS).toBe(true);
+    expect('本质上' in L1_REPLACEMENTS).toBe(true);
+    expect('不可否认' in L1_REPLACEMENTS).toBe(true);
+  });
+});
+
+// ── T29-T34: L2 风格检查 ─────────────────────────────────────────
+
+describe('L2 style checker', () => {
+  it('T29: detects absence of punctuation (no LLM smell)', () => {
+    const checker = new L2StyleChecker();
+    const result = checker.check('首先...其次...最后...接下来让我们看看');
+    expect(result.flags.some(f => f.code === 'llm_punctuation')).toBe(true);
+  });
+
+  it('T30: detects textbook opening', () => {
+    const checker = new L2StyleChecker();
+    const result = checker.check('在当今AI快速发展的时代，技术日新月异。');
+    expect(result.flags.some(f => f.code === 'textbook_opening')).toBe(true);
+  });
+
+  it('T31: clean opening has no flags', () => {
+    const checker = new L2StyleChecker();
+    const result = checker.check('故事是这样的。上周五，我坐在会议室里。');
+    expect(result.flags.length).toBe(0);
+  });
+
+  it('T32: detects missing HKR match (no HKR mentioned)', () => {
+    const checker = new L2StyleChecker();
+    const longText = 'x'.repeat(2000);
+    const result = checker.check(longText);
+    expect(result.flags.some(f => f.code === 'hkr_match' || f.code === 'no_break')).toBe(true);
+  });
+
+  it('T33: detects short sentence rhythm (good)', () => {
+    const checker = new L2StyleChecker();
+    const text = '这句话很短。\n\n但它很有力。\n\n我喜欢。';
+    const result = checker.check(text);
+    // Should not flag rhythm issues if has short sentences
+    expect(result.flags.filter(f => f.code === 'rhythm_flat').length).toBe(0);
+  });
+
+  it('T34: L2 report structure has flags and score', () => {
+    const checker = new L2StyleChecker();
+    const result = checker.check('任意文本');
+    expect(result).toHaveProperty('flags');
+    expect(result).toHaveProperty('score');
+    expect(typeof result.score).toBe('number');
+  });
+});
+
+// ── T35: opinion resume requires runId ───────────────────────────
+
+describe('opinion resume validation', () => {
+  it('T35: phase=content without runId should throw', async () => {
+    const { runOpinion } = await import('../../../src/scenarios/opinion/index.js');
+    await expect(
+      runOpinion('test opinion', { phase: 'content' })
+    ).rejects.toThrow(/requires --run-id/);
   });
 });

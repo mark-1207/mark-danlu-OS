@@ -27,6 +27,16 @@ export async function runOpinion(
   opinion: string,
   options: RunOpinionOptions = {},
 ): Promise<void> {
+  // ── Phase: content (resume from confirmed-opinion.json) ──────────
+  if (options.phase === 'content') {
+    if (!options.runId) {
+      throw new Error('opinion --phase content requires --run-id');
+    }
+    const { resumeOpinionContent } = await import('./run-opinion-content.js');
+    await resumeOpinionContent(options.runId);
+    return;
+  }
+
   const runId = `opinion_${Date.now()}`;
   const config = await loadConfig();
   const llmFactory = new LLMProviderFactory({});

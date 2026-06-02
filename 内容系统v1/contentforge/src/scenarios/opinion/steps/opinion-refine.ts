@@ -34,7 +34,8 @@ const OutputSchema = z.object({
     r: z.string().optional(),
   }).optional(),
   recommendedTitles: z.array(z.string()),
-});
+}).passthrough(); // preserve originalOpinion and other extra fields
+// Note: originalOpinion is added from input, not from LLM response
 
 export interface OpinionRefineResult {
   success: boolean;
@@ -77,6 +78,7 @@ export class OpinionRefineStep extends PipelineStep<z.infer<typeof InputSchema>,
       throw new Error(`opinion-refine: failed to parse LLM response: ${content.slice(0, 100)}`);
     }
 
+    // LLM response doesn't include originalOpinion — add from input
     const result = OutputSchema.parse(parsed);
 
     return {
