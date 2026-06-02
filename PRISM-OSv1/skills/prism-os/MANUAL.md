@@ -76,6 +76,22 @@ cd scripts
 python prism_os.py run "你的话题" --no-ext
 ```
 
+**常用标志**（v1.2.0 新增）：
+
+```bash
+# 跳过 Phase 1 网关（调试用）
+python prism_os.py run "你的话题" --skip-gateway
+
+# 跳过选标题决策点（默认选第一个）
+python prism_os.py run "你的话题" --no-interactive
+
+# 提供网关追问的澄清答案（避免 need_clarification 阻塞）
+python prism_os.py run "你的话题" --clarification "补充说明"
+
+# 关闭单命令健康检查提示
+python prism_os.py prism "测试" --suppress-warning
+```
+
 ---
 
 ## 3. 配置教程
