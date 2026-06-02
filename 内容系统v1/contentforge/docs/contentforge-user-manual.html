@@ -329,6 +329,7 @@
       <div class="nav-group-title">使用手册</div>
       <a class="nav-item" href="#commands">命令大全</a>
       <a class="nav-item" href="#create">内容生成</a>
+      <a class="nav-item" href="#opinion">观点文（opinion）</a>
       <a class="nav-item" href="#recreate">爆款二创</a>
       <a class="nav-item" href="#topic">竞品抓取</a>
       <a class="nav-item" href="#learn">碎片学习</a>
@@ -467,7 +468,7 @@ node dist/index.js skill "帮我写一篇关于AI的文章 发公众号"</code><
 </table>
 <div class="callout callout-info">
   <strong>哪些命令支持 TUI 交互？</strong><br>
-  <code>skill</code>（大纲确认需交互）、<code>recreate</code>（差异化方向选择）、<code>topic scrape</code>（碎片提取确认）、<code>style</code>（风格选择）均支持 TUI 交互。
+  <code>skill</code>（原创大纲确认 + 观点文 opinion-refine/review 确认）、<code>recreate</code>（差异化方向选择）、<code>topic scrape</code>（碎片提取确认）、<code>style</code>（风格选择）均支持 TUI 交互。
 </div>
 
 <hr>
@@ -485,7 +486,7 @@ node dist/index.js skill "帮我写一篇关于AI的文章 发公众号"</code><
 
 <table>
   <tr><th>命令</th><th>功能</th><th>典型用法</th></tr>
-  <tr><td><code>skill</code></td><td>统一入口（原创/二创）</td><td><code>skill "帮我写一篇关于AI的文章 发公众号"</code></td></tr>
+  <tr><td><code>skill</code></td><td>统一入口（原创/观点/二创）</td><td><code>skill "帮我写一篇关于AI的文章 发公众号"</code> 或 <code>skill "AI时代最大受益者是谁？"</code></td></tr>
   <tr><td><code>recreate</code></td><td>爆款文章二创</td><td><code>recreate --input ./article.md</code></td></tr>
   <tr><td><code>topic scrape</code></td><td>竞品文章抓取</td><td><code>topic scrape --url "https://..."</code></td></tr>
   <tr><td><code>learn</code></td><td>碎片学习与管理</td><td><code>learn --stats --list</code></td></tr>
@@ -550,6 +551,76 @@ node dist/index.js create --keyword "关键词" --no-interactive   # 全自动</
     ├── step3_outlines.json            # 三平台大纲
     ├── step5_content-generation.json  # 生成的正文
     └── step6_review-optimization.json # 审校结果 + 终稿</code></pre>
+
+<hr id="opinion">
+
+<h2>场景 A-2：观点文生成（opinion）</h2>
+
+<p>观点文是原创生成的子场景，输入不是"主题"，而是"观点/判断/想法"。系统会先做<strong>证伪+锤炼</strong>，再由你确认论点方向，最后汇入标准 pipeline 生成文章。</p>
+
+<h3>触发条件（parseIntent 自动识别）</h3>
+<table>
+  <tr><th>触发模式</th><th>示例输入</th></tr>
+  <tr><td>问号结尾</td><td><code>AI时代最大受益者是谁？</code></td></tr>
+  <tr><td>挑战词</td><td><code>凭什么说是AI的锅？</code> / <code>为什么裁员反而增多了？</code></td></tr>
+  <tr><td>讨论词</td><td><code>讨论一下AI到底创造还是消灭就业</code></td></tr>
+  <tr><td>短判断句（≤30字含"是"/"不是"/"才是"）</td><td><code>AI时代最大受益者是资本家</code></td></tr>
+</table>
+<div class="callout callout-info">
+  <strong>意图识别优先级：</strong><code>opinion &gt; create &gt; recreate</code>。即问号结尾优先识别为观点文而非"帮我写一篇关于xxx的文章"。
+</div>
+
+<h3>工作流程（两阶段协议）</h3>
+<div class="card">
+  <p><strong>Phase 1 — 观点锤炼（opinion-refine + opinion-review）</strong> &nbsp;<span class="badge badge-blue">需交互</span></p>
+  <p style="margin-top:8px;font-size:14px;color:var(--text2)">
+    AI 自动完成：判断观点类型（comparison/causal/judgment）、生成支持证据和反驳、HKR 质检（Happy 悬念 / Knowledge 信息量 / Resonance 共鸣）、锤炼出 1-2 句精炼核心论点、推荐 3-5 个候选标题。
+    <br>用户确认：精炼论点是否认可、选择或自定义标题、注入真实经历/案例。
+  </p>
+</div>
+<div class="card">
+  <p><strong>Phase 2 — 内容生成（topic-assignment → outline → material-search → content → review）</strong> &nbsp;<span class="badge badge-blue">自动</span></p>
+  <p style="margin-top:8px;font-size:14px;color:var(--text2)">
+    确认后系统用已确认的精炼论点和标题作为输入，完整跑一遍 create pipeline（topic-assignment → outline → material-search → content → review）。
+    <br>中间包含卡兹克风格 L1 禁词扫描（自动替换）+ L2 风格检查（生成 report）。
+  </p>
+</div>
+
+<h3>命令格式</h3>
+<pre><code># Phase 1：观点锤炼 + 用户确认
+node dist/index.js skill "AI让谁变富了？发公众号"
+# 输出 runId，如：opinion_1780368074779
+
+# Phase 2：续跑生成内容
+node dist/index.js skill "AI让谁变富了？发公众号" --phase content --run-id opinion_1780368074779
+
+# 跳过 TUI 全自动（--auto）
+node dist/index.js skill "AI让谁变富了？" --auto</code></pre>
+
+<h3>输出 artifacts</h3>
+<p>运行完成后，保存在 <code>output/opinion_&lt;timestamp&gt;/</code> 目录下：</p>
+<pre><code>output/opinion_1780368074779/
+├── run-meta.json                  # 元数据 + token 统计
+├── refined-opinion.json           # AI 锤炼后的观点（含 HKR 分、标题候选）
+├── confirmed-opinion.json         # 用户确认的论点+标题+案例
+├── confirmed-outline-wechat.json   # 兼容 create 流程的 outline artifact
+├── confirmed-title-wechat.json     # 已确认的标题
+├── topic-analysis.json            # 兼容 artifact（subTopics=[]，单点深挖）
+├── outline-wechat.json            # 大纲
+├── material-search.json
+├── content-wechat.json            # 生成的正文
+├── review-wechat.json             # 终稿 + 质量评分
+└── quality-check-wechat.json      # L1 替换 + L2 风格报告</code></pre>
+
+<div class="callout callout-warn">
+  <strong>opinion 与 create 的核心区别：</strong>
+  <ul style="margin-left:20px">
+    <li>输入差异：opinion 输入是判断/观点/想法，create 输入是主题/话题</li>
+    <li>第一步差异：opinion 多做证伪+锤炼+标题推荐，create 直接发散子话题</li>
+    <li>生成差异：opinion 单点深挖（subTopics=[]），create 多角度发散</li>
+    <li>质检差异：opinion 强制走 L1+L2 风格检查，create 走标准 review</li>
+  </ul>
+</div>
 
 <hr id="recreate">
 
@@ -844,6 +915,21 @@ pnpm run cleanup</code></pre>
 <h3>Q: 内容生成中途失败了怎么办？</h3>
 <p>使用断点续跑功能，找到上次运行的 ID：</p>
 <pre><code>node dist/index.js resume --run-id &lt;run-id&gt; --from-step 3</code></pre>
+
+<h3>Q: 观点文（opinion）和普通 create 有什么区别？</h3>
+<p>观点文输入是"观点/判断/想法"（如问号结尾、挑战词、讨论词触发），不是"主题"。系统会先做证伪+HKR 质检+锤炼论点+标题推荐（Phase 1），用户确认后再走标准 content pipeline（Phase 2）。详见 <a href="#opinion" style="color:var(--accent2)">观点文生成章节</a>。</p>
+
+<h3>Q: opinion 流程的 --phase content 是必填吗？</h3>
+<p>当 Phase 1 完成时，命令行会输出 <code>runId</code>，你需要把这个 ID 传给 <code>--phase content --run-id &lt;ID&gt;</code> 才能进入 Phase 2。直接运行 <code>--phase content</code> 不带 runId 会报错。</p>
+
+<h3>Q: opinion 怎么确认标题不满意重新生成？</h3>
+<p>Phase 1 的 <code>opinion-review</code> 步骤会在末尾询问"是否重新生成（y: 重新生成）"，输入 y 即可触发一次 opinion-refine 重新跑，得到新标题后再确认。如果对论点方向不满意，也可以在确认标题时输入自定义标题覆盖推荐结果。</p>
+
+<h3>Q: L1 禁词扫描会不会破坏我的内容？</h3>
+<p>不会。L1 扫描只在 review 阶段后自动运行，对命中禁词进行替换（如"说白了"→"坦率的讲"，"不可否认"→直接删除）。所有修改都会同步到 <code>quality-check-{platform}.json</code> 报告中可查。</p>
+
+<h3>Q: 观点文的注入案例用第一人称还是第三人称？</h3>
+<p>建议用自己的第一人称叙述："我经历过xxx"。如果只有第二方案例素材（如新闻报道），用泛指："某大厂技术总监张某"或"听说有位朋友"——避免编造具体人物细节。</p>
 
 <hr>
 

@@ -110,7 +110,56 @@ opinion-review 完成后，向 context 写入：
 
 ## 后续计划
 
-- [ ] 实现 `--phase content --run-id` 续跑 opinion pipeline
-- [ ] 实现 opinion 流程的断点续跑（resume 支持 opinion runId 前缀）
-- [ ] L1 禁词扫描集成进 review 步骤
-- [ ] L2 风格检查集成进 review 步骤
+- [x] 实现 `--phase content --run-id` 续跑 opinion pipeline ✅
+- [x] 实现 opinion 流程的断点续跑（resume 支持 opinion runId 前缀） ✅
+- [x] L1 禁词扫描集成进 review 步骤 ✅
+- [x] L2 风格检查集成进 review 步骤 ✅
+
+## 实施状态（2026-06-02）
+
+**Phase A + Phase B 全部完成**：
+- parseIntent opinion 检测（22 个 TDD 测试）
+- opinion-refine step（HKR 质检 + 证伪 + 标题推荐）
+- opinion-review UI（用户确认）
+- opinion pipeline 入口 + 汇入现有 create pipeline
+- opinion --phase content --run-id 续跑支持
+- L1 禁词扫描集成 review 步骤
+- L2 风格检查集成 review 步骤
+
+**端到端验证通过**：
+- opinion intent 检测正确
+- opinion-refine LLM 调用返回有效结构化输出
+- opinion-review TUI 展示 HKR 分数/论点/标题
+- 续跑流程 topic-assignment → outline → content → review 全跑通
+- L1 扫描自动替换命中禁词（自动替换 1 处命中 + L2 报告 score=75）
+- L2 风格检查生成结构化报告
+
+**总测试数：270/270 passing**（其中 35 个 opinion 流程测试）
+
+## 文档同步（迭代一致性）
+
+| 文档 | 状态 | 位置 |
+|------|------|------|
+| opinion pipeline 计划 | ✅ 最新 | `docs/opinion-opinion-pipeline-plan.md` |
+| 小白入门指南 | ✅ 含 opinion 流程 | `docs/contentforge-flow-for-beginners.html` |
+| 用户操作手册 | ✅ 含 opinion 章节+FAQ | `docs/contentforge-user-manual.html` |
+| MEMORY | ✅ 同步 opinion 流程 | `C:\Users\admin\.claude\projects\D--myproject\memory\projects_contentforge.md` |
+
+**未来迭代时保持信息一致的规则**：
+1. 修改 opinion 流程代码 → 更新 `docs/opinion-opinion-pipeline-plan.md` 的"实施状态"
+2. 添加新的禁词/风格规则 → 更新 L1/L2 quality 模块 + 本文档"卡兹克 L1/L2 集成"章节
+3. 修改触发词逻辑 → 更新本计划"触发条件"表 + 操作手册"触发条件"表
+4. 修改输出 artifacts 路径 → 更新操作手册"输出 artifacts"代码块
+5. 重大变更（接口/CLI） → 同步 MEMORY 文件
+
+## 未来优化方向（待办）
+
+| 优先级 | 项目 | 说明 |
+|--------|------|------|
+| 高 | L1 误报率调优 | 某些词在特定语境下不算"AI味"（如学术文章用"本质上"），需上下文判断 |
+| 高 | opinion --phase refine | 在确认后但未生成内容前，提供"仅重新锤炼论点"模式 |
+| 中 | opinion 多平台支持 | 当前仅 wechat，扩展到小红书/抖音时需要不同的口吻调整 |
+| 中 | L2 规则可配置 | L1 禁词表和 L2 规则应可通过 config 文件自定义 |
+| 中 | opinion 案例库 | 注入案例时支持从 ObsidianMaterialStore 自动检索相关案例 |
+| 低 | 观点类型自动优化 | comparison/causal/judgment 用不同的 prompt 模板 |
+| 低 | A/B 测试标题 | 自动生成 2 个版本的标题，让用户选最喜欢的 |

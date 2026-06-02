@@ -333,6 +333,45 @@
     </div>
   </div>
 
+  <!-- 阶段3-B：观点文（opinion） -->
+  <div class="phase phase-3" style="margin-top: 32px;">
+    <div class="phase-header">
+      <div class="phase-num" style="background: #fa709a;">3+</div>
+      <div>
+        <div class="phase-title">观点文（opinion）— 证伪+锤炼后生成</div>
+        <div class="phase-desc">输入是观点/判断/想法（问号/挑战词/讨论词触发），不是主题</div>
+      </div>
+    </div>
+    <div class="step-row">
+      <div class="step-card">
+        <div class="step-icon">💡</div>
+        <div class="step-name">输入观点（自动识别）</div>
+        <div class="step-detail">问号/挑战/讨论关键词触发 opinion 模式<br>不需要"帮我写一篇"前缀</div>
+        <div class="step-cmd-label">示例</div>
+        <div class="step-cmd">node dist/index.js skill "AI让谁变富了？发公众号"</div>
+        <div class="step-note">✓ 问号结尾自动识别为 opinion</div>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step-card">
+        <div class="step-icon">⚖️</div>
+        <div class="step-name">证伪 + 锤炼 + HKR 质检</div>
+        <div class="step-detail">AI 自动生成支持证据和反驳<br>HKR 三维打分：悬念/信息量/共鸣感<br>推荐 3-5 个候选标题</div>
+        <div class="step-cmd-label">自动</div>
+        <div class="step-cmd">opinion-refine → opinion-review</div>
+        <div class="step-note">✓ 用户 TUI 确认/选择标题/注入案例</div>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step-card">
+        <div class="step-icon">✨</div>
+        <div class="step-name">Phase 2 续跑 + 质检</div>
+        <div class="step-detail">续跑标准 content pipeline<br>L1 禁词扫描 + L2 风格检查自动跑</div>
+        <div class="step-cmd-label">续跑命令</div>
+        <div class="step-cmd">node dist/index.js skill "..." --phase content --run-id opinion_xxx</div>
+        <div class="step-note">✓ 输出更口语化、活人感更强</div>
+      </div>
+    </div>
+  </div>
+
   <!-- 阶段4 -->
   <div class="phase phase-4">
     <div class="phase-header">
