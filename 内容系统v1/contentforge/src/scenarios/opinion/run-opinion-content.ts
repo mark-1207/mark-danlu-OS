@@ -6,6 +6,11 @@ import { PipelineContext } from '../../core/context.js';
 import { loadConfig } from '../../config/loader.js';
 import { LLMProviderFactory } from '../../llm/factory.js';
 import chalk from 'chalk';
+import fs from 'fs/promises';
+import path from 'path';
+import { sanitizeFilename } from '../../utils/sanitize.js';
+import { getObsidianWriter } from '../../io/obsidian/writer.js';
+import { logger } from '../../utils/logger.js';
 
 export async function resumeOpinionContent(runId: string): Promise<void> {
   // File structure: output/<runId>/{artifacts}
@@ -72,6 +77,36 @@ export async function resumeOpinionContent(runId: string): Promise<void> {
   context.set('review-wechat', rResult.data);
   context.setStepResult('review-wechat', rResult);
   await context.persist();
+
+  // Write .md file + sync to Obsidian (same pattern as create pipeline)
+  const runDir = path.join(baseDir, runId);
+  const reviewResult = context.get<{ recommendedTitle: string; revisedContent: string }>('review-wechat');
+  if (reviewResult) {
+    const { recommendedTitle, revisedContent } = reviewResult;
+    const safeTitle = sanitizeFilename(recommendedTitle);
+    const filePath = path.join(runDir, `${safeTitle}.wechat.md`);
+    await fs.writeFile(filePath, revisedContent, 'utf-8');
+    logger.info(`[opinion] article written: ${filePath}`);
+
+    // Sync to Obsidian
+    try {
+      const obsidianConfig = config.obsidian;
+      if (obsidianConfig?.vaultPath) {
+        const writer = getObsidianWriter(obsidianConfig.vaultPath, obsidianConfig.writeDir);
+        const topicAnalysis = context.get<{ subTopics?: { name: string }[]; keyword?: string }>('topic-analysis');
+        const obsidianPath = await writer.writeArticle({
+          title: recommendedTitle,
+          content: revisedContent,
+          platform: 'wechat',
+          topics: topicAnalysis?.subTopics?.map((s) => s.name) ?? [],
+          keyword: topicAnalysis?.keyword,
+        });
+        logger.info(`[opinion] article synced to Obsidian: ${obsidianPath}`);
+      }
+    } catch (err) {
+      logger.warn(`[opinion] failed to write article to Obsidian:`, String(err));
+    }
+  }
 
   console.log(chalk.green('\n✅ Opinion 内容生成完成\n'));
   console.log('Token:', context.getTotalTokenUsage());
