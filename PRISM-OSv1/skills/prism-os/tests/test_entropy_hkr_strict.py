@@ -95,5 +95,64 @@ class TestGatewayPassesReasonableTopic(unittest.TestCase):
                          f"合理命题应 pass gateway，实际: {result['status']}")
 
 
+class TestEvaluateTopic(unittest.TestCase):
+    """Phase 1 选题评估：entropy + 主题基线分（替代 calculate_hkr 在 Phase 1 的角色）"""
+
+    def test_严肃问句不再卡死(self):
+        """验证：纯问句+严肃话题，evaluate_topic 应 pass（不再 need_clarification）"""
+        from socratic_gateway import evaluate_topic
+        result = evaluate_topic("为什么对于很多职场人来说，越努力反而离目标越远呢")
+        self.assertTrue(result["pass"],
+                        f"严肃问句+职场主题应 pass，实际: {result}")
+        self.assertGreaterEqual(result["topic_bonus"], 0.2,
+                                f"'职场'主题应贡献 ≥ 0.2 加分，实际: {result['topic_bonus']}")
+
+    def test_纯口水话应被拒(self):
+        """验证：无主题的纯口水话应被拒"""
+        from socratic_gateway import evaluate_topic
+        result = evaluate_topic("今天天气真好")
+        self.assertFalse(result["pass"],
+                         f"无主题纯口水话应被拒，实际: {result}")
+
+    def test_成长类主题应加分(self):
+        """'成长'主题命中基线分"""
+        from socratic_gateway import evaluate_topic
+        result = evaluate_topic("个人成长路径应该如何选择")
+        self.assertGreaterEqual(result["topic_bonus"], 0.1,
+                                f"'成长'主题应加分，实际: {result['topic_bonus']}")
+
+
+class TestEvaluateTitle(unittest.TestCase):
+    """Phase 2 标题评估：HKR 标题版（独立关键词库）"""
+
+    def test_标题反转结构加分(self):
+        """'反而'应触发 H 加分"""
+        from socratic_gateway import evaluate_title
+        result = evaluate_title("越努力反而离目标越远")
+        self.assertGreater(result["h"], 0,
+                           f"'反而'应触发 H 加分，实际: {result['h']}")
+
+    def test_标题问句加分(self):
+        """'为什么...？'应触发 K 加分"""
+        from socratic_gateway import evaluate_title
+        result = evaluate_title("为什么你越努力越穷？")
+        self.assertGreater(result["k"], 0.1,
+                           f"问句应触发 K 加分，实际: {result['k']}")
+
+    def test_口语夸张标题保持高分(self):
+        """回归：原 H 词不失效"""
+        from socratic_gateway import evaluate_title
+        result = evaluate_title("这个 AI 工具太离谱了，笑死")
+        self.assertGreaterEqual(result["h"], 0.4,
+                                f"口语夸张词应保持 H 高分，实际: {result['h']}")
+
+    def test_转折结构加分(self):
+        """'但/却'应触发 K 加分"""
+        from socratic_gateway import evaluate_title
+        result = evaluate_title("你很努力，但你没有方向")
+        self.assertGreater(result["k"], 0,
+                           f"转折词应触发 K 加分，实际: {result['k']}")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

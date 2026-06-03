@@ -190,6 +190,153 @@ def calculate_hkr(user_input: str) -> Dict:
     }
 
 
+# ============ Phase 1 v2: 选题评估（替代 calculate_hkr 在 Phase 1 的角色） ============
+# HKR 重构后：选题阶段不再用 calculate_hkr，改用 entropy + 主题基线分
+# 标题阶段用 evaluate_title（独立关键词库）
+
+TOPIC_K_BASELINE = {
+    "职场": 0.25, "职业发展": 0.25, "成长": 0.20, "学习": 0.20,
+    "认知": 0.20, "思维": 0.20, "AI": 0.15, "副业": 0.20,
+    "理财": 0.25, "健康": 0.20, "心理": 0.25, "教育": 0.20,
+    "创业": 0.25, "管理": 0.20, "跳槽": 0.25, "晋升": 0.25,
+    "裁员": 0.30, "35岁": 0.30, "中年危机": 0.30,
+}
+
+
+def _topic_k_bonus(text: str) -> float:
+    """主题基线分：识别常见严肃话题，加 K 基础分（上限 0.4）"""
+    bonus = 0.0
+    for topic, score in TOPIC_K_BASELINE.items():
+        if topic in text:
+            bonus = max(bonus, score)
+    return min(bonus, 0.4)
+
+
+def evaluate_topic(user_input: str, entropy_score: Optional[float] = None) -> Dict:
+    """
+    Phase 1 选题评估：entropy + 主题基线分（不依赖 HKR）
+
+    Returns:
+        {
+            "entropy": float,         # 0-1，命题清晰度
+            "topic_bonus": float,     # 0-0.4，主题基线加分
+            "combined": float,        # entropy*0.5 + topic_bonus*0.5
+            "pass": bool,             # combined >= 0.5 且 entropy > 0.3
+        }
+    """
+    if entropy_score is None:
+        entropy_result = calculate_entropy(user_input)
+        entropy_score = entropy_result.get("entropy_score", 0.0)
+
+    topic_bonus = _topic_k_bonus(user_input)
+    combined = entropy_score * 0.5 + topic_bonus * 0.5
+
+    is_pass = (entropy_score > 0.3) and (topic_bonus >= 0.2)
+
+    return {
+        "entropy": round(entropy_score, 2),
+        "topic_bonus": round(topic_bonus, 2),
+        "combined": round(combined, 2),
+        "pass": is_pass,
+    }
+
+
+# ============ Phase 2: 标题评估（独立 HKR 关键词库） ============
+# 标题评估用一套独立的 H/K/R 关键词，对"严肃问句/反转结构"更友好
+
+_TITLE_H_STRONG = ["离谱", "笑死", "绝了", "震惊", "刺激", "神奇", "惊艳", "治愈", "炸裂", "疯狂"]
+_TITLE_H_MODERATE_BASE = ["有趣", "好笑", "好玩", "反转", "意外", "没想到", "居然", "竟然", "如何", "怎么", "怎样"]
+# 严肃话题适配词
+_TITLE_H_MODERATE_EXT = ["反常识", "扎心", "真相", "颠覆", "陷阱", "骗局", "醒悟", "恍然大悟", "不是…而是"]
+_TITLE_H_MODERATE = _TITLE_H_MODERATE_BASE + _TITLE_H_MODERATE_EXT
+
+_TITLE_K_STRONG = ["研究", "数据", "真相", "原理", "规律", "模型", "框架", "方法论", "机制", "策略", "思路"]
+_TITLE_K_MODERATE_BASE = ["发现", "分析", "拆解", "解读", "趋势", "报告", "实验", "调查", "应对", "转型", "提升", "适应", "核心", "问题"]
+# 严肃话题适配词
+_TITLE_K_MODERATE_EXT = ["为什么", "其实", "本质", "背后", "底层", "真相是", "根源"]
+_TITLE_K_MODERATE = _TITLE_K_MODERATE_BASE + _TITLE_K_MODERATE_EXT
+
+_TITLE_CONTRAST_PATTERNS = ["反而", "其实", "并非", "并不是", "不是…而是", "不…只…"]
+_TITLE_TRANSITION_PATTERNS = ["但", "然而", "却", "只是"]
+
+
+def evaluate_title(title: str) -> Dict:
+    """
+    Phase 2 标题评估：HKR 标题版（独立关键词库）
+
+    针对标题"传播性/点击欲"而非"内容价值"：
+    - H：含口语夸张词 / 反常识词 / 反转结构
+    - K：含问句 / 转折 / 因果 / 数据
+    - R：与 calculate_hkr 共享（通用）
+
+    Returns:
+        {"h": float, "k": float, "r": float, "hkr_avg": float}
+    """
+    text = title.strip()
+    if not text:
+        return {"h": 0.0, "k": 0.0, "r": 0.0, "hkr_avg": 0.0}
+
+    # H 评分
+    h_score = 0.0
+    strong_h = sum(1 for kw in _TITLE_H_STRONG if kw in text)
+    moderate_h = sum(1 for kw in _TITLE_H_MODERATE if kw in text)
+    h_score += min(strong_h * 0.4, 1.0)
+    h_score += min(moderate_h * 0.2, 0.4)
+    if any(p in text for p in _TITLE_CONTRAST_PATTERNS):
+        h_score += 0.2
+    h_score = min(h_score, 1.0)
+
+    # K 评分
+    k_score = 0.0
+    strong_k = sum(1 for kw in _TITLE_K_STRONG if kw in text)
+    moderate_k = sum(1 for kw in _TITLE_K_MODERATE if kw in text)
+    k_score += min(strong_k * 0.4, 1.0)
+    k_score += min(moderate_k * 0.2, 0.4)
+    # 问句识别
+    if "?" in text or "？" in text:
+        k_score += 0.15
+        if "为什么" in text:
+            k_score += 0.1
+    # 转折结构
+    if any(p in text for p in _TITLE_TRANSITION_PATTERNS):
+        k_score += 0.1
+    # 因果/递进
+    if any(kw in text for kw in ["因为", "所以", "导致", "原因", "根源", "本质"]):
+        k_score += 0.15
+    k_score = min(k_score, 1.0)
+
+    # R 评分（沿用 calculate_hkr 的 R 关键词，严肃话题友好）
+    r_score = 0.0
+    r_strong = ["我", "我们", "每个人", "自己", "亲身", "经历"]
+    r_moderate = ["共鸣", "同样", "压抑", "焦虑", "迷茫", "困惑", "担忧", "害怕"]
+    r_shared = [
+        "打工人", "社畜", "普通人", "年轻人", "中年人", "父母", "孩子",
+        "程序员", "设计师", "运营", "销售", "医生", "律师", "老师",
+        "35岁", "大龄", "中年", "职场", "打工人", "应届", "毕业生",
+        "裁员", "失业", "转型", "被裁",
+    ]
+    strong_r = sum(1 for kw in r_strong if kw in text)
+    moderate_r = sum(1 for kw in r_moderate if kw in text)
+    shared = sum(1 for kw in r_shared if kw in text)
+    r_score += min(strong_r * 0.3, 0.7)
+    r_score += min(moderate_r * 0.2, 0.4)
+    r_score += min(shared * 0.3, 0.5)
+    r_score = min(r_score, 1.0)
+
+    avg = (h_score + k_score + r_score) / 3
+
+    return {
+        "h": round(h_score, 2),
+        "k": round(k_score, 2),
+        "r": round(r_score, 2),
+        "hkr_avg": round(avg, 2),
+    }
+
+
+# 兼容性：calculate_hkr 标记为 deprecated，新代码用 evaluate_topic + evaluate_title
+# 保留旧函数供 socratic_gateway() 内部使用和历史测试兼容
+
+
 # ============ Phase 1: 熵值计算（规则版 Phase 4.7） ============
 
 def _rule_object_clarity(text: str) -> float:

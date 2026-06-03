@@ -346,6 +346,20 @@ def run_prism_os(
         result["message"] = "标题生成失败"
         return result
 
+    # ============ V3: 标题 HKR 评估（V1 简化版：标记分数，不触发重写）============
+    # 每个候选标题调 evaluate_title 算 HKR，分数 < 0.5 的标记 low_hkr
+    from socratic_gateway import evaluate_title as evaluate_title_hkr
+    for c in prism_result["candidates"]:
+        try:
+            c["hkr"] = evaluate_title_hkr(c["title"])
+        except Exception as e:
+            c["hkr"] = {"h": 0.0, "k": 0.0, "r": 0.0, "hkr_avg": 0.0, "error": str(e)}
+    low_hkr_count = sum(1 for c in prism_result["candidates"]
+                        if c.get("hkr", {}).get("hkr_avg", 0) < 0.5)
+    if low_hkr_count > 0:
+        print(f"[V3 HKR] {low_hkr_count}/{len(prism_result['candidates'])} 候选 HKR < 0.5，"
+              f"可在数字分身选择时降权", file=sys.stderr)
+
     # ============ Phase 3: 现实校验锚 ============
     from reality_anchor import reality_anchor as validate_titles
 

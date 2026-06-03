@@ -4,6 +4,7 @@
 import sys
 import os
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
@@ -136,14 +137,17 @@ class TestTitleArchetypes(unittest.TestCase):
     """TITLE_ARCHETYPES 常量测试"""
 
     def test_five_archetypes_exist(self):
-        """必须有5个读者标题原型"""
-        self.assertEqual(len(TITLE_ARCHETYPES), 5,
-                         f"期望5个原型，实际{len(TITLE_ARCHETYPES)}")
+        """至少 5 个读者标题原型（V3 扩展到 10 个）"""
+        self.assertGreaterEqual(len(TITLE_ARCHETYPES), 5,
+                                f"期望 ≥ 5 个原型，实际{len(TITLE_ARCHETYPES)}")
 
     def test_archetype_keys(self):
+        """V1 5 个核心原型必须保留"""
         expected_keys = {"opinion_assertion", "identity_label", "scene_suspense",
                          "data_counter_ask", "story_hook"}
-        self.assertEqual(set(TITLE_ARCHETYPES.keys()), expected_keys)
+        self.assertTrue(expected_keys.issubset(set(TITLE_ARCHETYPES.keys())),
+                        f"V1 5 个核心原型应在 TITLE_ARCHETYPES 中，"
+                        f"实际缺: {expected_keys - set(TITLE_ARCHETYPES.keys())}")
 
     def test_each_archetype_has_required_fields(self):
         for key, arch in TITLE_ARCHETYPES.items():
@@ -240,6 +244,114 @@ class TestOrthogonalThreshold(unittest.TestCase):
         """4个正交 < 5 = partial"""
         orthogonal_count = 4
         self.assertLess(orthogonal_count, 5, "4 < 5 → 应为 partial")
+
+
+class TestNewArchetypes(unittest.TestCase):
+    """5 个新自媒体爆款原型"""
+
+    def test_5个新原型已定义(self):
+        """验证 5 个新原型都在 TITLE_ARCHETYPES"""
+        new_archetypes = [
+            "reversal_assertion", "heart_stab", "action_command",
+            "number_bomb", "identity_deconstruct",
+        ]
+        for a in new_archetypes:
+            self.assertIn(a, TITLE_ARCHETYPES,
+                          f"新原型 {a} 应在 TITLE_ARCHETYPES 中")
+
+    def test_新原型含必备字段(self):
+        """每个新原型应有 name/formula/description/reader_trigger"""
+        for a in ["reversal_assertion", "heart_stab", "action_command",
+                  "number_bomb", "identity_deconstruct"]:
+            arch = TITLE_ARCHETYPES[a]
+            for field in ("name", "formula", "description", "reader_trigger"):
+                self.assertIn(field, arch,
+                              f"原型 {a} 应含 {field} 字段")
+                self.assertTrue(arch[field],
+                                f"原型 {a}.{field} 不应为空")
+
+    def test_新原型可被select_title_archetypes选中(self):
+        """新原型应在某认知维度下被推荐"""
+        from prism_engine import DIMENSION_TO_ARCHETYPE
+        all_new = ["reversal_assertion", "heart_stab", "action_command",
+                   "number_bomb", "identity_deconstruct"]
+        mapped = set()
+        for dim, archetypes in DIMENSION_TO_ARCHETYPE.items():
+            for a in archetypes:
+                mapped.add(a)
+        # 至少 4 个新原型被映射
+        self.assertGreaterEqual(len(mapped & set(all_new)), 4,
+                                f"新原型应至少 4 个被 DIMENSION_TO_ARCHETYPE 映射")
+
+
+class TestGoldenFeatures(unittest.TestCase):
+    """金句特征强制：每条标题必须满足 ≥ 2 条"""
+
+    def test_无金句特征应被拒(self):
+        """纯抽象标题（无数字/无你/无场景）应金句特征 < 2"""
+        from prism_engine import validate_golden_features
+        score = validate_golden_features("努力是成功的必要条件")
+        self.assertLess(score, 2,
+                        f"无金句特征应 < 2，实际: {score}")
+
+    def test_含数字应通过(self):
+        """'35 岁' 应触发 contains_number"""
+        from prism_engine import validate_golden_features
+        score = validate_golden_features("35 岁还在原地踏步的 3 个真相")
+        self.assertGreaterEqual(score, 2,
+                               f"含数字+第二人称+场景应 ≥ 2，实际: {score}")
+
+    def test_含第二人称应通过(self):
+        """'你' 应触发 contains_you"""
+        from prism_engine import validate_golden_features
+        score = validate_golden_features("你的努力为什么都白费了？")
+        self.assertGreaterEqual(score, 2,
+                               f"含第二人称+问句应 ≥ 2，实际: {score}")
+
+    def test_含强情绪词应通过(self):
+        """'陷阱' 应触发 contains_strong_emo"""
+        from prism_engine import validate_golden_features
+        score = validate_golden_features("努力陷阱：你以为在奋斗其实在被消耗")
+        self.assertGreaterEqual(score, 2,
+                               f"含情绪词+第二人称应 ≥ 2，实际: {score}")
+
+    def test_返回0_5_整数(self):
+        """验证返回值范围"""
+        from prism_engine import validate_golden_features
+        for title in ["a", "35 岁还在原地踏步的 3 个真相", "努力陷阱",
+                      "你的努力为什么都白费了", "颠覆你的认知：努力是错的"]:
+            s = validate_golden_features(title)
+            self.assertGreaterEqual(s, 0)
+            self.assertLessEqual(s, 5)
+
+
+class TestLLMJudge(unittest.TestCase):
+    """LLM-as-judge：用户视角模拟评分"""
+
+    @patch('prism_engine.call_llm')
+    def test_llm_judge_返回_0_1_分数(self, mock_call):
+        """LLM 返回 0-10 整数时，函数返回 0-1"""
+        mock_call.return_value = '{"score": 8, "reason": "很有共鸣"}'
+        from prism_engine import llm_judge_title
+        score = llm_judge_title("测试标题")
+        self.assertAlmostEqual(score, 0.8, places=1)
+
+    @patch('prism_engine.call_llm')
+    def test_llm_judge_低分(self, mock_call):
+        """LLM 返回 3 时，函数返回 0.3"""
+        mock_call.return_value = '{"score": 3, "reason": "普通"}'
+        from prism_engine import llm_judge_title
+        score = llm_judge_title("测试标题")
+        self.assertAlmostEqual(score, 0.3, places=1)
+
+    @patch('prism_engine.call_llm')
+    def test_llm_judge_调用call_llm(self, mock_call):
+        """验证：llm_judge_title 实际调了 call_llm"""
+        mock_call.return_value = '{"score": 5, "reason": ""}'
+        from prism_engine import llm_judge_title
+        llm_judge_title("某标题")
+        self.assertTrue(mock_call.called,
+                        "llm_judge_title 应调用 call_llm")
 
 
 if __name__ == "__main__":

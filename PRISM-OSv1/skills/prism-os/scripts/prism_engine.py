@@ -14,6 +14,12 @@ import os
 import re
 from typing import Dict, List, Optional, Tuple
 
+# 引入 call_llm 用于 LLM-as-judge 评分（V3 P2 Layer 4）
+try:
+    from call_llm import call_llm
+except ImportError:
+    call_llm = None  # 测试或脱机环境可降级
+
 # ============ Phase 2: 四维标题生成 ============
 
 DIMENSIONS = {
@@ -71,15 +77,46 @@ TITLE_ARCHETYPES = {
         "description": "用第一人称真实经历开头，故事未讲完就截断",
         "formula": "我/他+做了X+发现Y+没说结论",
         "reader_trigger": "共情/代入 - 后来呢?"
+    },
+    # V3 新增 5 个自媒体爆款原型（颠覆/扎心/紧迫/数字/解构）
+    "reversal_assertion": {
+        "name": "颠覆断言型",
+        "description": "颠覆常识，揭示反直觉真相",
+        "formula": "不是X，是Y（用'不是…而是'结构直接反转）",
+        "reader_trigger": "反常识/颠覆 - 原来是这样？"
+    },
+    "heart_stab": {
+        "name": "扎心金句型",
+        "description": "带年龄/身份/阶层标签，扎心又共鸣",
+        "formula": "年龄/身份标签+困境+扎心金句",
+        "reader_trigger": "扎心/金句 - 这说的就是我"
+    },
+    "action_command": {
+        "name": "行动指令型",
+        "description": "直接喊'立刻停止做X'，紧迫感强",
+        "formula": "立刻/马上+停止/开始+具体行为+后果",
+        "reader_trigger": "紧迫/警告 - 我要不要听？"
+    },
+    "number_bomb": {
+        "name": "数字炸弹型",
+        "description": "用具体数字制造冲击感",
+        "formula": "X% / X个人 / X年+冲击性结论",
+        "reader_trigger": "数字冲击 - 这个比例是真的吗？"
+    },
+    "identity_deconstruct": {
+        "name": "身份解构型",
+        "description": "拆解一个被滥用的身份标签，让人重新审视自己",
+        "formula": "你以为是X，其实是Y",
+        "reader_trigger": "身份/解构 - 我不是这样的吗？"
     }
 }
 
 # 认知维度 → 标题原型推荐映射
 DIMENSION_TO_ARCHETYPE = {
-    "reversal": ["opinion_assertion", "data_counter_ask"],
-    "micro_scene": ["scene_suspense", "story_hook"],
-    "systemic_flaw": ["opinion_assertion", "identity_label"],
-    "bridge": ["identity_label", "scene_suspense"],
+    "reversal": ["opinion_assertion", "data_counter_ask", "reversal_assertion", "heart_stab"],
+    "micro_scene": ["scene_suspense", "story_hook", "action_command"],
+    "systemic_flaw": ["opinion_assertion", "identity_label", "identity_deconstruct", "number_bomb"],
+    "bridge": ["identity_label", "scene_suspense", "number_bomb"],
 }
 
 BANNED_WORDS = [
@@ -89,6 +126,79 @@ BANNED_WORDS = [
     "太绝了", "一定要看", "后悔没早知道", "刷屏",
     "炸裂", "沸腾", "刷爆", "都在看", "深度好文"
 ]
+
+# ============ V3 Layer 2: 金句特征强制（每条标题必须满足 ≥ 2 条）============
+# 关键词配置：5 类金句特征
+GOLDEN_FEATURES_CONFIG = {
+    "contains_number":     r"\d+[%年月日岁人个件事种]?",
+    "contains_you":        "你",
+    "contains_strong_emo": ["颠覆", "陷阱", "骗局", "真相", "扎心", "毁掉",
+                            "废掉", "拖垮", "焦虑", "迷茫", "残酷", "荒诞",
+                            "可悲", "心酸", "崩溃", "击穿", "戳穿", "假性"],
+    "contains_scene":      ["加班", "会议", "汇报", "通勤", "下班", "上班",
+                            "周末", "深夜", "凌晨", "打工", "职场", "升职",
+                            "加薪", "跳槽", "裁员", "35岁", "应届"],
+    "contains_question":   ["？", "?"],
+}
+
+
+def validate_golden_features(title: str) -> int:
+    """
+    验证标题满足的金句特征数（V3 Layer 2）
+
+    Returns:
+        0-5 整数：满足的金句特征数量
+    """
+    if not title:
+        return 0
+    score = 0
+    if re.search(GOLDEN_FEATURES_CONFIG["contains_number"], title):
+        score += 1
+    if GOLDEN_FEATURES_CONFIG["contains_you"] in title:
+        score += 1
+    if any(kw in title for kw in GOLDEN_FEATURES_CONFIG["contains_strong_emo"]):
+        score += 1
+    if any(kw in title for kw in GOLDEN_FEATURES_CONFIG["contains_scene"]):
+        score += 1
+    if any(q in title for q in GOLDEN_FEATURES_CONFIG["contains_question"]):
+        score += 1
+    return score
+
+
+# ============ V3 P2 Layer 4: LLM-as-judge 用户视角评分 ============
+
+def llm_judge_title(title: str, target_audience: str = "30-35岁职场人") -> float:
+    """
+    用 LLM 当目标读者打分（0-1），模拟用户视角评估标题点击欲望
+
+    Args:
+        title: 候选标题
+        target_audience: 目标读者画像
+
+    Returns:
+        0.0-1.0 分数（LLM 返回 0-10 整数 / 10）
+    """
+    if call_llm is None:
+        return 0.5  # 无 LLM 时给中性分
+
+    prompt = f"""你是一个{target_audience}，刷公众号时看到标题《{title}》。
+请回答两个问题：
+1. 你会不会点开？（0-10 分，0=绝对不会，10=立刻点开）
+2. 为什么？（一句话）
+
+只输出 JSON 格式：{{"score": <0-10 整数>, "reason": "..."}}"""
+
+    try:
+        response = call_llm(prompt, model=None, temperature=0.3)
+        # 解析 JSON
+        import re as _re
+        json_match = _re.search(r'\{[^}]*"score"\s*:\s*(\d+)[^}]*\}', response or "")
+        if json_match:
+            score = int(json_match.group(1))
+            return max(0.0, min(1.0, score / 10.0))
+    except Exception:
+        pass
+    return 0.5  # 解析失败给中性分
 
 
 def _estimate_dimension_scores(thesis: str) -> Dict[str, float]:
@@ -280,6 +390,13 @@ def generate_archetype_titles(thesis: str, archetype: str,
 4. **有情绪**：愤怒/惊讶/好奇/共鸣，不能是中性陈述
 5. **有悬念**：说完一半，留一半，逼人点进去
 
+**金句特征强制（必须满足 ≥ 2 条）：**
+- 含具体数字（如 "35 岁"、"90%"、"3 件事"）
+- 含第二人称"你"
+- 含强情绪词（颠覆/陷阱/骗局/真相/扎心/毁掉/废掉/焦虑/迷茫）
+- 含具体场景（加班/会议/汇报/深夜/通勤/35岁/应届/裁员）
+- 含问号（？或 ?）
+
 **禁止格式：**
 - 禁止：为什么XX，其实是YY？（AI腔过重）
 - 禁止：XX的本质是YY（教科书标题）
@@ -322,6 +439,11 @@ def generate_archetype_titles(thesis: str, archetype: str,
         # 检查禁用词
         has_banned, found = check_banned_words(title)
         if has_banned:
+            continue
+
+        # V3 Layer 2: 金句特征强制（< 2 拒绝）
+        golden_count = validate_golden_features(title)
+        if golden_count < 2:
             continue
 
         valid_candidates.append({
@@ -452,7 +574,8 @@ def check_orthogonality(candidates: List[Dict]) -> List[Dict]:
     return marked
 
 
-def prism_engine(thesis: str, identity_role: str = "", audience: str = "") -> Dict:
+def prism_engine(thesis: str, identity_role: str = "", audience: str = "",
+                  enable_llm_judge: bool = False) -> Dict:
     """
     棱镜引擎主流程
 
@@ -460,6 +583,7 @@ def prism_engine(thesis: str, identity_role: str = "", audience: str = "") -> Di
         thesis: 命题
         identity_role: 用户身份
         audience: 目标受众
+        enable_llm_judge: 是否启用 LLM-as-judge 评分（V3 Layer 4，默认 False）
 
     Returns:
         {
@@ -482,6 +606,16 @@ def prism_engine(thesis: str, identity_role: str = "", audience: str = "") -> Di
 
     # Step 2: 检查正交性
     candidates = check_orthogonality(candidates)
+
+    # V3 P2 Layer 4: LLM-as-judge 评分（默认关，按需启用）
+    if enable_llm_judge:
+        for c in candidates:
+            try:
+                c["llm_judge_score"] = llm_judge_title(c["title"], audience or "30-35岁职场人")
+            except Exception:
+                c["llm_judge_score"] = 0.5
+        # 按 LLM 评分降序排序（保持 orthogonal 标签）
+        candidates.sort(key=lambda x: x.get("llm_judge_score", 0.5), reverse=True)
 
     # 统计
     orthogonal_count = sum(1 for c in candidates if c["orthogonal"])
