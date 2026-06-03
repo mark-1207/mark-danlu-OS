@@ -16,12 +16,22 @@ PRISM-OS LLM 调用脚本
 """
 
 import sys
+import io
 import json
 import os
 import time
 import subprocess
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
+
+# ============ 强制 UTF-8 输出 ============
+# Windows 默认 GBK，LLM 返回中文会撞 UnicodeDecodeError 导致父进程读 stdout 线程崩
+for _stream_name in ("stdout", "stderr"):
+    _stream = getattr(sys, _stream_name)
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        setattr(sys, _stream_name, io.TextIOWrapper(_stream.buffer, encoding="utf-8", errors="replace"))
 
 # ============ .env 自动加载（兼容跨机器迁移）============
 # 在 key 文件旁边放 .env 文件，自动读取
