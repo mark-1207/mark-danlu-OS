@@ -1,0 +1,39 @@
+# ===== Sibling projects (not part of this monorepo) =====
+1/
+MR潘潘叙事/
+Reading master/
+WindowsClear/
+content_create_interview/
+gateway/
+mark-project-workflow/
+图片字幕生成器/
+商业访客大屏/
+全局热点话题/
+阅读规划大屏/
+轨迈破cc/
+skill生成大屏.md
+
+# ===== Local Claude / agent config (environment-specific) =====
+.claude/
+.agents/
+skills/.claude/
+.trae/
+
+# ===== Generated output =====
+articles/
+
+# ===== Skill-local data dirs =====
+skills/data/
+skills/prism-os/data/
+skills/prism-os/scripts/weixin-articles/
+skills/prism-os/config/info_sources.yaml
+
+# ===== Build artifacts =====
+__pycache__/
+*.pyc
+*.pyo
+node_modules/
+
+# ===== Local env files =====
+.env
+.env.local
