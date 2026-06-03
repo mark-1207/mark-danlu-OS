@@ -4,6 +4,95 @@
 
 ---
 
+### v1.3.1 (2026-06-03)
+
+**状态**：Phase 6.1 完成
+
+#### Phase 6.1 — Calibration 接入 narrate（v1.3.1）
+
+**核心**：把 Phase 6.0 生成的 `feedback_calibration.yaml` 真正接入 `narrate` 步骤，让生成时自动用历史表现的策略。
+
+**新增**：
+- `compute_calibration_boost(calibration, platform, strategy)` — 根据历史表现为策略加分
+  - 样本 <3 → boost=0（冷启动不调整）
+  - 1 个策略有数据时用全局 baseline 5%
+  - 多策略时用平台平均作 baseline
+  - 样本 ≥10 → boost ×1.5
+  - boost 封顶 ±5.0
+- `evaluate_narrative_strategy()` 新增参数：`calibration`、`platform`
+  - 原有评分 + calibration boost
+  - 返回新增字段：`calibration_applied`、`calibration_boosts`
+- `narrative_generation_workflow()` / `interactive_narrative_workflow()` 新增参数：`calibration`
+- `prism_os.py narrate` 自动加载本地 calibration，无需新参数
+
+**核心公式**：
+```
+boost = (avg_engagement - baseline) × 10 × sample_boost
+sample_boost = 1.5 if sample_size ≥ 10 else 1.0
+```
+
+**测试**：
+- 11 个新测试（test_narrate_calibration.py）
+- 覆盖：boost 计算边界 / 样本量阈值 / 封顶 / 策略选择影响 / 回归
+- 全部通过
+
+---
+
+### v1.3.0 (2026-06-03)
+
+**状态**：Phase 6.0 MVP 已完成
+
+#### Phase 6.0 — 模板优选（数据反馈闭环 MVP）
+
+**核心**：把"生成→发布"补成完整飞轮。从 PRISM-OS 内部数据 + 飞书多维表格真实表现，反哺到生成策略选择。
+
+**新增**：
+- **飞书多维表格集成**：
+  - `config/feishu_config.yaml`（base_token / table_id / field_ids / view_ids）
+  - `scripts/feishu_bitable.py` — 飞书 Open API 封装（鉴权/CRUD/upsert/batch）
+- **数据同步**：
+  - `scripts/metrics_sync.py` — 增量拉取飞书表，写入本地 snapshot（幂等/行校验/缺失容忍）
+  - `data/metrics_snapshot.yaml` — 本地副本
+  - `data/metrics_sync_state.json` — 增量同步状态
+- **模板优选（反哺机制 B）**：
+  - `scripts/template_scorer.py` — 按「平台 × 叙事策略」/「平台 × CCOS 模块组合」统计真实表现
+  - `data/feedback_calibration.yaml` — 反哺配置
+- **CLI 集成**：
+  - `prism_os.py metrics sync` — 从飞书同步到本地
+  - `prism_os.py metrics status` — 查看反哺状态
+  - `prism_os.py metrics list` — 列出 snapshot
+  - `prism_os.py metrics score` — 运行模板优选
+
+**飞书表**（在用户已有 base 中创建）：
+- Base: `QVz9byNH0auzRis9KeDcUoe3nZf`
+- 表: `tbliXecencoSdnaB`（「内容表现」）
+- 21 个字段（16 基础 + 5 公式）+ 3 个视图
+- URL: https://my.feishu.cn/base/QVz9byNH0auzRis9KeDcUoe3nZf?table=tbliXecencoSdnaB&view=vewhWxYEie
+
+**字段设计**（21 列）：
+- 10 个 PRISM-OS 自动生成（文章ID/标题/平台/发布时间/原始命题/叙事策略/字数/预测HKR/预测质量分/CCOS模块/时间点）
+- 5 个用户填（阅读/转发/收藏/点赞/评论）
+- 5 个公式自动算（互动率/点赞率/收藏率/转发率/评论率）
+- 1 个时间点维度（t_plus_1d / t_plus_7d / t_plus_30d）
+
+**关键约定**：
+- 3 个时间点：T+1d / T+7d / T+30d（每篇 3 行）
+- 缺失容忍：用户漏填某时间点不影响其他行
+- 冷启动：<3 篇不推荐任何策略
+- 幂等同步：基于「文章ID + 时间点」唯一键
+
+#### Phase 6.1 — HKR 校准（v1.3.1，30+ 篇后）
+
+- `scripts/calibration_engine.py` — 用真实互动率反推 H/K/R 哪个维度真预测有用
+- 触发条件：样本 ≥30 篇 + 距上次校准 >7 天
+
+#### 测试
+
+- 36 个单元测试 + 4 个 E2E 测试，全部通过
+- 覆盖：飞书 API mock、增量同步幂等、模板优选冷启动、平台分组、E2E 全链路
+
+---
+
 ### v1.2.0 (2026-06-02)
 
 **状态**：当前版本
@@ -454,10 +543,11 @@ major.minor.patch
 |------|------|------|
 | v1.0.7 | Phase 4.5-4.7 CCOS + LLM优化 | ✅ 已完成 |
 | v1.1.0 | Phase 5 内容生成（模块级生成，素材先行） | 开发中 |
-| v1.2.0 | Phase 5.5 小红书版本 | 待开发 |
-| v1.3.0 | Phase 6.0 互动数据闭环 | 待开发 |
+| v1.2.0 | Phase 5.5 小红书版本 | 已完成 |
+| v1.3.0 | Phase 6.0 互动数据闭环（模板优选 MVP） | ✅ 已完成 |
+| v1.3.1 | Phase 6.1 calibration 接入 narrate | ✅ 已完成 |
 | v2.0.0 | Web UI 界面 | 规划中 |
 
 ---
 
-**最后更新**：2026-06-02
+**最后更新**：2026-06-03

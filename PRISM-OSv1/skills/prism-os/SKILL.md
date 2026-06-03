@@ -750,6 +750,50 @@ Phase 4.6：Gap Analysis → 素材就绪度 → 完成 or 中断
 
 ---
 
+## Phase 6.0 数据反馈闭环（v1.3.0+）
+
+完整方案：`docs/development/Phase-6-Data-Feedback-Loop-Plan.md`
+
+**目标**：把"生成→发布"补成完整飞轮，让 PRISM-OS 从「生成工具」进化成「数据驱动的创作者操作系统」。
+
+**架构**：
+```
+[用户发布文章] → [用户每天在飞书表填 5 个数字]
+                       ↓
+              [飞书多维表格 PRISM-OS 内容表现库]
+                       ↓
+        [PRISM-OS 后台每天 03:00 增量拉取]
+                       ↓
+        [数据校准（模板优选 / HKR 校准）]
+                       ↓
+        [下次 run/narrate 自动应用新校准]
+```
+
+**核心约定**：
+- **手动录入**：用户只填 5 个数字（阅读/转发/收藏/点赞/评论）
+- **3 个时间点**：T+1d / T+7d / T+30d（每篇 3 行，缺失容忍）
+- **零 CLI 参与**：Windows 计划任务每天 03:00 自动跑
+- **冷启动**：<3 篇样本不推荐任何策略
+
+**反哺机制 B（模板优选，Phase 6.0 MVP）**：
+- 按「平台 × 叙事策略」/「平台 × CCOS 模块组合」统计真实互动率
+- 输出到 `data/feedback_calibration.yaml`
+- `narrate` 步骤按 calibration 调整策略推荐权重
+
+**反哺机制 A（HKR 校准，Phase 6.1 延后）**：
+- 30+ 篇后启动
+- 用真实互动率反推 H/K/R 哪个维度真预测有用
+- 棱镜引擎打分时叠加校准系数
+
+**CLI 调试命令**（日常不需要）：
+```bash
+python feishu_setup.py          # 一键建表（首次）
+python prism_os.py metrics sync  # 手动触发同步
+python prism_os.py metrics status # 查看反哺状态
+```
+
+---
+
 ## 输出格式
 
 ### 标准输出（用户确认后）
