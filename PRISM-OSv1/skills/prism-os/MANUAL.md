@@ -76,7 +76,7 @@ cd scripts
 python prism_os.py run "你的话题" --no-ext
 ```
 
-**常用标志**（v1.2.0 新增）：
+**常用标志**（v1.2.0+）：
 
 ```bash
 # 跳过 Phase 1 网关（调试用）

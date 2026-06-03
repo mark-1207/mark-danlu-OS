@@ -317,12 +317,24 @@ def _build_module_context(previous_modules: List[Dict]) -> str:
 - Issue 6: archive 命令暴露（--search / --trends / --list）
 - Issue 7: 抓取重试机制（超时 3 次退避 1s→2s→4s，403/451 不重试）
 
-### Phase 6.0（方案已就绪，待开发，v1.3.0）
+### Phase 6.0（已完成，v1.3.0）
 
 - **完整方案**：`docs/development/Phase-6-Data-Feedback-Loop-Plan.md`
 - **核心**：飞书多维表格手动录入 5 个数字 → 后台自动同步 → 反哺生成策略
 - **MVP 范围**：模板优选（B：按平台 × 叙事策略 / 模块组合统计真实互动率）
-- **延后到 6.1**：HKR 校准（A：30+ 篇后启动）
+- **状态**：✅ 已完成，合并到 main（commit 98a0be4 + merge 9131abf）
+
+### Phase 6.1（已完成，v1.3.1）
+
+- **完整方案**：`docs/development/Phase-6.1-Calibration-Integration-Plan.md`
+- **核心**：把 Phase 6.0 生成的 calibration.yaml 真正接入 narrate 步骤
+- **新增**：`compute_calibration_boost()` + `evaluate_narrative_strategy(calibration=, platform=)`
+- **状态**：✅ 已完成，合并到 main
+
+### Phase 6.2（待启动，30+ 篇后）
+
+- HKR 校准：用真实数据反推 H/K/R 哪个维度真预测互动率
+- 样本量阈值：≥30 篇 + 距上次校准 >7 天
 
 ---
 

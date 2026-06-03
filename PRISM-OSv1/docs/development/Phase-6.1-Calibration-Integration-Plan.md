@@ -1,6 +1,6 @@
 # PRISM-OS Phase 6.1 Calibration 接入 Narrate 方案
 
-> 版本：1.0 | 日期：2026-06-03 | 状态：**规划中，待开发**
+> 版本：1.0 | 日期：2026-06-03 | 状态：**✅ 已完成（合并到 main）**
 >
 > 关联：v1.3.1 | 父方案：docs/development/Phase-6-Data-Feedback-Loop-Plan.md
 

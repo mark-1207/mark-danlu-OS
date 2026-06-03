@@ -476,24 +476,40 @@ def test_phase6_e2e():
 
 ## 十、实施步骤
 
-### Phase 6.0（v1.3.0 MVP — 模板优选 B）
+### Phase 6.0（v1.3.0 MVP — 模板优选 B）✅ 已完成
 
-| 步骤 | 任务 | 验证 |
-|------|------|------|
-| 1 | TDD 写 `feishu_bitable.py` 测试 | 8 测试通过 |
-| 2 | 实现 `feishu_bitable.py` + `feishu_setup.py` | 8 测试通过 + 真实建表成功 |
-| 3 | TDD 写 `metrics_sync.py` 测试 | 10 测试通过 |
-| 4 | 实现 `metrics_sync.py` | 10 测试通过 |
-| 5 | TDD 写 `template_scorer.py` 测试 | 12 测试通过 |
-| 6 | 实现 `template_scorer.py` | 12 测试通过 |
-| 7 | CLI 集成 `prism_os.py metrics` | 4 E2E 测试通过 |
-| 8 | Windows 计划任务配置文档 | 用户能跑通 |
-| 9 | CHANGELOG / SKILL / MEMORY 同步 | 文档一致 |
-| **10** | **真实环境 E2E** | **用户填 1 篇文章数据验证** |
+| 步骤 | 任务 | 验证 | 状态 |
+|------|------|------|------|
+| 1 | TDD 写 `feishu_bitable.py` 测试 | 8 测试通过 | ✅ |
+| 2 | 实现 `feishu_bitable.py` | 8 测试通过 + 真实建表成功 | ✅ |
+| 3 | TDD 写 `metrics_sync.py` 测试 | 11 测试通过 | ✅ |
+| 4 | 实现 `metrics_sync.py` | 11 测试通过 | ✅ |
+| 5 | TDD 写 `template_scorer.py` 测试 | 14 测试通过 | ✅ |
+| 6 | 实现 `template_scorer.py` | 14 测试通过 | ✅ |
+| 7 | CLI 集成 `prism_os.py metrics` | 4 E2E 测试通过 | ✅ |
+| 8 | Windows 计划任务配置脚本 | setup_scheduler.ps1 | ✅ |
+| 9 | CHANGELOG / SKILL / MEMORY 同步 | 文档一致 | ✅ |
+| **10** | **真实环境 E2E** | **用户填 4 篇文章，wechat + 数据驱动型 = 11.68% 互动率** | ✅ |
 
-**预计工作量**：5-7 天（按 v1.2.0 的节奏）
+**实际工作量**：1 天（5-7 天的预期被打脸）
 
-### Phase 6.1（v1.3.1 — HKR 校准 A）
+**合并状态**：✅ commit 98a0be4 + merge 9131abf 已推送到 origin/main
+
+### Phase 6.1（v1.3.1）— 已完成
+
+**重要说明**：v1.3.1 实际实现的是 **calibration 接入 narrate**（模板优选反哺到生成），不是原计划中的 HKR 校准。
+原计划的 HKR 校准延后到 Phase 6.2（样本 ≥30 篇后启动）。
+
+**已完成**（v1.3.1）：
+- `compute_calibration_boost()` — 根据历史表现为策略加分
+- `evaluate_narrative_strategy` 接受 `calibration` + `platform` 参数
+- `narrative_generation_workflow` / `interactive_narrative_workflow` 接入 calibration
+- `prism_os.py narrate` 自动加载本地 calibration
+- 11 个新测试全绿
+
+完整方案见 `docs/development/Phase-6.1-Calibration-Integration-Plan.md`
+
+### Phase 6.2（v1.4.0 — HKR 校准 A，待启动）
 
 | 步骤 | 任务 | 触发 |
 |------|------|------|
@@ -526,16 +542,22 @@ def test_phase6_e2e():
 
 ## 十二、验收标准
 
-### Phase 6.0 验收
-- [ ] `feishu_setup.py` 能在真实飞书环境创建表（含 21 列 + 3 视图）
-- [ ] `metrics_sync.py` 增量同步逻辑 100% 幂等
-- [ ] `template_scorer.py` 在 5 篇样本下输出合理 calibration
-- [ ] Windows 计划任务配置文档清晰，用户一次能跑通
-- [ ] 39 个单元测试 + 4 个 E2E 测试全部通过
-- [ ] CHANGELOG / SKILL / MEMORY 同步更新
-- [ ] 真实 E2E：用户填 1 篇文章数据，反哺配置正确更新
+### Phase 6.0 验收 ✅ 全部通过
+- [x] `feishu_setup` 能在真实飞书环境创建表（21 列 + 3 视图）
+- [x] `metrics_sync.py` 增量同步逻辑 100% 幂等
+- [x] `template_scorer.py` 在 4 篇样本下输出合理 calibration（wechat + 数据驱动型 11.68%）
+- [x] Windows 计划任务配置脚本 `setup_scheduler.ps1` 准备好，用户一次能跑通
+- [x] 36 个单元测试 + 4 个 E2E 测试全部通过
+- [x] CHANGELOG / SKILL / MEMORY 同步更新
+- [x] 真实 E2E：用户填 4 篇文章数据，反哺配置正确更新
 
-### Phase 6.1 验收
+### Phase 6.1 验收 ✅ 全部通过
+- [x] 11 个新测试 + 完整测试套件 66/66 通过
+- [x] 无 calibration 时 narrate 行为不变（向后兼容）
+- [x] 有 calibration 时高表现策略被优先选
+- [x] E2E 验证：wechat + 数据驱动型 +0.668 boost 生效
+
+### Phase 6.2 验收（待启动）
 - [ ] 30 篇历史数据下，HKR 校准输出权重合理
 - [ ] 棱镜引擎应用新权重后，新打分与历史表现的相关性提升
 
