@@ -346,6 +346,20 @@ def run_prism_os(
         result["message"] = "标题生成失败"
         return result
 
+    # ============ V3: 标题 HKR 评估（V1 简化版：标记分数，不触发重写）============
+    # 每个候选标题调 evaluate_title 算 HKR，分数 < 0.5 的标记 low_hkr
+    from socratic_gateway import evaluate_title as evaluate_title_hkr
+    for c in prism_result["candidates"]:
+        try:
+            c["hkr"] = evaluate_title_hkr(c["title"])
+        except Exception as e:
+            c["hkr"] = {"h": 0.0, "k": 0.0, "r": 0.0, "hkr_avg": 0.0, "error": str(e)}
+    low_hkr_count = sum(1 for c in prism_result["candidates"]
+                        if c.get("hkr", {}).get("hkr_avg", 0) < 0.5)
+    if low_hkr_count > 0:
+        print(f"[V3 HKR] {low_hkr_count}/{len(prism_result['candidates'])} 候选 HKR < 0.5，"
+              f"可在数字分身选择时降权", file=sys.stderr)
+
     # ============ Phase 3: 现实校验锚 ============
     from reality_anchor import reality_anchor as validate_titles
 
@@ -926,7 +940,7 @@ def main():
     command = sys.argv[1]
 
     # 短触发：未知命令 → 当作 run 处理（天然语言一句话直接跑）
-    known_commands = {"run", "classify", "gateway", "prism", "anchor", "twin", "gap", "logic", "save", "assassin", "confirm", "ccos", "generate", "narrate", "queue", "archive"}
+    known_commands = {"run", "classify", "gateway", "prism", "anchor", "twin", "gap", "logic", "save", "assassin", "confirm", "ccos", "generate", "narrate", "queue", "archive", "metrics"}
     if command not in known_commands:
         # 第一个参数不是命令 → 当作 user_input 走完整流程
         user_input = command
@@ -1364,10 +1378,16 @@ def main():
                     print(f"  - {area}", file=sys.stderr)
 
         if interactive:
-            result = interactive_narrative_workflow(topic, ccos_outline, platform)
+            # 加载 calibration（Phase 6.1）
+            from template_scorer import load_calibration
+            calibration = load_calibration()
+            result = interactive_narrative_workflow(topic, ccos_outline, platform, calibration=calibration)
             _safe_print({"status": result["status"], "topic": topic, "platform": platform})
         else:
-            result = narrative_generation_workflow(topic, ccos_outline, platform, auto_scrape=auto_scrape)
+            # 加载 calibration（Phase 6.1）
+            from template_scorer import load_calibration
+            calibration = load_calibration()
+            result = narrative_generation_workflow(topic, ccos_outline, platform, auto_scrape=auto_scrape, calibration=calibration)
 
             # 质量自检
             qc_result = None
@@ -1922,6 +1942,97 @@ def main():
                         "       python prism_os.py archive --trends <crack_id> [--limit N]\n"
                         "       python prism_os.py archive --list"
             })
+
+    elif command == "metrics":
+        # Phase 6.0: 数据反馈闭环 — 飞书多维表格同步与反哺
+        _health_check_warn("metrics")
+        args = sys.argv[2:]
+
+        if not args or args[0] == "--help":
+            _safe_print({
+                "usage": "python prism_os.py metrics sync          # 从飞书同步数据到本地\n"
+                        "       python prism_os.py metrics status        # 查看当前反哺状态\n"
+                        "       python prism_os.py metrics list          # 列出本地 snapshot\n"
+                        "       python prism_os.py metrics score         # 运行模板优选"
+            })
+            sys.exit(0)
+
+        subcmd = args[0]
+
+        if subcmd == "sync":
+            from feishu_bitable import FeishuBitable
+            from metrics_sync import MetricsSync
+
+            try:
+                fb = FeishuBitable.from_config()
+                syncer = MetricsSync(feishu_client=fb)
+                result = syncer.sync()
+                _safe_print(result)
+            except Exception as e:
+                _safe_print({"status": "error", "error": str(e)})
+
+        elif subcmd == "status":
+            from template_scorer import load_calibration
+            from metrics_sync import MetricsSync
+
+            cal = load_calibration()
+            snapshot_path = os.path.join(os.path.dirname(__file__), "..", "data", "metrics_snapshot.yaml")
+            snap_exists = os.path.exists(snapshot_path)
+
+            info = {
+                "calibration_exists": cal is not None,
+                "snapshot_exists": snap_exists,
+            }
+            if cal:
+                info["sample_size"] = cal.get("sample_size", 0)
+                info["last_updated"] = cal.get("last_updated", "")
+                info["strategies"] = {
+                    platform: list(strats.keys())
+                    for platform, strats in cal.get("by_platform_strategy", {}).items()
+                }
+            _safe_print(info)
+
+        elif subcmd == "list":
+            from metrics_sync import MetricsSync
+
+            snapshot_path = os.path.join(os.path.dirname(__file__), "..", "data", "metrics_snapshot.yaml")
+            if not os.path.exists(snapshot_path):
+                _safe_print({"status": "ok", "count": 0, "message": "未找到 snapshot，请先运行 sync"})
+            else:
+                try:
+                    import yaml
+                    with open(snapshot_path, "r", encoding="utf-8") as f:
+                        data = yaml.safe_load(f) or []
+                except (ImportError, Exception):
+                    with open(snapshot_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                _safe_print({"status": "ok", "count": len(data), "articles": data[:20]})
+
+        elif subcmd == "score":
+            from template_scorer import run_calibration, save_calibration
+
+            snapshot_path = os.path.join(os.path.dirname(__file__), "..", "data", "metrics_snapshot.yaml")
+            if not os.path.exists(snapshot_path):
+                _safe_print({"status": "error", "error": "未找到 snapshot，请先运行 sync"})
+                sys.exit(1)
+            try:
+                import yaml
+                with open(snapshot_path, "r", encoding="utf-8") as f:
+                    articles = yaml.safe_load(f) or []
+            except (ImportError, Exception):
+                with open(snapshot_path, "r", encoding="utf-8") as f:
+                    articles = json.load(f)
+
+            calibration = run_calibration(articles)
+            save_calibration(calibration)
+            _safe_print({
+                "status": "ok",
+                "sample_size": calibration["sample_size"],
+                "strategies_scored": sum(len(v) for v in calibration.get("by_platform_strategy", {}).values()),
+            })
+
+        else:
+            _safe_print({"error": f"未知子命令: {subcmd}，请使用 sync/status/list/score"})
 
     elif command == "listen":
         # HTTP long-running server for cross-machine access

@@ -1685,11 +1685,67 @@ NARRATIVE_STRATEGIES = {
 }
 
 
+def compute_calibration_boost(
+    calibration: Optional[Dict],
+    platform: str,
+    strategy: str,
+    max_boost: float = 5.0
+) -> float:
+    """根据历史表现为某个策略加分
+
+    Args:
+        calibration: feedback_calibration.yaml 加载的配置
+        platform: wechat / xiaohongshu
+        strategy: 策略名（数据驱动型 / 观点碰撞型等）
+        max_boost: 封顶值，避免单策略压制其他
+
+    Returns:
+        加分值（正数=推荐，负数=不推荐，0=无影响）
+    """
+    if not calibration or not calibration.get("by_platform_strategy"):
+        return 0.0
+
+    platform_data = calibration.get("by_platform_strategy", {}).get(platform, {})
+    if not platform_data:
+        return 0.0
+
+    strategy_data = platform_data.get(strategy)
+    if not strategy_data:
+        return 0.0
+
+    sample_size = strategy_data.get("sample_size", 0)
+    if sample_size < 3:
+        return 0.0  # 冷启动不调整
+
+    # 计算平台 baseline（所有策略的平均互动率）
+    all_engagements = [s["avg_engagement"] for s in platform_data.values() if s.get("sample_size", 0) >= 1]
+    avg_engagement = strategy_data.get("avg_engagement", 0)
+
+    if not all_engagements:
+        return 0.0
+
+    # 如果只有 1 个策略有数据，用全局默认 baseline 5%
+    if len(all_engagements) == 1:
+        baseline = 0.05
+    else:
+        baseline = sum(all_engagements) / len(all_engagements)
+
+    scale = 10
+    sample_boost = 1.5 if sample_size >= 10 else 1.0
+
+    boost = (avg_engagement - baseline) * scale * sample_boost
+    # 封顶
+    boost = max(-max_boost, min(max_boost, boost))
+    return round(boost, 3)
+
+
 def evaluate_narrative_strategy(
     topic: str,
     ccos_outline: Dict,
     materials: List[Dict],
     search_results: List[Dict],
+    calibration: Optional[Dict] = None,
+    platform: str = "wechat",
 ) -> Dict:
     """
     综合知识库素材 + 搜索结果，评估并选择最优叙事策略
@@ -1765,6 +1821,17 @@ def evaluate_narrative_strategy(
         # 素材太少时用悬念解密型保守策略
         scores["悬念解密型"] += 1
 
+    # Calibration 加分（Phase 6.1）
+    calibration_boosts = {}
+    calibration_applied = False
+    if calibration:
+        calibration_applied = True
+        for strategy in scores:
+            boost = compute_calibration_boost(calibration, platform, strategy)
+            if boost != 0:
+                calibration_boosts[strategy] = boost
+                scores[strategy] += boost
+
     best_strategy = max(scores, key=lambda k: scores[k])
     best_score = scores[best_strategy]
 
@@ -1795,6 +1862,8 @@ def evaluate_narrative_strategy(
         "scores": scores,
         "material_assignment": material_assignment,
         "strategy_guide": NARRATIVE_STRATEGIES[best_strategy],
+        "calibration_applied": calibration_applied,
+        "calibration_boosts": calibration_boosts,
     }
 
 
@@ -1994,7 +2063,8 @@ def narrative_generation_workflow(
     platform: str,
     vault_path: Path = None,
     search_results: List[Dict] = None,
-    auto_scrape: bool = False
+    auto_scrape: bool = False,
+    calibration: Optional[Dict] = None,
 ) -> Dict:
     """
     Phase 5 重构后的叙事生成流程
@@ -2071,10 +2141,15 @@ def narrative_generation_workflow(
 
     result["materials_used"] = [m.get("name", "") for m in all_materials[:15]]
 
-    # Step 3: 策略评估
-    strategy = evaluate_narrative_strategy(topic, ccos_outline, all_materials, search_results)
+    # Step 3: 策略评估（Phase 6.1 接入 calibration）
+    strategy = evaluate_narrative_strategy(
+        topic, ccos_outline, all_materials, search_results,
+        calibration=calibration, platform=platform
+    )
     result["strategy"] = strategy
     print(f"[Narrative] 策略: {strategy['strategy']} (得分: {strategy['scores']})", file=sys.stderr)
+    if strategy.get("calibration_boosts"):
+        print(f"[Calibration] 历史表现加权: {strategy['calibration_boosts']}", file=sys.stderr)
 
     # Step 4: 预叙事生成
     prenarrative = generate_prenarrative(
@@ -2132,7 +2207,8 @@ def interactive_narrative_workflow(
     topic: str,
     ccos_outline: Dict,
     platform: str,
-    vault_path: Path = None
+    vault_path: Path = None,
+    calibration: Optional[Dict] = None,
 ) -> Dict:
     """
     交互式叙事生成流程
@@ -2165,7 +2241,10 @@ def interactive_narrative_workflow(
                 "content": sr.get("snippet", ""),
             })
 
-    strategy = evaluate_narrative_strategy(topic, ccos_outline, all_materials, search_results_all)
+    strategy = evaluate_narrative_strategy(
+        topic, ccos_outline, all_materials, search_results_all,
+        calibration=calibration, platform=platform
+    )
     print(f"\n【策略评估】{strategy['strategy']} — {strategy['reasoning']}")
     scores_str = ", ".join([f"{k}:{v}" for k, v in strategy['scores'].items()])
     print(f"  得分：{scores_str}")
