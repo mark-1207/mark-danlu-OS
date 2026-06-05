@@ -540,6 +540,27 @@ def run_prism_os(
             print(f"[Warning] Phase 4.5 CCOS 失败: {e}", file=sys.stderr)
             result["ccos_outline"] = None
 
+        # Phase 4.6: Gap 分析 + 决策点 3
+        if include_phase_4_8:
+            try:
+                from gap_analysis import analyze_gap
+                gap_result = analyze_gap(user_input, "")
+                result["gap_analysis"] = gap_result
+                result["phase"] = "gap_decision"
+
+                if interactive:
+                    decision = _run_gap_decision_loop(user_input, gap_result, platform)
+                    if decision == "exit":
+                        result["status"] = "gap_rejected"
+                        result["message"] = "用户在决策点 3 退出"
+                        return result
+                    result["gap_decision"] = decision
+                else:
+                    result["gap_decision"] = "auto_continue"
+            except Exception as e:
+                print(f"[Warning] Phase 4.6 Gap 失败: {e}", file=sys.stderr)
+                result["gap_analysis"] = None
+
         # Phase 5: 逻辑压力测试 + 认知旅程
         try:
             from logic_pressure import logic_pressure
@@ -638,6 +659,70 @@ def _run_narrate(topic: str, platform: str) -> dict:
         result["output_file"] = str(out_path.resolve())
 
     return result
+
+
+def _run_gap_decision_loop(thesis: str, gap_result: dict, platform: str = "wechat") -> str:
+    """展示 Gap 结果 + 4 选项循环。返回 'go_narrate' | 'restart_ccos' | 'add_material' | 'exit'"""
+    print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", file=sys.stderr)
+    print("【素材就绪度分析】", file=sys.stderr)
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", file=sys.stderr)
+    gap_score = gap_result.get("gap_score", 0)
+    readiness = gap_result.get("readiness", 0)
+    print(f"  Gap Score:   {gap_score:.2f} {'(缺口较大)' if gap_score > 0.5 else '(缺口较小)'}", file=sys.stderr)
+    print(f"  就绪度:      {readiness:.0%}", file=sys.stderr)
+    missing = gap_result.get("missing_evidence", [])
+    if missing:
+        print(f"  缺失证据:   {', '.join(missing[:5])}", file=sys.stderr)
+    search_results = gap_result.get("knowledge", {}).get("knowledge_results", [])
+    if search_results:
+        print(f"  搜索命中:   {len(search_results)} 条", file=sys.stderr)
+    print("", file=sys.stderr)
+
+    print("请选择下一步操作：", file=sys.stderr)
+    print("  [1] 补充手写素材入库", file=sys.stderr)
+    print("  [2] 调整大纲方向（重新生成CCOS）", file=sys.stderr)
+    print("  [3] 直接使用搜到的数据生成草稿", file=sys.stderr)
+    print("  [q] 退出", file=sys.stderr)
+    print("", file=sys.stderr)
+
+    while True:
+        print("请输入选项（1/2/3/q）：", file=sys.stderr)
+        try:
+            choice = input("> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            _stdin_unavailable_warning("3（Gap 决策）")
+            return "exit"
+
+        if choice.lower() == "q":
+            print("退出", file=sys.stderr)
+            return "exit"
+
+        if choice == "1":
+            print("请输入素材内容（输入空行结束）：", file=sys.stderr)
+            lines = []
+            try:
+                while True:
+                    line = input()
+                    if not line.strip():
+                        break
+                    lines.append(line)
+            except (EOFError, KeyboardInterrupt):
+                lines = []
+            user_material = "\n".join(lines).strip()
+            if user_material:
+                print(f"[素材入库] 已记录 {len(user_material)} 字素材", file=sys.stderr)
+            return "add_material"
+
+        elif choice == "2":
+            print("[操作] 重新生成 CCOS 大纲", file=sys.stderr)
+            return "restart_ccos"
+
+        elif choice == "3":
+            print("[操作] 进入叙事生成", file=sys.stderr)
+            return "go_narrate"
+
+        else:
+            print("无效选项，请输入 1、2、3 或 q", file=sys.stderr)
 
 
 def _safe_filename(title: str) -> str:
@@ -1698,75 +1783,8 @@ def main():
             sys.exit(0)
 
         # 阻塞模式：展示缺口，等待用户选择
-        print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", file=sys.stderr)
-        print("【素材就绪度分析】", file=sys.stderr)
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", file=sys.stderr)
-        gap_score = result.get("gap_score", 0)
-        readiness = result.get("readiness", 0)
-        print(f"  Gap Score:   {gap_score:.2f} {'(缺口较大)' if gap_score > 0.5 else '(缺口较小)'}", file=sys.stderr)
-        print(f"  就绪度:      {readiness:.0%}", file=sys.stderr)
-        missing = result.get("missing_evidence", [])
-        if missing:
-            print(f"  缺失证据:   {', '.join(missing[:5])}", file=sys.stderr)
-        search_results = result.get("knowledge", {}).get("knowledge_results", [])
-        if search_results:
-            print(f"  搜索命中:   {len(search_results)} 条", file=sys.stderr)
-        print("", file=sys.stderr)
-
-        print("请选择下一步操作：", file=sys.stderr)
-        print("  [1] 补充手写素材入库", file=sys.stderr)
-        print("  [2] 调整大纲方向（重新生成CCOS）", file=sys.stderr)
-        print("  [3] 直接使用搜到的数据生成草稿", file=sys.stderr)
-        print("  [q] 退出", file=sys.stderr)
-        print("", file=sys.stderr)
-
-        while True:
-            print("请输入选项（1/2/3/q）：", file=sys.stderr)
-            try:
-                choice = input("> ").strip()
-            except (EOFError, KeyboardInterrupt):
-                print("\n退出", file=sys.stderr)
-                sys.exit(0)
-
-            if choice.lower() == "q":
-                print("退出", file=sys.stderr)
-                sys.exit(0)
-
-            if choice == "1":
-                # 补充手写素材
-                print("请输入素材内容（输入空行结束）：", file=sys.stderr)
-                lines = []
-                try:
-                    while True:
-                        line = input()
-                        if not line.strip():
-                            break
-                        lines.append(line)
-                except (EOFError, KeyboardInterrupt):
-                    lines = []
-
-                user_material = "\n".join(lines).strip()
-                if user_material:
-                    print(f"[素材入库] 已记录 {len(user_material)} 字素材", file=sys.stderr)
-                _safe_print({"status": "material_added", "material": user_material, "thesis": thesis})
-                break
-
-            elif choice == "2":
-                # 重新生成 CCOS
-                print("[操作] 重新生成 CCOS 大纲，请运行：", file=sys.stderr)
-                print(f'  python prism_os.py ccos "{thesis}" --platform wechat', file=sys.stderr)
-                _safe_print({"status": "restart_ccos", "thesis": thesis})
-                break
-
-            elif choice == "3":
-                # 直接进入 narrate
-                print("[操作] 进入叙事生成，请运行：", file=sys.stderr)
-                print(f'  python prism_os.py narrate "{thesis}" --platform wechat --quality-check', file=sys.stderr)
-                _safe_print({"status": "go_narrate", "thesis": thesis})
-                break
-
-            else:
-                print("无效选项，请输入 1、2、3 或 q", file=sys.stderr)
+        decision = _run_gap_decision_loop(thesis, result)
+        _safe_print({"status": decision, "thesis": thesis, "gap_result": result})
 
     elif command == "logic":
         # Phase 5: 逻辑压力测试 + 认知旅程
