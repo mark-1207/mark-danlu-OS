@@ -41,6 +41,19 @@ if sys.platform == "win32":
         if hasattr(sys.stderr, "buffer"):
             sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
+# ============ stdin 检测 helper ============
+
+def _stdin_unavailable_warning(decision_point: str) -> bool:
+    """检测 stdin 不可用 + 打印 explicit warning；返回 True 表示不可用"""
+    if sys.stdin.isatty():
+        return False
+    print(
+        f"[WARNING] 决策点 {decision_point} 需要 stdin 输入但 stdin 不可用。"
+        f"建议前台重跑，或加 --no-interactive 跳过人工决策。",
+        file=sys.stderr,
+    )
+    return True
+
 # ============ lark-cli 工具函数 ============
 
 FEISHU_TABLE_ID = "tblOoR71Q3DSa33t"
@@ -448,7 +461,7 @@ def run_prism_os(
             try:
                 user_choice = input("> ").strip()
             except (EOFError, KeyboardInterrupt):
-                print("[stdin 不可用，使用默认第一个候选]", file=sys.stderr)
+                _stdin_unavailable_warning("1（标题选择）")
                 break
 
             if user_choice.lower() == "q":
@@ -498,7 +511,7 @@ def run_prism_os(
                     try:
                         ccos_choice = input("> ").strip()
                     except (EOFError, KeyboardInterrupt):
-                        print("[stdin 不可用，默认继续]", file=sys.stderr)
+                        _stdin_unavailable_warning("2（CCOS 审核）")
                         break
 
                     if ccos_choice.lower() == "q":
@@ -963,6 +976,7 @@ def main():
         run_clarification = None
         run_ccos_review = True
         run_platform = "both"
+        run_interactive_only = False
 
         i = 2
         while i < len(sys.argv):
@@ -975,6 +989,9 @@ def main():
                 i += 1
             elif arg == "--no-interactive":
                 run_interactive = False
+                i += 1
+            elif arg == "--interactive-only":
+                run_interactive_only = True
                 i += 1
             elif arg == "--skip-gateway":
                 run_skip_gateway = True
@@ -999,6 +1016,11 @@ def main():
                 i += 1
             else:
                 i += 1
+
+        # --interactive-only: stdin 不可用时直接退出
+        if run_interactive_only and not sys.stdin.isatty():
+            print("[ERROR] --interactive-only 已设置但 stdin 不可用，退出。", file=sys.stderr)
+            sys.exit(2)
 
         if from_queue:
             # 从队列选择
