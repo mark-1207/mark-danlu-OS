@@ -611,6 +611,35 @@ def run_prism_os(
 
 # ============ 辅助函数 ============
 
+def _run_narrate(topic: str, platform: str) -> dict:
+    """内部 narrate 调用：加载 CCOS → 生成内容 → 落盘文件。失败抛异常。"""
+    from content_generator import (
+        narrative_generation_workflow,
+        _load_ccos_for_topic,
+    )
+
+    ccos_outline = _load_ccos_for_topic(topic, platform)
+    if not ccos_outline:
+        raise RuntimeError(f'未找到命题 "{topic}" 的 CCOS 大纲')
+
+    from template_scorer import load_calibration
+    calibration = load_calibration()
+    result = narrative_generation_workflow(topic, ccos_outline, platform, auto_scrape=False, calibration=calibration)
+
+    # 落盘
+    draft = result.get("full_draft", "")
+    if draft:
+        safe_title = _safe_filename(topic)
+        from datetime import date
+        date_str = date.today().strftime("%Y%m%d")
+        out_path = Path(f"{safe_title}_{date_str}.md")
+        out_path.write_text(f"# {topic}\n\n---\n\n" + draft, encoding="utf-8")
+        print(f"[输出] 草稿已保存至 {out_path.resolve()}", file=sys.stderr)
+        result["output_file"] = str(out_path.resolve())
+
+    return result
+
+
 def _safe_filename(title: str) -> str:
     """将标题转为合法的文件名（去除 <>:"|?* 等非法字符）"""
     safe = title
@@ -1164,6 +1193,15 @@ def main():
             platform=run_platform,
         )
 
+        # GAP-2: run 成功后自动接力 narrate
+        if result.get("status") == "success" and result.get("ccos_outline"):
+            try:
+                narrate_result = _run_narrate(user_input, run_platform)
+                result["narrate"] = narrate_result
+            except Exception as e:
+                print(f"[WARNING] narrate 接力失败（run 状态保留）: {e}", file=sys.stderr)
+                result["narrate"] = {"status": "failed", "error": str(e)}
+
         if use_format:
             output = format_prism_os_output(result)
             sys.stdout.buffer.write(output.encode("utf-8"))
@@ -1411,10 +1449,7 @@ def main():
             result = interactive_narrative_workflow(topic, ccos_outline, platform, calibration=calibration)
             _safe_print({"status": result["status"], "topic": topic, "platform": platform})
         else:
-            # 加载 calibration（Phase 6.1）
-            from template_scorer import load_calibration
-            calibration = load_calibration()
-            result = narrative_generation_workflow(topic, ccos_outline, platform, auto_scrape=auto_scrape, calibration=calibration)
+            result = _run_narrate(topic, platform)
 
             # 质量自检
             qc_result = None
@@ -1428,8 +1463,8 @@ def main():
             # 输出摘要
             output = {
                 "status": result["status"],
-                "topic": result["topic"],
-                "platform": result["platform"],
+                "topic": result.get("topic", topic),
+                "platform": result.get("platform", platform),
                 "strategy": result.get("strategy", {}).get("strategy", ""),
                 "word_count": result.get("word_count", 0),
                 "materials_used": len(result.get("materials_used", [])),
@@ -1441,16 +1476,6 @@ def main():
                     "issue_count": len(qc_result.get("issues", [])),
                 }
             _safe_print(output)
-            # 同时输出到文件
-            draft = result.get("full_draft", "")
-            if draft:
-                safe_title = _safe_filename(topic)
-                from datetime import date
-                date_str = date.today().strftime("%Y%m%d")
-                out_path = Path(f"{safe_title}_{date_str}.md")
-                out_path.write_text(f"# {topic}\n\n---\n\n" + draft, encoding="utf-8")
-
-                print(f"[输出] 草稿已保存至 {out_path.resolve()}", file=sys.stderr)
 
     elif command == "prism":
         _health_check_warn("prism")
