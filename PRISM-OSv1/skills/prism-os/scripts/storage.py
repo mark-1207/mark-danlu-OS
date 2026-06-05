@@ -80,6 +80,7 @@ def append_log(entry: Dict) -> Dict:
     logs = load_yaml(log_path)
 
     entry["timestamp"] = datetime.now().isoformat()
+    entry["cumulative_count"] = len(logs) + 1
     logs.append(entry)
 
     if save_yaml(log_path, logs):
