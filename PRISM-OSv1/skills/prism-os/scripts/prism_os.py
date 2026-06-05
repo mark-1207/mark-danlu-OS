@@ -347,8 +347,8 @@ def run_prism_os(
         return result
 
     # ============ V3: 标题 HKR 评估（V1 简化版：标记分数，不触发重写）============
-    # 每个候选标题调 evaluate_title 算 HKR，分数 < 0.5 的标记 low_hkr
-    from socratic_gateway import evaluate_title as evaluate_title_hkr
+    # 每个候选标题调 calculate_hkr 算 HKR，分数 < 0.5 的标记 low_hkr
+    from socratic_gateway import calculate_hkr as evaluate_title_hkr
     for c in prism_result["candidates"]:
         try:
             c["hkr"] = evaluate_title_hkr(c["title"])
@@ -962,6 +962,7 @@ def main():
         run_skip_gateway = False
         run_clarification = None
         run_ccos_review = True
+        run_platform = "both"
 
         i = 2
         while i < len(sys.argv):
@@ -989,6 +990,9 @@ def main():
                 i += 1
             elif arg == "--clarification" and i + 1 < len(sys.argv):
                 run_clarification = sys.argv[i + 1]
+                i += 2
+            elif arg == "--platform" and i + 1 < len(sys.argv):
+                run_platform = sys.argv[i + 1]
                 i += 2
             elif not user_input and not arg.startswith("--"):
                 user_input = arg
@@ -1135,6 +1139,7 @@ def main():
             skip_gateway=run_skip_gateway,
             user_clarification=run_clarification,
             ccos_review=run_ccos_review,
+            platform=run_platform,
         )
 
         if use_format:
