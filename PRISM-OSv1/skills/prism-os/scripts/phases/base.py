@@ -1,0 +1,192 @@
+"""PRISM-OS Pipeline 基础设施：Phase 基类 + Pipeline 状态 + 配置"""
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Any
+import sys
+
+
+@dataclass
+class PhaseResult:
+    """Phase 执行结果"""
+    status: str = "success"  # success / rejected / failed / skipped
+    data: Dict[str, Any] = field(default_factory=dict)
+    message: str = ""
+
+    def to_dict(self) -> dict:
+        d = {"status": self.status}
+        if self.message:
+            d["message"] = self.message
+        d.update(self.data)
+        return d
+
+
+@dataclass
+class PipelineState:
+    """Pipeline 共享状态：Phase 间传递数据"""
+    # 输入
+    thesis: str = ""
+    platform: str = "both"
+    interactive: bool = True
+    # Phase 输出
+    intent: Optional[dict] = None
+    gateway: Optional[dict] = None
+    candidates: List[dict] = field(default_factory=list)
+    selected_candidate: Optional[dict] = None
+    user_selected_candidate: bool = False
+    ccos_outline: Optional[dict] = None
+    ccos_review_passed: bool = False
+    gap_analysis: Optional[dict] = None
+    gap_decision: Optional[str] = None
+    logic_audit: List[dict] = field(default_factory=list)
+    cognitive_journey: dict = field(default_factory=dict)
+    storage_result: Optional[dict] = None
+    narrate_result: Optional[dict] = None
+    # 决策记录
+    decisions: Dict[str, str] = field(default_factory=dict)
+    # 阶段标记
+    phase: str = "init"
+    status: str = "running"
+
+    def update_from_result(self, phase_name: str, result: 'PhaseResult') -> None:
+        """根据 Phase 结果更新状态"""
+        setter = getattr(self, f"_set_{phase_name}", None)
+        if setter:
+            setter(result)
+        else:
+            # 通用更新：把 result.data 里的 key 写到 state
+            for k, v in result.data.items():
+                if hasattr(self, k):
+                    setattr(self, k, v)
+
+    def _set_intent(self, result: 'PhaseResult') -> None:
+        self.intent = result.data
+
+    def _set_gateway(self, result: 'PhaseResult') -> None:
+        self.gateway = result.data
+
+    def _set_prism(self, result: 'PhaseResult') -> None:
+        self.candidates = result.data.get("candidates", [])
+        if "selected_candidate" in result.data:
+            self.selected_candidate = result.data["selected_candidate"]
+            self.user_selected_candidate = result.data.get("user_selected_candidate", False)
+
+    def _set_ccos(self, result: 'PhaseResult') -> None:
+        self.ccos_outline = result.data.get("ccos_outline")
+        self.ccos_review_passed = result.data.get("ccos_review_passed", False)
+
+    def _set_gap(self, result: 'PhaseResult') -> None:
+        self.gap_analysis = result.data.get("gap_analysis")
+        self.gap_decision = result.data.get("gap_decision")
+
+    def _set_logic(self, result: 'PhaseResult') -> None:
+        self.logic_audit = result.data.get("logic_audit", [])
+        self.cognitive_journey = result.data.get("cognitive_journey", {})
+
+    def _set_narrate(self, result: 'PhaseResult') -> None:
+        self.narrate_result = result.data
+
+    def to_dict(self) -> dict:
+        """转为 run_prism_os 兼容的 dict 格式"""
+        d = {
+            "phase": self.phase,
+            "status": self.status,
+            "user_input": self.thesis,
+        }
+        if self.intent:
+            d["intent"] = self.intent
+        if self.gateway:
+            d["gateway"] = self.gateway
+        if self.candidates:
+            d["candidates"] = self.candidates
+        if self.selected_candidate:
+            d["selected_candidate"] = self.selected_candidate
+            d["user_selected_candidate"] = self.user_selected_candidate
+        if self.ccos_outline:
+            d["ccos_outline"] = self.ccos_outline
+        if self.ccos_review_passed:
+            d["ccos_review_passed"] = True
+        if self.gap_analysis:
+            d["gap_analysis"] = self.gap_analysis
+        if self.gap_decision:
+            d["gap_decision"] = self.gap_decision
+        if self.logic_audit:
+            d["logic_audit"] = self.logic_audit
+        if self.cognitive_journey:
+            d["cognitive_journey"] = self.cognitive_journey
+        if self.narrate_result:
+            d["narrate"] = self.narrate_result
+        return d
+
+
+@dataclass
+class PipelineConfig:
+    """Pipeline 配置（来自 CLI 参数）"""
+    platform: str = "both"
+    interactive: bool = True
+    skip_gateway: bool = False
+    skip_ccos_review: bool = False
+    include_phase_4_8: bool = True
+    include_narrate: bool = True
+    user_clarification: Optional[str] = None
+    history_topics: List[str] = field(default_factory=list)
+    from_queue: bool = False
+
+
+class Phase(ABC):
+    """Phase 基类"""
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Phase 名称（用于日志和状态标记）"""
+
+    @abstractmethod
+    def should_run(self, state: PipelineState, config: PipelineConfig) -> bool:
+        """判断是否需要执行"""
+
+    @abstractmethod
+    def execute(self, state: PipelineState, config: PipelineConfig) -> PhaseResult:
+        """执行 Phase，返回结果"""
+
+    def display_result(self, result: PhaseResult, state: PipelineState) -> None:
+        """展示结果到 stderr（子类可覆盖）"""
+        pass
+
+
+class PrismPipeline:
+    """PRISM-OS 流水线：串联所有 Phase"""
+
+    def __init__(self, config: PipelineConfig):
+        self.config = config
+        self.state = PipelineState(
+            platform=config.platform,
+            interactive=config.interactive,
+        )
+
+    def phases(self) -> List[Phase]:
+        """返回有序 Phase 列表（子类可覆盖）"""
+        return []
+
+    def run(self, thesis: str) -> PipelineState:
+        """执行完整流水线"""
+        self.state.thesis = thesis
+
+        for phase in self.phases():
+            if not phase.should_run(self.state, self.config):
+                continue
+
+            self.state.phase = phase.name
+            result = phase.execute(self.state, self.config)
+
+            # 更新状态
+            self.state.update_from_result(phase.name, result)
+            phase.display_result(result, self.state)
+
+            # 检查是否被拒绝
+            if result.status == "rejected":
+                self.state.status = "rejected"
+                return self.state
+
+        self.state.phase = "complete"
+        self.state.status = "success"
+        return self.state
