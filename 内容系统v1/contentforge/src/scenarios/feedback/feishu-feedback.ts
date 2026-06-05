@@ -192,8 +192,8 @@ export async function writeFeedbackRecord(record: {
 }
 
 /**
- * Write creative preferences records to Feishu (batch create).
- * Creates 3 rows, one per platform.
+ * Write creative preferences records to Feishu (upsert by platform).
+ * Updates existing rows or creates new ones, preventing unbounded row growth.
  */
 export async function writeCreativePreferences(
   wechatPrefs: object,
@@ -204,18 +204,32 @@ export async function writeCreativePreferences(
     throw new Error('缺少飞书配置: FEISHU_FEEDBACK_TABLE_APP_TOKEN / FEISHU_FEEDBACK_TABLE_ID / FEISHU_CREATIVE_PREFERENCES_SHEET_ID');
   }
 
-  const records = [
-    { platform: 'wechat', preferences_json: JSON.stringify(wechatPrefs), last_updated: new Date().toISOString().slice(0, 10) },
-    { platform: 'xiaohongshu', preferences_json: JSON.stringify(xiaohongshuPrefs), last_updated: new Date().toISOString().slice(0, 10) },
-    { platform: 'douyin', preferences_json: JSON.stringify(douyinPrefs), last_updated: new Date().toISOString().slice(0, 10) },
-  ];
+  // Read existing records to get record_ids for upsert
+  const existing = await readCreativePreferences();
+  const idByPlatform = new Map(existing.map(r => [r.fields.platform, r.record_id]));
 
-  const jsonArg = JSON.stringify({ records });
-  await execLarkCli([
-    'base', '+record-batch-create',
-    '--base-token', FEISHU_FEEDBACK_TABLE_APP_TOKEN,
-    '--table-id', FEISHU_FEEDBACK_TABLE_ID,
-    '--sheet-id', FEISHU_CREATIVE_PREFERENCES_SHEET_ID,
-    '--json', jsonArg,
-  ]);
+  const today = new Date().toISOString().slice(0, 10);
+  const platforms = [
+    { platform: 'wechat', prefs: wechatPrefs },
+    { platform: 'xiaohongshu', prefs: xiaohongshuPrefs },
+    { platform: 'douyin', prefs: douyinPrefs },
+  ] as const;
+
+  for (const { platform, prefs } of platforms) {
+    const fields = {
+      platform,
+      preferences_json: JSON.stringify(prefs),
+      last_updated: today,
+    };
+    const args = [
+      'base', '+record-upsert',
+      '--base-token', FEISHU_FEEDBACK_TABLE_APP_TOKEN,
+      '--table-id', FEISHU_FEEDBACK_TABLE_ID,
+      '--sheet-id', FEISHU_CREATIVE_PREFERENCES_SHEET_ID,
+      '--json', JSON.stringify(fields),
+    ];
+    const existingId = idByPlatform.get(platform);
+    if (existingId) args.push('--record-id', existingId);
+    await execLarkCli(args);
+  }
 }
