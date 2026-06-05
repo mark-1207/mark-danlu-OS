@@ -32,7 +32,7 @@
     "targetAudience": "string — 目标受众",
     "tone": "string — 语气风格",
     "wordCountRange": [2000, 3000],
-    "contentType": "string — 内容类型",
+
     "emotionalGoal": "string — 情绪目标",
     "cognitiveTension": {
       "popularBelief": "string — 大众以为的默认观点（30字内）",
@@ -49,7 +49,7 @@
     "targetAudience": "string",
     "tone": "string",
     "wordCountRange": [500, 800],
-    "contentType": "string",
+
     "emotionalGoal": "string",
     "cognitiveTension": {
       "popularBelief": "string",
@@ -66,7 +66,7 @@
     "targetAudience": "string",
     "tone": "string",
     "wordCountRange": [150, 300],
-    "contentType": "string",
+
     "emotionalGoal": "string",
     "cognitiveTension": {
       "popularBelief": "string",

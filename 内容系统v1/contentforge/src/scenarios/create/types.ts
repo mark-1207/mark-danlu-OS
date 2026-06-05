@@ -74,7 +74,6 @@ export const TopicCardSchema = z.object({
   targetAudience: z.string(),
   tone: z.string(),
   wordCountRange: z.tuple([z.number(), z.number()]),
-  contentType: z.string(),
   emotionalGoal: z.string(),
   // CCOS-inspired: cognitive tension for outline guidance
   cognitiveTension: CognitiveTensionSchema.optional(),

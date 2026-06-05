@@ -9,7 +9,7 @@
     "targetAudience": "string",
     "tone": "string",
     "wordCountRange": [2000, 3000],
-    "contentType": "string",
+
     "emotionalGoal": "string"
   },
   "xiaohongshu": {
@@ -20,7 +20,7 @@
     "targetAudience": "string",
     "tone": "string",
     "wordCountRange": [500, 800],
-    "contentType": "string",
+
     "emotionalGoal": "string"
   },
   "douyin": {
@@ -31,7 +31,7 @@
     "targetAudience": "string",
     "tone": "string",
     "wordCountRange": [150, 300],
-    "contentType": "string",
+
     "emotionalGoal": "string"
   },
   "overlapAnalysis": "string"
