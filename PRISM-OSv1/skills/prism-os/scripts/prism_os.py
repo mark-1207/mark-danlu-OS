@@ -249,7 +249,8 @@ def run_prism_os(
     platform: str = "both",
     interactive: bool = True,
     user_clarification: str = None,
-    ccos_review: bool = True
+    ccos_review: bool = True,
+    _state = None,
 ) -> Dict:
     """
     PRISM-OS 完整工作流程（Pipeline 版）
@@ -266,7 +267,7 @@ def run_prism_os(
     Returns:
         完整流程结果
     """
-    from phases import FullPrismPipeline, PipelineConfig
+    from phases import FullPrismPipeline, PipelineConfig, PhaseResult
 
     config = PipelineConfig(
         platform=platform,
@@ -279,8 +280,84 @@ def run_prism_os(
         history_topics=history_topics or [],
     )
     pipeline = FullPrismPipeline(config)
+
+    # 如果调用方传了 _state 进来（恢复状态），从 state 恢复
+    if _state is not None:
+        pipeline.state = _state
+
     state = pipeline.run(user_input)
-    return state.to_dict()
+    result = state.to_dict()
+
+    # need_input 状态：把 prompt 加入返回结果，方便调用方处理
+    if state.status == "need_input":
+        result["status"] = "need_input"
+        result["current_phase"] = state.phase
+        result["_prompt"] = getattr(state, "_pending_prompt", "")
+        result["_input_type"] = getattr(state, "_pending_input_type", "")
+
+    # 始终返回 current_phase_index 以便 continue 时恢复
+    result["current_phase_index"] = state.current_phase_index
+    return result
+
+
+def run_prism_os_continue(user_reply: str, previous_state: dict, **kwargs) -> dict:
+    """继续执行 pipeline（用户回复决策点后调用）
+
+    Args:
+        user_reply: 用户的回复内容
+        previous_state: 之前 run_prism_os 返回的完整结果字典
+        **kwargs: 同 run_prism_os 的参数
+
+    Returns:
+        新的 run_prism_os 结果字典
+    """
+    from phases import FullPrismPipeline, PipelineConfig, PipelineState
+
+    config = PipelineConfig(
+        platform=kwargs.get("platform", previous_state.get("platform", "both")),
+        interactive=kwargs.get("interactive", True),
+        skip_gateway=kwargs.get("skip_gateway", False),
+        skip_ccos_review=not kwargs.get("ccos_review", True),
+        include_phase_4_8=kwargs.get("include_phase_4_8", True),
+        include_narrate=True,
+        user_clarification=kwargs.get("user_clarification"),
+        history_topics=kwargs.get("history_topics") or [],
+    )
+    pipeline = FullPrismPipeline(config)
+
+    # 从 previous_state 恢复 state
+    state = PipelineState(
+        thesis=previous_state.get("user_input", ""),
+        platform=config.platform,
+        interactive=config.interactive,
+    )
+    state.current_phase_index = previous_state.get("current_phase_index", 0)
+    state.intent = previous_state.get("intent")
+    state.gateway = previous_state.get("gateway")
+    state.candidates = previous_state.get("candidates", [])
+    state.selected_candidate = previous_state.get("selected_candidate")
+    state.user_selected_candidate = previous_state.get("user_selected_candidate", False)
+    state.ccos_outline = previous_state.get("ccos_outline")
+    state.ccos_review_passed = previous_state.get("ccos_review_passed", False)
+    state.gap_analysis = previous_state.get("gap_analysis")
+    state.gap_decision = previous_state.get("gap_decision")
+
+    state.user_reply = user_reply
+    state.status = "running"
+
+    # Pipeline 继续执行时需要从 current_phase_index 开始
+    new_state = pipeline.run(state.thesis, resume_state=state)
+    result = new_state.to_dict()
+
+    if new_state.status == "need_input":
+        result["status"] = "need_input"
+        result["current_phase"] = new_state.phase
+        result["_prompt"] = getattr(new_state, "_pending_prompt", "")
+        result["_input_type"] = getattr(new_state, "_pending_input_type", "")
+
+    # 始终返回 current_phase_index 以便下次继续
+    result["current_phase_index"] = new_state.current_phase_index
+    return result
 
 
 # ============ 辅助函数 ============

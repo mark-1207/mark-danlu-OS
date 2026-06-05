@@ -1,6 +1,5 @@
 """Phase 2: 棱镜引擎 + 决策点 1（标题选择）"""
 from .base import Phase, PhaseResult, PipelineState, PipelineConfig
-from prism_os import _stdin_unavailable_warning
 import sys
 
 
@@ -16,6 +15,10 @@ class PrismPhase(Phase):
 
     def execute(self, state: PipelineState, config: PipelineConfig) -> PhaseResult:
         from prism_engine import prism_engine
+
+        # 如果有用户回复，解析选择
+        if state.user_reply and state.candidates:
+            return self._handle_user_reply(state, config)
 
         prism_result = prism_engine(state.thesis)
         candidates = prism_result.get("candidates", [])
@@ -37,53 +40,77 @@ class PrismPhase(Phase):
             if hkr_avg < 0.5:
                 c["low_hkr"] = True
 
-        # 决策点 1：用户选标题
-        selected, user_selected = self._select_title(candidates, config.interactive)
+        # 决策点 1：交互式选择标题
+        if config.interactive:
+            prompt = self._format_title_prompt(candidates)
+            return PhaseResult(
+                status="need_input",
+                data={"candidates": candidates, "candidates_count": len(candidates)},
+                prompt=prompt,
+                input_type="title_select",
+            )
 
+        # 非交互模式：自动选第一个
         return PhaseResult(status="success", data={
             "candidates": candidates,
-            "selected_candidate": selected,
-            "user_selected_candidate": user_selected,
+            "selected_candidate": candidates[0],
+            "user_selected_candidate": False,
         })
 
-    def _select_title(self, candidates: list, interactive: bool) -> tuple:
-        """选择标题，返回 (selected, user_selected)"""
-        if not interactive:
-            return candidates[0], False
+    def _handle_user_reply(self, state: PipelineState, config: PipelineConfig) -> PhaseResult:
+        """处理用户对标题选择的回复"""
+        reply = state.user_reply.strip()
+        candidates = state.candidates
 
-        # 展示候选
-        print("\n【候选标题列表】", file=sys.stderr)
+        if reply.lower() == "q":
+            return PhaseResult(status="success", data={
+                "candidates": candidates,
+                "selected_candidate": candidates[0],
+                "user_selected_candidate": False,
+            })
+
+        if reply == "":
+            return PhaseResult(status="success", data={
+                "candidates": candidates,
+                "selected_candidate": candidates[0],
+                "user_selected_candidate": False,
+            })
+
+        try:
+            idx = int(reply) - 1
+            if 0 <= idx < len(candidates):
+                return PhaseResult(status="success", data={
+                    "candidates": candidates,
+                    "selected_candidate": candidates[idx],
+                    "user_selected_candidate": True,
+                })
+        except ValueError:
+            pass
+
+        # 无效输入，默认选第一个
+        return PhaseResult(status="success", data={
+            "candidates": candidates,
+            "selected_candidate": candidates[0],
+            "user_selected_candidate": False,
+        })
+
+    def _format_title_prompt(self, candidates: list) -> str:
+        """格式化标题选择提示"""
+        lines = ["\n【候选标题列表】"]
         for i, c in enumerate(candidates, 1):
             hkr = c.get("hkr", {})
             hkr_avg = hkr.get("hkr_avg", 0)
             mark = "⚠️" if c.get("low_hkr") else "✓"
-            print(f"  {i}. {mark} {c.get('title', '')} (HKR={hkr_avg:.2f})", file=sys.stderr)
-        print("请选择标题编号（输入 q 退出，默认第一个）:", file=sys.stderr)
-
-        while True:
-            try:
-                choice = input("> ").strip()
-            except (EOFError, KeyboardInterrupt):
-                _stdin_unavailable_warning("1（标题选择）")
-                return candidates[0], False
-
-            if choice.lower() == "q":
-                print("[用户退出，使用默认第一个候选]", file=sys.stderr)
-                return candidates[0], False
-
-            if choice == "":
-                return candidates[0], False
-
-            try:
-                idx = int(choice) - 1
-                if 0 <= idx < len(candidates):
-                    return candidates[idx], True
-                else:
-                    print(f"无效编号，请输入 1-{len(candidates)} 之间的数字", file=sys.stderr)
-            except ValueError:
-                print("请输入数字或 q", file=sys.stderr)
+            lines.append(f"  {i}. {mark} {c.get('title', '')} (HKR={hkr_avg:.2f})")
+        lines.append("请选择标题编号（输入 q 退出，默认第一个）:")
+        return "\n".join(lines)
 
     def display_result(self, result: PhaseResult, state: PipelineState) -> None:
-        candidates = result.data.get("candidates", [])
-        selected = result.data.get("selected_candidate", {})
-        print(f"[Phase 2] 生成 {len(candidates)} 个候选，选中: {selected.get('title', '')[:30]}", file=sys.stderr)
+        if result.status == "need_input":
+            print(result.prompt, file=sys.stderr)
+        else:
+            candidates = result.data.get("candidates", [])
+            selected = result.data.get("selected_candidate", {})
+            user_sel = result.data.get("user_selected_candidate", False)
+            mark = "（用户选）" if user_sel else "（默认）"
+            print(f"[Phase 2] {len(candidates)} 个候选，选中{mark}: {selected.get('title', '')[:30]}", file=sys.stderr)

@@ -1,6 +1,6 @@
 """Phase 4.5: CCOS 大纲生成 + 决策点 2（审核）"""
 from .base import Phase, PhaseResult, PipelineState, PipelineConfig
-from prism_os import _stdin_unavailable_warning, _format_ccos_review
+from prism_os import _format_ccos_review
 import sys
 
 
@@ -17,6 +17,10 @@ class CCOSPhase(Phase):
     def execute(self, state: PipelineState, config: PipelineConfig) -> PhaseResult:
         from cognitive_outline import cognitive_outline_workflow, generate_dual_platform_outline
 
+        # 如果有用户回复，处理审核决定
+        if state.user_reply and state.ccos_outline:
+            return self._handle_user_reply(state, config)
+
         title = state.selected_candidate.get("title", "")
         dimension = state.selected_candidate.get("dimension", "")
 
@@ -29,15 +33,14 @@ class CCOSPhase(Phase):
             return PhaseResult(status="success", data={"ccos_outline": None}, message=str(e))
 
         # 决策点 2：CCOS 审核
-        review_passed = True
         if config.interactive and not config.skip_ccos_review:
-            review_passed = self._review_ccos(ccos_result, title, state.platform)
-
-        if not review_passed:
+            display = _format_ccos_review(ccos_result, title, state.platform)
+            prompt = display + "\n请选择：\n  [c] 继续 (使用此大纲)\n  [r] 重新生成\n  [q] 退出"
             return PhaseResult(
-                status="rejected",
-                data={"ccos_outline": ccos_result, "ccos_review_passed": False},
-                message="CCOS 大纲未通过",
+                status="need_input",
+                data={"ccos_outline": ccos_result, "ccos_review_pending": True},
+                prompt=prompt,
+                input_type="ccos_review",
             )
 
         return PhaseResult(status="success", data={
@@ -45,36 +48,29 @@ class CCOSPhase(Phase):
             "ccos_review_passed": True,
         })
 
-    def _review_ccos(self, ccos_result: dict, title: str, platform: str) -> bool:
-        """CCOS 审核循环，返回 True 表示通过"""
-        display = _format_ccos_review(ccos_result, title, platform)
-        print(display, file=sys.stderr)
-        print("\n请选择：", file=sys.stderr)
-        print("  [c] 继续 (使用此大纲)", file=sys.stderr)
-        print("  [r] 重新生成", file=sys.stderr)
-        print("  [q] 退出", file=sys.stderr)
+    def _handle_user_reply(self, state: PipelineState, config: PipelineConfig) -> PhaseResult:
+        """处理用户对 CCOS 审核的回复"""
+        reply = state.user_reply.strip().lower()
 
-        while True:
-            try:
-                choice = input("> ").strip()
-            except (EOFError, KeyboardInterrupt):
-                _stdin_unavailable_warning("2（CCOS 审核）")
-                return True  # 默认继续
+        if reply == "q":
+            return PhaseResult(
+                status="rejected",
+                data={"ccos_outline": state.ccos_outline, "ccos_review_passed": False},
+                message="用户拒绝 CCOS 大纲",
+            )
 
-            if choice.lower() == "q":
-                print("[用户退出，CCOS 大纲未通过]", file=sys.stderr)
-                return False
-            if choice.lower() == "c" or choice == "":
-                print("[CCOS 大纲确认通过]", file=sys.stderr)
-                return True
-            if choice.lower() == "r":
-                print("[重新生成 CCOS...]", file=sys.stderr)
-                # 重新生成需要回到 execute，这里简化处理
-                return True
-            print("无效选择，请输入 c/r/q", file=sys.stderr)
+        # c / "" / 其他：默认通过
+        return PhaseResult(status="success", data={
+            "ccos_outline": state.ccos_outline,
+            "ccos_review_passed": True,
+        })
 
     def display_result(self, result: PhaseResult, state: PipelineState) -> None:
         if result.status == "rejected":
             print(f"[Phase 4.5] CCOS 未通过: {result.message}", file=sys.stderr)
+        elif result.status == "need_input":
+            print(result.prompt, file=sys.stderr)
         else:
-            print("[Phase 4.5] CCOS 大纲生成完成", file=sys.stderr)
+            outline = result.data.get("ccos_outline", {})
+            立场 = outline.get("内容立场", "") or outline.get("主结构", "")
+            print(f"[Phase 4.5] CCOS 大纲生成完成: {立场[:30]}", file=sys.stderr)

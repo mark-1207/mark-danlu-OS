@@ -8,9 +8,12 @@ import sys
 @dataclass
 class PhaseResult:
     """Phase 执行结果"""
-    status: str = "success"  # success / rejected / failed / skipped
+    status: str = "success"  # success / rejected / failed / skipped / need_input
     data: Dict[str, Any] = field(default_factory=dict)
     message: str = ""
+    # need_input 时的相关信息
+    prompt: str = ""  # 展示给用户的提示
+    input_type: str = ""  # clarification / title_select / ccos_review / gap_decision
 
     def to_dict(self) -> dict:
         d = {"status": self.status}
@@ -46,6 +49,12 @@ class PipelineState:
     # 阶段标记
     phase: str = "init"
     status: str = "running"
+    # 用户回复（用于跨步骤传递）
+    user_reply: str = ""
+    current_phase_index: int = 0
+    # 待用户输入的 prompt（need_input 时填充）
+    _pending_prompt: str = ""
+    _pending_input_type: str = ""
 
     def update_from_result(self, phase_name: str, result: 'PhaseResult') -> None:
         """根据 Phase 结果更新状态"""
@@ -167,20 +176,34 @@ class PrismPipeline:
         """返回有序 Phase 列表（子类可覆盖）"""
         return []
 
-    def run(self, thesis: str) -> PipelineState:
-        """执行完整流水线"""
+    def run(self, thesis: str, resume_state: PipelineState = None) -> PipelineState:
+        """执行完整流水线，支持 need_input 暂停和 resume"""
+        if resume_state is not None:
+            self.state = resume_state
         self.state.thesis = thesis
+        phases = self.phases()
 
-        for phase in self.phases():
+        for i in range(self.state.current_phase_index, len(phases)):
+            phase = phases[i]
             if not phase.should_run(self.state, self.config):
                 continue
 
             self.state.phase = phase.name
+            self.state.current_phase_index = i
             result = phase.execute(self.state, self.config)
 
             # 更新状态
             self.state.update_from_result(phase.name, result)
             phase.display_result(result, self.state)
+
+            # need_input：暂停，把 prompt 展示到 stderr，返回状态
+            if result.status == "need_input":
+                self.state.status = "need_input"
+                # 把 prompt 也写入 state 方便外部读取
+                self.state._pending_prompt = result.prompt
+                self.state._pending_input_type = result.input_type
+                # 确保 display_result 也被调用展示 prompt
+                return self.state
 
             # 检查是否被拒绝
             if result.status == "rejected":
