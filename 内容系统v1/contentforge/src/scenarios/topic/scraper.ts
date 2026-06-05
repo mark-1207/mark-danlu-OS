@@ -69,18 +69,7 @@ export async function scrapeArticle(url: string): Promise<ScrapeResult> {
         await rm(dirname(mdPath), { recursive: true, force: true });
       } catch { /* ignore */ }
     } catch (autocliError) {
-      // 降级到 wechat-article-extractor skill
-      console.log(chalk.yellow(`autocli 失败，降级到 wechat-article-extractor: ${autocliError}`));
-      const { extract } = await import(
-        'C:\\Users\\admin\\.claude\\skills\\wechat-article-extractor\\scripts\\extract.js'
-      );
-      const result = await extract(url, { shouldReturnContent: true });
-      if (!result.done) {
-        throw new Error(`wechat-article-extractor 也失败: code=${result.code} msg=${result.msg}`);
-      }
-      title = result.data.msg_title;
-      // 提取纯文本（去掉HTML标签）
-      content = result.data.msg_content.replace(/<[^>]+>/g, '').trim();
+      throw new Error(`微信文章抓取失败: ${autocliError}`);
     }
   } else {
     try {
