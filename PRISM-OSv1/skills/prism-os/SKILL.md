@@ -65,15 +65,18 @@ flowchart TD
     P2 --> P3[Phase 3 现实校验]
     P3 --> P35[Phase 3.5 数字分身]
     P35 --> D1{🚦 决策点 1 选标题}
-    D1 -->|⏸️ stdin 不可用| D1s[⚠️ GAP-3 静默选 1]
+    D1 -->|⚠️ stdin 不可用| D1s[WARNING + 默认选 1]
+    D1 -->|⚠️ --interactive-only| D1x[sys.exit(2)]
     D1 --> P45[Phase 4.5 CCOS v2.0]
     P45 --> D2{🚦 决策点 2 CCOS 审核}
-    D2 -->|⏸️ stdin 不可用| D2s[⚠️ GAP-4 静默继续]
-    D2 --> P46[Phase 4.6 Gap]
+    D2 -->|⚠️ stdin 不可用| D2s[WARNING + 默认继续]
+    D2 --> P46[Phase 4.6 Gap 分析]
     P46 --> D3{🚦 决策点 3 Gap 决策}
-    D3 --> P5[Phase 5 逻辑+认知旅程]
+    D3 -->|退出| D3x[gap_rejected]
+    D3 -->|继续| P5[Phase 5 逻辑+认知旅程]
     P5 --> P6[📦 Phase 6 写 topic_log]
     P6 --> P7[Phase 7 刺客机制]
+    P7 --> Narrate[📝 narrate 内容生成]
 ```
 
 **Phase 0–7 详解** 见 `references/phase-X.md`（每个 Phase 一份）。
@@ -134,10 +137,9 @@ flowchart TD
 
 ### 🚦 决策点 3（Phase 4.6）：Gap 素材缺口处理
 
-- **位置**：⚠️ GAP-5 — **不在 `run` 主干**，只在 `gap` 子命令 L1613-1717
+- **位置**：`run` 主干 Phase 4.5 后 + `gap` 子命令
 - **行为**：`[1]补充素材 / [2]调整大纲 / [3]直接生成 / [q]退出`
-- **当前状态**：`run` 跑完会跳过此决策点直接进 Phase 5
-- **绕过方法**：手动跑 `python scripts/prism_os.py gap "<thesis>"` 触发决策点 3
+- **当前状态**：✅ GAP-5 已修 — `run` 主干自动跑 Gap 分析 + 决策点 3
 - **UI prompt 原文**：
   ```
   ━━━ 素材就绪度分析 ━━━
@@ -155,15 +157,15 @@ flowchart TD
 
 ## § 5 个已知代码缺口
 
-> 用户确认：本次任务**只标不修**，留待后续 PR。
+> ✅ 全部已修复（2026-06-05，P1 TDD 修复）
 
-| ID    | 位置 | 症状 | 影响 | 建议修复 | 计划版本 |
-|-------|------|------|------|----------|----------|
-| GAP-1 | `scripts/prism_os.py` L966-997 | `run` 不解析 `--platform` | 平台参数被吞，输出格式不符预期 | argv 循环加 elif 分支 | v1.4.0 |
-| GAP-2 | `scripts/prism_os.py` L1130-1144 | `run` 跑完不接力 `narrate` | 内容生成需手动再跑一次 | 末尾追加 narrate 调用 | v1.4.0 |
-| GAP-3 | `scripts/prism_os.py` L451 | 决策点 1 stdin 不可用静默选 1 | 自动化场景下用户无感被决策 | 加 explicit warning | v1.3.2 |
-| GAP-4 | `scripts/prism_os.py` L501 | 决策点 2 stdin 不可用静默继续 | 同上 | 同上 | v1.3.2 |
-| GAP-5 | `scripts/prism_os.py` L1146+ | 决策点 3 只在 `gap` 子命令 | `run` 主干不处理 Gap 缺口 | run 末尾加 phase_4_6 | v1.4.0 |
+| ID    | 位置 | 症状 | 修复 | Commit |
+|-------|------|------|------|--------|
+| GAP-1 | `scripts/prism_os.py` L966-997 | `run` 不解析 `--platform` | ✅ argv 循环加 elif 分支 | `bc0c9bc` |
+| GAP-2 | `scripts/prism_os.py` L1130-1144 | `run` 跑完不接力 `narrate` | ✅ 末尾追加 _run_narrate 调用 | `27e715a` |
+| GAP-3 | `scripts/prism_os.py` L451 | 决策点 1 stdin 不可用静默选 1 | ✅ _stdin_unavailable_warning helper | `03ef0b0` |
+| GAP-4 | `scripts/prism_os.py` L501 | 决策点 2 stdin 不可用静默继续 | ✅ 同 GAP-3 共享 helper | `03ef0b0` |
+| GAP-5 | `scripts/prism_os.py` L1146+ | 决策点 3 只在 `gap` 子命令 | ✅ run 主干集成 Phase 4.6 | `0c02bc4` |
 
 AI 红线 if-then 简表见 [CLAUDE.md](./CLAUDE.md)。
 
