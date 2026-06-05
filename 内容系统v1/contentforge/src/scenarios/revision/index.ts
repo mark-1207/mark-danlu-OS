@@ -18,6 +18,7 @@ import { selectRevisionElements } from './steps/element-selector.js';
 import { executeRevisionRewrite } from './steps/rewrite-executor.js';
 import { generateLearningMetadata } from './steps/learning-metadata.js';
 import { directEditParagraphs } from './steps/direct-edit.js';
+import { loadCreativePreferencesFromFeishu } from '../learning/creative-preferences.js';
 import { getObsidianWriter } from '../../io/obsidian/writer.js';
 import type { RevisionSelection, AppliedRevision, RevisionManifest } from './types.js';
 
@@ -76,7 +77,10 @@ export class RevisionPipeline {
     // Store parentRunId for traceability
     context.set('parentRunId', this.options.parentRunId);
 
-    // 3. Get current content from parent run (各平台内容)
+    // 3. Preload creative preferences from Feishu (warms cache for revision-suggestions)
+    await loadCreativePreferencesFromFeishu();
+
+    // 4. Get current content from parent run (各平台内容)
     let contents = this.extractContents(parentContext);
 
     // 4. Main revision loop: R0 → R1 → confirm → loop or exit
