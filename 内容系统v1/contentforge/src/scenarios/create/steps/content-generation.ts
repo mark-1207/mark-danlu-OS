@@ -57,7 +57,7 @@ async function loadObsidianMaterials(context: PipelineContext): Promise<string> 
     let materials;
     if (embCfg?.enabled) {
       // Build query text from topic analysis for embedding-based search
-      const queryText = [topicAnalysis.keyword, ...topicAnalysis.subTopics.map((s: any) => s.name)].join(' ');
+      const queryText = [topicAnalysis!.keyword, ...topicAnalysis!.subTopics.map((s: any) => s.name)].join(' ');
       materials = await reader.semanticSearch(
         keywords,
         queryText,

@@ -30,7 +30,7 @@ export function renderPrompt(
       return array.map(item => {
         let block = blockContent;
         // Replace {{this.property}} first (e.g., {{this.name}})
-        block = block.replace(/\{\{this\.(\w+)\}\}/g, (_, propName) => {
+        block = block.replace(/\{\{this\.(\w+)\}\}/g, (_: string, propName: string) => {
           if (item && typeof item === 'object' && propName in item) {
             return String((item as Record<string, unknown>)[propName]);
           }
@@ -39,7 +39,7 @@ export function renderPrompt(
         // Replace {{this}} with the current item
         block = block.replace(/\{\{this\}\}/g, String(item));
         // Replace {{property}} with item.property (for current item context)
-        block = block.replace(/\{\{(\w+)\}\}/g, (_, propName) => {
+        block = block.replace(/\{\{(\w+)\}\}/g, (_: string, propName: string) => {
           if (item && typeof item === 'object' && propName in item) {
             return String((item as Record<string, unknown>)[propName]);
           }

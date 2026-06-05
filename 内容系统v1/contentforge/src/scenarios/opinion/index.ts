@@ -39,7 +39,7 @@ export async function runOpinion(
 
   const runId = `opinion_${Date.now()}`;
   const config = await loadConfig();
-  const llmFactory = new LLMProviderFactory({});
+  const llmFactory = new LLMProviderFactory();
   for (const [name, providerConfig] of Object.entries(config.providers)) {
     llmFactory.register(name, providerConfig);
   }

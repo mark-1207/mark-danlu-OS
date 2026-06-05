@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 // ─── Step 1: Viral Deconstruction ──────────────────────────────────
 
-export const ViralGenomeSchema: z.ZodType<ViralGenome> = z.object({
+export const ViralGenomeSchema: z.ZodType<any> = z.object({
   topicStrategy: z.object({
     painPoint: z.string(),
     emotionalTrigger: z.string(),

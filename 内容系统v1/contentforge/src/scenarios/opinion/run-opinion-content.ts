@@ -19,7 +19,7 @@ export async function resumeOpinionContent(runId: string): Promise<void> {
   const context = await PipelineContext.restore(runId, baseDir);
 
   const config = await loadConfig();
-  const llmFactory = new LLMProviderFactory({});
+  const llmFactory = new LLMProviderFactory();
   for (const [name, providerConfig] of Object.entries(config.providers)) {
     llmFactory.register(name, providerConfig);
   }

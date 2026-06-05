@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import path from 'path';
-import { PipelineStep, type StepResult } from '../../../core/step.js';
-import { PipelineContext } from '../../../core/context.js';
+import { PipelineStep } from '../../../core/step.js';
+import { PipelineContext, type StepResult } from '../../../core/context.js';
 import type { LLMProvider } from '../../../llm/types.js';
 import { promptLoader } from '../../../prompts/loader.js';
 import { getCachedConfig } from '../../../config/loader.js';
@@ -91,7 +91,7 @@ export class RecreationContentStep extends PipelineStep<z.infer<typeof InputSche
 
     // Should not reach here if retries handle all cases; fallback
     const durationMs = Date.now() - startTime;
-    return { success: false, error: 'Step failed after retries', durationMs };
+    return { success: false, error: 'Step failed after retries', durationMs, tokenUsage: { input: 0, output: 0 } };
   }
 
   protected async doExecute(input: z.infer<typeof InputSchema>, context: PipelineContext): Promise<string> {

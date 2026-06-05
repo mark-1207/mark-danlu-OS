@@ -49,7 +49,7 @@ describe('outline-review', () => {
       // Result should have the structure with partial fields set
       // If only title changed, confirmedTitle should differ from original title
       // Seed material should be empty by default unless user typed one
-      expect(result.wechat.seedMaterial).toBe('');
+      expect(result.wechat?.seedMaterial).toBe('');
     });
 
     // ─── Test 3: Single platform — only returns that platform ─────────
@@ -123,14 +123,14 @@ describe('outline-review', () => {
       ctx.set('outline-wechat', makeMockWechatOutline()); // original
       ctx.set('confirmed-outline-wechat', confirmedOutline); // user-confirmed
 
-      const step = new ContentWechatStep({ llmFactory: null as any, promptLoader: null as any, config: makeFakeConfig() });
+      const step = new (ContentWechatStep as any)({ llmFactory: null, promptLoader: null, config: makeFakeConfig() });
 
       // The step should read confirmed-outline-wechat when available
       // We verify this by checking the context state used by the step's doExecute
-      const outlineUsed = ctx.get('confirmed-outline-wechat') ?? ctx.get('outline-wechat');
+      const outlineUsed = ctx.get('confirmed-outline-wechat') ?? ctx.get('outline-wechat') as { sections: Array<{ title: string }> };
       expect(outlineUsed).toHaveProperty('sections');
       // Confirmed outline sections should reflect user changes
-      expect(outlineUsed.sections[0].title).toBe('USER-CONFIRMED-SECTION');
+      expect((outlineUsed as { sections: Array<{ title: string }> }).sections[0].title).toBe('USER-CONFIRMED-SECTION');
     });
   });
 

@@ -286,15 +286,15 @@ export class RevisionPipeline {
         const result = await reviewStep.execute({}, context);
 
         if (result.success && result.data) {
-          const { recommendedTitle, revisedContent, qualityScores } = result.data;
+          const { recommendedTitle, revisedContent, qualityScore: qualityScores } = result.data;
           console.log(chalk.bold(`\n╔══ ${platform} 审查结果 ════════════════════════════╗`));
           if (recommendedTitle) {
             console.log(`  推荐标题: ${chalk.green(recommendedTitle)}`);
           }
           if (qualityScores) {
-            console.log(`  温度: ${qualityScores.temperature}/10  热度: ${qualityScores.hotness}/10`);
-            console.log(`  深度: ${qualityScores.depth}/10   厚度: ${qualityScores.thickness}/10`);
-            console.log(`  情绪曲线: ${qualityScores.emotionCurve}/10  知识迁移: ${qualityScores.knowledgeTransfer}/10`);
+            console.log(`  温度: ${qualityScores.warmth}/10  热度: ${qualityScores.vitality}/10`);
+            console.log(`  深度: ${qualityScores.depth}/10   厚度: ${qualityScores.richness}/10`);
+            console.log(`  情绪曲线: ${qualityScores.emotionalArc}/10  知识迁移: ${qualityScores.knowledgeTransfer}/10`);
           }
           console.log(chalk.bold('╚════════════════════════════════════════╝'));
 

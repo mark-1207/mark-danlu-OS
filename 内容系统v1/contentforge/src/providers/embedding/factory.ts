@@ -40,7 +40,7 @@ export class EmbeddingFactory {
     return p;
   }
 
-  getFallback(): EmbeddingRouter {
+  getFallback(): EmbeddingProvider {
     const zhipu = this.providers.get('zhipu');
     const openai = this.providers.get('openai');
     const tavily = this.providers.get('tavily');

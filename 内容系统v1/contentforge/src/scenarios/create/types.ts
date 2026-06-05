@@ -143,6 +143,7 @@ export const XiaohongshuOutlineSchema = z.object({
     title: z.string(),
     content: z.string(),
     actionable: z.string(),
+    caseSlot: z.string().optional(),
   })),
   closingHook: z.string(),
   hashtags: z.array(z.string()),

@@ -530,7 +530,7 @@ export function registerRecreateCommand(program: Command): void {
     .action(async (opts) => {
       try {
         const direction = opts.direction === 'interactive' ? 'interactive' : 'auto';
-        const platforms = (opts.platforms ?? []).filter(p =>
+        const platforms = (opts.platforms ?? []).filter((p: string) =>
           ['wechat', 'xiaohongshu', 'douyin'].includes(p),
         );
         await runRecreate(opts.input, direction, platforms, opts.fromLibrary);

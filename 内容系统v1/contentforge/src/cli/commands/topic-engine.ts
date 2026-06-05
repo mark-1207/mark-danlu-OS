@@ -78,7 +78,7 @@ export async function runTopicEngineList(status?: string): Promise<void> {
       console.log(chalk.green(`\n  已选: ${selected.title}\n`));
       // Offer action
       const readline = await import('readline');
-      const rl = readline.default.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
+      const rl = readline.default.createInterface({ input: process.stdin, escapeCodeTimeout: 50000 });
       rl.question(chalk.cyan('  立即生成文章？(y/n): '), async (answer) => {
         rl.close();
         if (answer.toLowerCase() === 'y') {

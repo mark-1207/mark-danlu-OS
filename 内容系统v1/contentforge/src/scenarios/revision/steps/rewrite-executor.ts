@@ -53,7 +53,7 @@ export async function executeRevisionRewrite(
   const callLLM = async (messages: Array<{ role: string; content: string }>) => {
     const response = await provider.chat({
       model: defaultModel,
-      messages,
+      messages: messages as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
       temperature: 0.7,
       maxTokens: 4096,
     });

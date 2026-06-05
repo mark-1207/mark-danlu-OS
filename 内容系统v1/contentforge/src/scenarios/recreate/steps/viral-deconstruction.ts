@@ -16,7 +16,7 @@ const InputSchema = z.object({
  */
 function validateGenomeSanity(genome: ViralGenome): void {
   // forbiddenExpressions should be distinct (no duplicates)
-  const texts = genome.forbiddenExpressions.map((f) => f.text.trim());
+  const texts = genome.forbiddenExpressions.map((f: { text: string }) => f.text.trim());
   const uniqueTexts = new Set(texts);
   if (uniqueTexts.size < texts.length) {
     throw new Error(
@@ -26,7 +26,7 @@ function validateGenomeSanity(genome: ViralGenome): void {
   }
 
   // narrativeStructure argumentativePaths should not all be identical
-  const paths = genome.narrativeStructure.map((s) => s.argumentativePath.trim());
+  const paths = genome.narrativeStructure.map((s: { argumentativePath: string }) => s.argumentativePath.trim());
   const uniquePaths = new Set(paths);
   if (uniquePaths.size === 1 && paths.length > 1) {
     throw new Error(

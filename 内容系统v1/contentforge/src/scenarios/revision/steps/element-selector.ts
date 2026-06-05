@@ -60,7 +60,7 @@ export async function selectRevisionElements(): Promise<ElementSelectorResult> {
   // Union type for all selectable keys
   type ELEMENT_KEY = RevisionElement | 'direct-edit' | 'custom-instruction';
 
-  const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
+  const rl = readline.createInterface({ input: process.stdin, escapeCodeTimeout: 50000 });
   readline.emitKeypressEvents(process.stdin);
   process.stdin.setRawMode?.(true);
 

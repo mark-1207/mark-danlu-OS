@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import type { Dirent } from 'fs';
 import { logger } from '../../utils/logger.js';
 import type { ArticleRecord, ArticleIndex, PlatformFilter } from './types.js';
 
@@ -150,7 +151,7 @@ export async function rebuildIndex(): Promise<ArticleIndex> {
 
   const allRecords: ArticleRecord[] = [];
 
-  let entries: import('fs/promises').Dirent[];
+  let entries: Dirent[];
   try {
     entries = await fs.readdir(outputDir, { withFileTypes: true });
   } catch (err) {

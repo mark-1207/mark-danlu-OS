@@ -40,10 +40,10 @@ export async function analyzePlatformAllocation(): Promise<void> {
 
   console.log(chalk.gray('  平均评分:'));
   for (const [p, sum] of Object.entries(avgScore)) {
-    const label = labels[p] ?? p;
-    if (countScore[p] > 0) {
-      const avg = (sum / countScore[p]).toFixed(1);
-      console.log(`    ${label}: ${chalk.cyan(avg.padStart(5))} (${countScore[p]}篇评分)`);
+    const label = labels[p as keyof typeof labels] ?? p;
+    if ((countScore as Record<string, number>)[p] > 0) {
+      const avg = (sum / (countScore as Record<string, number>)[p]).toFixed(1);
+      console.log(`    ${label}: ${chalk.cyan(avg.padStart(5))} (${(countScore as Record<string, number>)[p]}篇评分)`);
     } else {
       console.log(`    ${label}: ${chalk.gray('无评分数据')}`);
     }

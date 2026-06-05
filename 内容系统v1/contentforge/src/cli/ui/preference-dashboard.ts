@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import readline from 'readline';
 import { isTerminalInteractive } from './interactive.js';
 import type { CreativePreferences, PlatformPreferences } from '../../scenarios/learning/types.js';
-import type { PlatformOverrides, OverrideDimension } from '../../scenarios/learning/preference-override.js';
+import type { PlatformOverride, PlatformOverrides, OverrideDimension } from '../../scenarios/learning/preference-override.js';
 import { buildPreferencePrompt } from '../../scenarios/learning/creative-preferences.js';
 
 function consoleClear(): void {
@@ -164,7 +164,7 @@ export async function showPreferenceDashboard(
   let activePlatform = 0;
   let cursorDim = 0;
 
-  const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
+  const rl = readline.createInterface({ input: process.stdin, escapeCodeTimeout: 50000 });
   readline.emitKeypressEvents(process.stdin);
   process.stdin.setRawMode?.(true);
 
@@ -260,7 +260,7 @@ export async function showPreferenceDashboard(
         process.stdin.pause();
 
         // Need a new readline for question (the old one is in raw mode)
-        const overrideRl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
+        const overrideRl = readline.createInterface({ input: process.stdin, escapeCodeTimeout: 50000 });
         overrideRl.question(
           chalk.cyan(`\n  ${PLATFORM_LABELS[platform]} → ${DIMENSION_LABELS[dim]}\n  当前: ${currentPref}\n  覆盖值 (回车清除, 空取消): `),
           (answer) => {

@@ -17,6 +17,11 @@ export interface RefinedOpinion {
   boundaries: string;              // 论点适用边界
   whyNow: string;                 // 为什么现在说这件事
   hkrScore: HKRScore;             // HKR质检分数
+  hkrFeedback?: {                  // HKR 反馈（可选）
+    h?: string;
+    k?: string;
+    r?: string;
+  };
   recommendedTitles: string[];     // 推荐标题列表
 }
 

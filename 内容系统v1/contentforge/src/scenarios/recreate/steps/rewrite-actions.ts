@@ -119,7 +119,7 @@ export async function rewriteCta(
   deps: RewriteActionsDeps,
 ): Promise<{ newCta: string; originalCta: string }> {
   const closingDesign = viralGenome?.narrativeStructure?.find(
-    s => s.purpose.includes('结尾') || s.purpose.includes('收束'),
+    (s: { purpose: string }) => s.purpose.includes('结尾') || s.purpose.includes('收束'),
   );
 
   const { content } = await deps.callLLM([
@@ -155,10 +155,10 @@ export async function supplementPowerSentences(
 
   // Find top emotion curve positions
   const highEmotionPositions = emotionCurve
-    .filter(e => e.intensity >= 7)
-    .sort((a, b) => b.intensity - a.intensity)
+    .filter((e: { intensity: number }) => e.intensity >= 7)
+    .sort((a: { intensity: number }, b: { intensity: number }) => b.intensity - a.intensity)
     .slice(0, 3)
-    .map(e => Math.floor((e.position / 10) * article.split('\n\n').length)); // rough mapping
+    .map((e: { position: number }) => Math.floor((e.position / 10) * article.split('\n\n').length)); // rough mapping
 
   const insertPositions = highEmotionPositions.length > 0
     ? highEmotionPositions

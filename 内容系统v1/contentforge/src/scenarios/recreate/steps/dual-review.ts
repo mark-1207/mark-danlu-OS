@@ -36,7 +36,7 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
   };
 
   inputSchema = InputSchema;
-  outputSchema = DualReviewResultSchema;
+  outputSchema = DualReviewResultSchema as z.ZodType<DualReviewResult>;
 
   constructor(provider: LLMProvider, defaultModel: string) {
     super(provider, defaultModel);
@@ -70,7 +70,13 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
             finalArticle: article,
             needsRewrite: false,
             needsLocalRewrite: true,
-            optimizationTriggers: triggers,
+            optimizationTriggers: triggers as Array<{
+              action: 'rewrite-title' | 'rewrite-hook' | 'rewrite-section' | 'rewrite-cta' | 'supplement-power-sentences' | 'replace-example';
+              element: 'hook' | 'title' | 'cta' | 'example' | 'section' | 'power-sentences';
+              score: number;
+              suggestion: string;
+              position?: string;
+            }>,
           };
         }
 
@@ -264,7 +270,13 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
       }
     }
 
-    return triggers;
+    return triggers as Array<{
+      action: 'rewrite-title' | 'rewrite-hook' | 'rewrite-section' | 'rewrite-cta' | 'supplement-power-sentences' | 'replace-example';
+      element: 'hook' | 'title' | 'cta' | 'example' | 'section' | 'power-sentences';
+      score: number;
+      suggestion: string;
+      position?: string;
+    }>;
   }
 
   private async reviewOnce(original: string, recreation: string, viralGenome?: ViralGenome): Promise<DualReviewResult> {
@@ -272,7 +284,7 @@ export class DualReviewStep extends PipelineStep<z.infer<typeof InputSchema>, Du
 
     // Build argumentative paths reference for structural similarity check
     const argumentativePaths = viralGenome?.narrativeStructure
-      .map((s, i) => `第${i + 1}段: ${s.argumentativePath}`)
+      .map((s: { argumentativePath: string }, i: number) => `第${i + 1}段: ${s.argumentativePath}`)
       .join('\n') ?? '';
 
     const systemPrompt = template.system.replace('{{argumentativePaths}}', argumentativePaths || '（无原文论证路径数据）');

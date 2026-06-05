@@ -79,7 +79,7 @@ export async function reviewTopicAnalysis(
   );
   const extraDirections: string[] = [];
 
-const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
+const rl = readline.createInterface({ input: process.stdin, escapeCodeTimeout: 50000 });
   readline.emitKeypressEvents(process.stdin);
   process.stdin.setRawMode?.(true);
 
@@ -238,7 +238,7 @@ const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout
           if (direction) {
             extraDirections.push(direction);
           }
-          const newRl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
+          const newRl = readline.createInterface({ input: process.stdin, escapeCodeTimeout: 50000 });
           readline.emitKeypressEvents(process.stdin);
           process.stdin.setRawMode?.(true);
           process.stdin.resume();
@@ -348,7 +348,7 @@ export async function reviewTopicAssignment(
     douyin: assignment.douyin.angle,
   };
 
-  const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
+  const rl = readline.createInterface({ input: process.stdin, escapeCodeTimeout: 50000 });
   readline.emitKeypressEvents(process.stdin);
   process.stdin.setRawMode?.(true);
 
@@ -459,7 +459,7 @@ export async function reviewTopicAssignment(
             originalAngles[activePlatform] = newAngle;
           }
           // Reinitialize readline after cleanup
-          const newRl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
+          const newRl = readline.createInterface({ input: process.stdin, escapeCodeTimeout: 50000 });
           readline.emitKeypressEvents(process.stdin);
           process.stdin.setRawMode?.(true);
           process.stdin.resume();

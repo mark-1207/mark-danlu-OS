@@ -273,7 +273,8 @@ export async function runLearn(options: {
       if (editedFrags.length > 0) {
         console.log(chalk.bold(`来自我的改写 (edited) — ${editedFrags.length} 个`));
         for (const f of editedFrags) {
-          const shortText = f.text.slice(0, 40).replace(/\n/g, ' ');
+          const rawText = 'text' in f ? f.text : ('content' in f ? f.content : '');
+          const shortText = rawText.slice(0, 40).replace(/\n/g, ' ');
           const id = f.id;
           const type = 'sourceFile' in f ? '句式' : '段落';
           const fragType = f.type;
@@ -286,7 +287,8 @@ export async function runLearn(options: {
       if (externalFrags.length > 0) {
         console.log(chalk.bold(`\n来自外部参考 (external) — ${externalFrags.length} 个`));
         for (const f of externalFrags) {
-          const shortText = f.text.slice(0, 40).replace(/\n/g, ' ');
+          const rawText = 'text' in f ? f.text : ('content' in f ? f.content : '');
+          const shortText = rawText.slice(0, 40).replace(/\n/g, ' ');
           const id = f.id;
           const fragType = f.type;
           const src = f.sourceFile ?? '';

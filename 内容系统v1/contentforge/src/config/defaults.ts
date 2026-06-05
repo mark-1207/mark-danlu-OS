@@ -51,6 +51,9 @@ export const DEFAULT_CONFIG: Config = {
   },
   search: {
     enabled: false,
+    obsidianEnabled: false,
+    obsidianTopK: 3,
+    obsidianThreshold: 0.80,
   },
   embedding: {
     primary: 'tavily',

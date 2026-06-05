@@ -208,7 +208,7 @@ export async function generateCompetitorStyleReport(): Promise<void> {
 
   const [compRecords, feedbackRecords] = await Promise.all([
     fetchCompetitiveRecords(),
-    readFeedbackRecords().catch(() => [] as ReturnType<typeof readFeedbackRecords>),
+    readFeedbackRecords().catch(() => [] as unknown as Awaited<ReturnType<typeof readFeedbackRecords>>),
   ]);
 
   const compStats = await computeCompetitorStats(compRecords);

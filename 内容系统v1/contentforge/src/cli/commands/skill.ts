@@ -198,7 +198,7 @@ export async function runSkill(
     await runOpinion(intent.opinion ?? input, {
       platforms: intent.platforms,
       interactive: options.auto === true ? false : undefined,
-      phase: options.phase ?? 'full',
+      phase: (options.phase ?? 'full') as 'content' | 'review' | 'full' | 'refine' | 'review-only',
       runId: options.runId,
     });
   } else {

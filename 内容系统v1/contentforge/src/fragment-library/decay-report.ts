@@ -78,6 +78,7 @@ function computeSuggestions(
     const dormantRatio = (t.dormant + t.expired) / t.total;
     if (dormantRatio > 0.5) {
       const kind = t.isSentence ? '句式' : '段落';
+      const name = t.label;
       suggestions.push({
         priority: 'medium',
         text: `[中] ${kind}碎片 ${name} 超过50%已衰减（${t.dormant} dormant + ${t.expired} expired），建议补充新鲜素材`,

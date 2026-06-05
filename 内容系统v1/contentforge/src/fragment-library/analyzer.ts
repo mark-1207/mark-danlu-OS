@@ -96,7 +96,7 @@ async function findExternalArticles(corpusDir: string): Promise<Array<{ path: st
 
 async function extractFromEditedPair(
   pair: EditedPair,
-  provider: ReturnType<typeof llmFactory.build>,
+  provider: ReturnType<typeof llmFactory.get>,
   model: string,
 ): Promise<FragmentExtractionResult> {
   const prompt = `你是一位内容风格分析专家。从用户的编辑对比中提取写作风格特征。
@@ -176,7 +176,7 @@ ${pair.edited}
 
 async function extractFromExternalArticle(
   article: { path: string; content: string },
-  provider: ReturnType<typeof llmFactory.build>,
+  provider: ReturnType<typeof llmFactory.get>,
   model: string,
 ): Promise<FragmentExtractionResult> {
   const prompt = `你是一位内容质量分析专家。从以下文章中提取可复用的写作结构。

@@ -25,7 +25,7 @@ function decodeBuffer(raw: Buffer): { encoding: string; text: string } {
     return { encoding: 'utf-8', text: raw.toString('utf-8') };
   } catch {}
   try {
-    return { encoding: 'gb18030', text: raw.toString('gb18030') };
+    return { encoding: 'gb18030', text: raw.toString('gb18030' as BufferEncoding) };
   } catch {}
   return { encoding: 'binary', text: raw.toString('utf-8') };
 }

@@ -53,7 +53,7 @@ export class OpinionRefineStep extends PipelineStep<z.infer<typeof InputSchema>,
   };
 
   inputSchema = InputSchema;
-  outputSchema = OutputSchema;
+  outputSchema = OutputSchema as unknown as z.ZodType<RefinedOpinion>;
 
   constructor(provider: LLMProvider, defaultModel: string) {
     super(provider, defaultModel);
@@ -107,8 +107,8 @@ export async function refineOpinion(
   try {
     const step = new OpinionRefineStep(provider, defaultModel);
     const context = new PipelineContext('opinion', process.cwd(), `opinion_${Date.now()}`);
-    const data = await step.execute({ opinion }, context);
-    return { success: true, data };
+    const result = await step.execute({ opinion }, context);
+    return { success: true, data: result.data };
   } catch (err) {
     return {
       success: false,

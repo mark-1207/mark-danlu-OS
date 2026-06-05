@@ -43,8 +43,13 @@ export class LocalRewriteStep extends PipelineStep<z.infer<typeof InputSchema>, 
 
   protected async doExecute(_input: z.infer<typeof InputSchema>, context: PipelineContext) {
     const triggers = context.get<Array<{ element: string; score: number; position?: string; suggestion: string; action: string }>>('optimization-triggers');
-    let article = context.get<string>('recreation-content');
+    const articleRaw = context.get<string>('recreation-content');
     const viralGenome = context.get<ViralGenome>('viral-deconstruction');
+
+    if (!articleRaw) {
+      return { rewrittenArticle: '', appliedTriggers: [] };
+    }
+    let article = articleRaw;
 
     if (!triggers || triggers.length === 0) {
       return { rewrittenArticle: article, appliedTriggers: [] };
@@ -122,11 +127,11 @@ export class LocalRewriteStep extends PipelineStep<z.infer<typeof InputSchema>, 
   }
 
   private async rewriteTitle(article: string, viralGenome: ViralGenome): Promise<{ newTitle: string }> {
-    return rewriteTitle(article, viralGenome, { callLLM: (msgs) => this.callLLM(msgs) });
+    return rewriteTitle(article, viralGenome, { callLLM: (msgs) => this.callLLM(msgs as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) });
   }
 
   private async rewriteHook(viralGenome: ViralGenome): Promise<{ newHook: string }> {
-    return rewriteHook(viralGenome, { callLLM: (msgs) => this.callLLM(msgs) });
+    return rewriteHook(viralGenome, { callLLM: (msgs) => this.callLLM(msgs as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) });
   }
 
   private async rewriteSection(
@@ -134,24 +139,24 @@ export class LocalRewriteStep extends PipelineStep<z.infer<typeof InputSchema>, 
     trigger: { element: string; score: number; position?: string; suggestion: string },
     viralGenome: ViralGenome,
   ): Promise<{ rewritten: string; originalText: string | null }> {
-    return rewriteSection(article, trigger, viralGenome, { callLLM: (msgs) => this.callLLM(msgs) });
+    return rewriteSection(article, trigger, viralGenome, { callLLM: (msgs) => this.callLLM(msgs as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) });
   }
 
   private async rewriteCta(viralGenome: ViralGenome): Promise<{ newCta: string; originalCta: string }> {
-    return rewriteCta(viralGenome, { callLLM: (msgs) => this.callLLM(msgs) });
+    return rewriteCta(viralGenome, { callLLM: (msgs) => this.callLLM(msgs as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) });
   }
 
   private async supplementPowerSentences(
     article: string,
     viralGenome: ViralGenome,
   ): Promise<{ insertions: Array<{ sentence: string; position: number }> }> {
-    return supplementPowerSentences(article, viralGenome, { callLLM: (msgs) => this.callLLM(msgs) });
+    return supplementPowerSentences(article, viralGenome, { callLLM: (msgs) => this.callLLM(msgs as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) });
   }
 
   private async replaceExample(
     article: string,
     suggestion: string,
   ): Promise<{ rewritten: string; originalText: string | null }> {
-    return replaceExample(article, suggestion, { callLLM: (msgs) => this.callLLM(msgs) });
+    return replaceExample(article, suggestion, { callLLM: (msgs) => this.callLLM(msgs as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) });
   }
 }

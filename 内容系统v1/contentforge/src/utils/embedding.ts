@@ -1,4 +1,5 @@
-export type { EmbeddingOptions, EmbeddingResult } from '../providers/embedding/types.js';
+import type { EmbeddingOptions, EmbeddingResult } from '../providers/embedding/types.js';
+export type { EmbeddingOptions, EmbeddingResult };
 import { getEmbeddingRouter } from '../providers/embedding/factory.js';
 import { logger } from './logger.js';
 

@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import type { Dirent } from 'fs';
 import { logger } from '../../utils/logger.js';
 import { computeEmbedding, cosineSimilarity } from '../../utils/embedding.js';
 import type { ObsidianCard, ObsidianQuery, ObsidianMaterial } from './types.js';
@@ -150,7 +151,7 @@ export class ObsidianReader {
   /** Recursively find all .md files in a directory */
   private async walkMd(dir: string): Promise<string[]> {
     const results: string[] = [];
-    let entries: import('fs/promises').Dirent[];
+    let entries: Dirent[];
     try {
       entries = await fs.readdir(dir, { withFileTypes: true });
     } catch {

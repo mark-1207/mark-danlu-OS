@@ -25,14 +25,14 @@ function extractKeywords(genome: ViralGenome): string[] {
   // From narrative structure: argumentative paths + pain points
   for (const s of genome.narrativeStructure) {
     // Split on common delimiters and add meaningful tokens
-    const pathTerms = s.argumentativePath.split(/[，、，。！？\s]+/).filter(t => t.length > 1);
-    pathTerms.forEach(t => kw.add(t));
+    const pathTerms = s.argumentativePath.split(/[，、，。！？\s]+/).filter((t: string) => t.length > 1);
+    pathTerms.forEach((t: string) => kw.add(t));
 
     if (s.painPoint) {
-      s.painPoint.split(/[，、，。！？\s]+/).filter(t => t.length > 1).forEach(t => kw.add(t));
+      s.painPoint.split(/[，、，。！？\s]+/).filter((t: string) => t.length > 1).forEach((t: string) => kw.add(t));
     }
     if (s.whyItWorks) {
-      s.whyItWorks.split(/[，、，。！？\s]+/).filter(t => t.length > 1).forEach(t => kw.add(t));
+      s.whyItWorks.split(/[，、，。！？\s]+/).filter((t: string) => t.length > 1).forEach((t: string) => kw.add(t));
     }
   }
 
@@ -44,7 +44,7 @@ function extractKeywords(genome: ViralGenome): string[] {
   // From forbidden expressions: extract meaningful terms
   for (const fe of genome.forbiddenExpressions) {
     // Take only meaningful terms (skip short stopwords)
-    fe.split(/[，、，。！？\s]+/).filter(t => t.length > 1).forEach(t => kw.add(t));
+    fe.split(/[，、，。！？\s]+/).filter((t: string) => t.length > 1).forEach((t: string) => kw.add(t));
   }
 
   return Array.from(kw);

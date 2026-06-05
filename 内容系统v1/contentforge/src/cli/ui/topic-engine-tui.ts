@@ -33,7 +33,7 @@ export async function browseAndSelectTopics(items: TopicItem[]): Promise<TopicIt
       console.log(`       ${chalk.dim(item.source)} | ${chalk.dim(formatDate(item.publishedAt))}`);
     });
     console.log(chalk.dim('\n输入编号选择（0 取消）: '));
-    const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
+    const rl = readline.createInterface({ input: process.stdin, escapeCodeTimeout: 50000 });
     return new Promise((resolve) => {
       rl.question('', (answer) => {
         rl.close();
@@ -51,7 +51,7 @@ export async function browseAndSelectTopics(items: TopicItem[]): Promise<TopicIt
   let cursor = 0;
   let filterStatus: string | null = null;
 
-  const rl = readline.createInterface({ input: process.stdin, escapeCommandTimeout: 50000 });
+  const rl = readline.createInterface({ input: process.stdin, escapeCodeTimeout: 50000 });
   readline.emitKeypressEvents(process.stdin);
   process.stdin.setRawMode?.(true);
 
