@@ -1,0 +1,24 @@
+# Ignore IDE settings
+.claude/
+.vscode/
+.idea/
+
+# Ignore dependency and build artifacts in any subfolder
+**/node_modules/
+**/dist/
+**/build/
+**/output/
+**/out/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local CLI binaries (built artifacts)
+contentforge/autocli.exe
+contentforge/autocli.zip
