@@ -139,6 +139,7 @@ class PipelineConfig:
     user_clarification: Optional[str] = None
     history_topics: List[str] = field(default_factory=list)
     from_queue: bool = False
+    panic_on_error: bool = False
 
 
 class Phase(ABC):
@@ -190,7 +191,16 @@ class PrismPipeline:
 
             self.state.phase = phase.name
             self.state.current_phase_index = i
-            result = phase.execute(self.state, self.config)
+
+            try:
+                result = phase.execute(self.state, self.config)
+            except Exception as e:
+                if self.config.panic_on_error:
+                    raise
+                # 非 panic 模式：打印 warning 并跳过
+                import sys
+                print(f"[WARNING] Phase {phase.name} 失败: {e}", file=sys.stderr)
+                result = PhaseResult(status="skipped", data={}, message=str(e))
 
             # 更新状态
             self.state.update_from_result(phase.name, result)
