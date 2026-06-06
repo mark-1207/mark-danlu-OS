@@ -490,7 +490,14 @@ def _format_ccos_review(ccos_outline: Dict, title: str, platform: str) -> str:
     content_goal = ccos_outline.get("内容目标", "未指定")
     main_structure = ccos_outline.get("主结构", "未指定")
     progression = ccos_outline.get("推进方式", "未指定")
+    立场 = ccos_outline.get("内容立场", "")
+    冲突 = ccos_outline.get("核心认知冲突", "")
+    情绪曲线 = ccos_outline.get("情绪曲线", [])
     lines.append(f"内容目标: {content_goal}")
+    if 立场:
+        lines.append(f"立场: {立场}")
+    if 冲突:
+        lines.append(f"核心冲突: {冲突}")
     lines.append(f"主结构: {main_structure}")
     lines.append(f"推进方式: {progression}")
     lines.append("")
@@ -514,6 +521,11 @@ def _format_ccos_review(ccos_outline: Dict, title: str, platform: str) -> str:
     if final_outline:
         lines.append("最终大纲：")
         lines.append(f"  {final_outline[:200]}{'...' if len(final_outline) > 200 else ''}")
+        lines.append("")
+
+    # 情绪曲线
+    if 情绪曲线:
+        lines.append(f"情绪曲线: {'→'.join(情绪曲线)}")
         lines.append("")
 
     return "\n".join(lines)
