@@ -186,7 +186,7 @@ def _load_authorial_identity() -> Dict:
         from cognitive_crack import learn_thinking_pattern, digital_twin_filter
         # learn_thinking_pattern 返回 {"thinking_pattern": {...}, ...}
         pattern_result = learn_thinking_pattern(50)
-        twin_result = digital_twin_filter([])
+        twin_result = digital_twin_filter([], pattern_result.get("thinking_pattern", ""))
 
         thinking_pattern = pattern_result.get("thinking_pattern", {})
         dimension_weights = pattern_result.get("dimension_weights", {})
