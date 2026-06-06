@@ -16,24 +16,20 @@ class TwinPhase(Phase):
     def execute(self, state: PipelineState, config: PipelineConfig) -> PhaseResult:
         from cognitive_crack import digital_twin_filter, learn_thinking_pattern
 
-        try:
-            learn_result = learn_thinking_pattern(state.thesis)
-            thinking_pattern = learn_result.get("thinking_pattern", "理性")
+        # 不捕获异常 — panic 模式下异常会冒泡到 Pipeline.run()
+        learn_result = learn_thinking_pattern(state.thesis)
+        thinking_pattern = learn_result.get("thinking_pattern", "理性")
 
-            twin_result = digital_twin_filter(state.candidates, thinking_pattern)
-            selected = twin_result.get("selected_topics", [])
+        twin_result = digital_twin_filter(state.candidates, thinking_pattern)
+        selected = twin_result.get("selected_topics", [])
+        rejected = twin_result.get("rejected_topics", [])
 
-            return PhaseResult(status="success", data={
-                "twin_learn": learn_result,
-                "digital_twin": twin_result,
-                "twin_selected": selected,
-            })
-        except Exception as e:
-            return PhaseResult(status="success", data={
-                "twin_learn": {},
-                "digital_twin": {},
-                "twin_selected": [],
-            }, message=str(e))
+        return PhaseResult(status="success", data={
+            "twin_learn": learn_result,
+            "digital_twin": twin_result,
+            "twin_selected": selected,
+            "twin_rejected": rejected,
+        })
 
     def display_result(self, result: PhaseResult, state: PipelineState) -> None:
         import sys
