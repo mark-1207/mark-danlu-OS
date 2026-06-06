@@ -5,12 +5,11 @@ import type { MaterialSearchOutput } from '../../../src/scenarios/create/types.j
 describe('T23: obsidianEnabled=false uses only web channel', () => {
   it('obsidian channel is skipped when flag is false', () => {
     const obsidianEnabled = false;
-    const webResults = [{ forSection: 'section1', type: 'case' as const, content: 'web result', source: 'http://example.com', reliability: 'high' as const }];
+    const webResults = [{ forSection: 'section1', type: 'case' as const, content: 'web result', source: 'web:http://example.com', reliability: 'high' as const }];
 
-    // When obsidianEnabled is false, obsidian branch should not execute
     const merged = obsidianEnabled ? webResults : webResults;
     expect(merged).toHaveLength(1);
-    expect(merged[0].source).toBe('http://example.com');
+    expect(merged[0].source).toBe('web:http://example.com');
   });
 
   it('obsidian channel adds items only when enabled', () => {
@@ -19,38 +18,39 @@ describe('T23: obsidianEnabled=false uses only web channel', () => {
     const obsidianEnabled = false;
 
     const merged = [...webResults, ...(obsidianEnabled ? obsidianItems : [])];
-    expect(merged).toHaveLength(0); // no obsidian items when disabled
+    expect(merged).toHaveLength(0);
     expect(merged.some(m => m.source?.startsWith('obsidian:'))).toBe(false);
   });
 });
 
-// T24: obsidianEnabled=true + web empty → obsidian channel supplements
-describe('T24: obsidian supplements when web results are sparse', () => {
-  it('obsidian supplements when web results < 2', () => {
-    const webResults: Array<{ forSection: string; type: string; content: string; source: string; reliability: string }> = [];
-    const obsidianItems = [
-      { forSection: 'case1', type: 'case', content: 'obsidian case', source: 'obsidian:case1.md', reliability: 'high' },
+// T24: obsidian is primary, web supplements when obsidian is sparse
+describe('T24: obsidian is primary, web supplements when sparse', () => {
+  it('web supplements when obsidian results < 2', () => {
+    const obsidianResults: Array<{ forSection: string; type: string; content: string; source: string; reliability: string }> = [];
+    const webItems = [
+      { forSection: 'case1', type: 'case', content: 'web case', source: 'web:http://example.com', reliability: 'high' },
     ];
-    const obsidianEnabled = true;
 
-    const merged = [...webResults, ...(obsidianEnabled && webResults.length < 2 ? obsidianItems : [])];
+    // Obsidian first, web supplements when obsidian < 2
+    const needsWeb = obsidianResults.length < 2;
+    const merged = [...obsidianResults, ...(needsWeb ? webItems : [])];
     expect(merged).toHaveLength(1);
-    expect(merged[0].source).toBe('obsidian:case1.md');
+    expect(merged[0].source).toBe('web:http://example.com');
   });
 
-  it('obsidian does NOT supplement when web results >= 2', () => {
-    const webResults = [
-      { forSection: 'a', type: 'case', content: 'web a', source: 'http://a.com', reliability: 'high' },
-      { forSection: 'b', type: 'case', content: 'web b', source: 'http://b.com', reliability: 'high' },
+  it('web does NOT supplement when obsidian results >= 2', () => {
+    const obsidianResults = [
+      { forSection: 'a', type: 'case', content: 'obsidian a', source: 'obsidian:a.md', reliability: 'high' },
+      { forSection: 'b', type: 'case', content: 'obsidian b', source: 'obsidian:b.md', reliability: 'high' },
     ];
-    const obsidianItems = [
-      { forSection: 'case1', type: 'case', content: 'obsidian case', source: 'obsidian:case1.md', reliability: 'high' },
+    const webItems = [
+      { forSection: 'case1', type: 'case', content: 'web case', source: 'web:http://example.com', reliability: 'high' },
     ];
 
-    // Only supplement if < 2
-    const merged = [...webResults, ...(webResults.length < 2 ? obsidianItems : [])];
-    expect(merged).toHaveLength(2); // web results take precedence
-    expect(merged.every(m => !m.source?.startsWith('obsidian:'))).toBe(true);
+    const needsWeb = obsidianResults.length < 2;
+    const merged = [...obsidianResults, ...(needsWeb ? webItems : [])];
+    expect(merged).toHaveLength(2);
+    expect(merged.every(m => m.source?.startsWith('obsidian:'))).toBe(true);
   });
 });
 
@@ -65,18 +65,19 @@ describe('T25: obsidian source markers in material-search output', () => {
     expect(obsidianMaterials[0].source).toContain('obsidian:');
   });
 
-  it('web materials do NOT have obsidian: prefix', () => {
+  it('web materials have source prefix web:', () => {
     const materials = [
-      { forSection: 'case1', type: 'case', content: 'web content', source: 'http://example.com/article', reliability: 'high' },
+      { forSection: 'case1', type: 'case', content: 'web content', source: 'web:http://example.com/article', reliability: 'high' },
     ];
-    const obsidianMaterials = materials.filter(m => m.source?.startsWith('obsidian:'));
-    expect(obsidianMaterials).toHaveLength(0);
+    const webMaterials = materials.filter(m => m.source?.startsWith('web:'));
+    expect(webMaterials).toHaveLength(1);
+    expect(webMaterials[0].source).toContain('web:');
   });
 
   it('mixed results: both web and obsidian sources preserved', () => {
     const output: MaterialSearchOutput = {
       wechat: [
-        { forSection: 'w1', type: 'case', content: 'web case', source: 'http://w1.com', reliability: 'high' },
+        { forSection: 'w1', type: 'case', content: 'web case', source: 'web:http://w1.com', reliability: 'high' },
         { forSection: 'w2', type: 'case', content: 'obsidian case', source: 'obsidian:output/corpus/w2.md', reliability: 'high' },
       ],
       xiaohongshu: [],
@@ -84,20 +85,19 @@ describe('T25: obsidian source markers in material-search output', () => {
     };
 
     const obsidianSources = output.wechat.filter(m => m.source?.startsWith('obsidian:'));
-    const webSources = output.wechat.filter(m => !m.source?.startsWith('obsidian:'));
+    const webSources = output.wechat.filter(m => m.source?.startsWith('web:'));
     expect(obsidianSources).toHaveLength(1);
     expect(webSources).toHaveLength(1);
   });
 });
 
-// T26: loadMaterialSearchMaterials reads context and filters by platform
-describe('T26: loadMaterialSearchMaterials reads context and filters', () => {
+// T26: loadMaterialSearchMaterials preserves all sources (not just obsidian)
+describe('T26: loadMaterialSearchMaterials preserves all sources', () => {
   function loadMaterialSearchMaterials(output: MaterialSearchOutput | null, platform: 'wechat' | 'xiaohongshu' | 'douyin'): string {
     if (!output) return '';
     const materials = output[platform] ?? [];
     if (materials.length === 0) return '';
     return materials
-      .filter((m) => m.source?.startsWith('obsidian:'))
       .map((m) => `[${m.type}] ${m.content}`)
       .join('\n');
   }
@@ -110,7 +110,7 @@ describe('T26: loadMaterialSearchMaterials reads context and filters', () => {
   it('filters by platform correctly', () => {
     const output: MaterialSearchOutput = {
       wechat: [{ forSection: 'w', type: 'case', content: 'wechat obsidian', source: 'obsidian:w.md', reliability: 'high' }],
-      xiaohongshu: [{ forSection: 'x', type: 'case', content: 'xiaohongshu obsidian', source: 'obsidian:x.md', reliability: 'high' }],
+      xiaohongshu: [{ forSection: 'x', type: 'case', content: 'xiaohongshu web', source: 'web:http://x.com', reliability: 'high' }],
       douyin: [],
     };
 
@@ -119,9 +119,25 @@ describe('T26: loadMaterialSearchMaterials reads context and filters', () => {
     const douyin = loadMaterialSearchMaterials(output, 'douyin');
 
     expect(wechat).toContain('wechat obsidian');
-    expect(wechat).not.toContain('xiaohongshu obsidian');
-    expect(xhs).toContain('xiaohongshu obsidian');
+    expect(xhs).toContain('xiaohongshu web');
     expect(douyin).toBe('');
+  });
+
+  it('includes both obsidian and web materials', () => {
+    const output: MaterialSearchOutput = {
+      wechat: [
+        { forSection: 's', type: 'case', content: 'obsidian case', source: 'obsidian:s.md', reliability: 'high' },
+        { forSection: 's', type: 'data', content: 'web data', source: 'web:http://example.com', reliability: 'medium' },
+      ],
+      xiaohongshu: [],
+      douyin: [],
+    };
+
+    const result = loadMaterialSearchMaterials(output, 'wechat');
+    const lines = result.split('\n');
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toBe('[case] obsidian case');
+    expect(lines[1]).toBe('[data] web data');
   });
 
   it('formats output as [type] content per line', () => {
@@ -139,5 +155,97 @@ describe('T26: loadMaterialSearchMaterials reads context and filters', () => {
     expect(lines).toHaveLength(2);
     expect(lines[0]).toBe('[case] case content');
     expect(lines[1]).toBe('[data] data content');
+  });
+});
+
+// T27: obsidian >= 2 → skip web search
+describe('T27: skip web search when obsidian has enough results', () => {
+  it('does not call web search when obsidian returns >= 2', () => {
+    const obsidianResults = [
+      { forSection: 'a', type: 'case', content: 'obsidian a', source: 'obsidian:a.md', reliability: 'high' },
+      { forSection: 'b', type: 'case', content: 'obsidian b', source: 'obsidian:b.md', reliability: 'high' },
+    ];
+
+    let webSearchCalled = false;
+    function runMaterialSearch(obsidianResults: Array<{ forSection: string; type: string; content: string; source: string; reliability: string }>) {
+      const results = [...obsidianResults];
+      if (results.length < 2) {
+        webSearchCalled = true;
+        results.push({ forSection: 'c', type: 'case', content: 'web c', source: 'web:http://c.com', reliability: 'low' });
+      }
+      return results;
+    }
+
+    const result = runMaterialSearch(obsidianResults);
+    expect(webSearchCalled).toBe(false);
+    expect(result).toHaveLength(2);
+  });
+});
+
+// T28: obsidian < 2 → web search supplements
+describe('T28: web search supplements when obsidian is sparse', () => {
+  it('triggers web search when obsidian returns 0', () => {
+    const obsidianResults: Array<{ forSection: string; type: string; content: string; source: string; reliability: string }> = [];
+
+    let webSearchCalled = false;
+    function runMaterialSearch(obsidianResults: Array<{ forSection: string; type: string; content: string; source: string; reliability: string }>) {
+      const results = [...obsidianResults];
+      if (results.length < 2) {
+        webSearchCalled = true;
+        results.push({ forSection: 'c', type: 'case', content: 'web c', source: 'web:http://c.com', reliability: 'low' });
+      }
+      return results;
+    }
+
+    const result = runMaterialSearch(obsidianResults);
+    expect(webSearchCalled).toBe(true);
+    expect(result).toHaveLength(1);
+    expect(result[0].source).toBe('web:http://c.com');
+  });
+
+  it('triggers web search when obsidian returns 1', () => {
+    const obsidianResults = [
+      { forSection: 'a', type: 'case', content: 'obsidian a', source: 'obsidian:a.md', reliability: 'high' },
+    ];
+
+    let webSearchCalled = false;
+    function runMaterialSearch(obsidianResults: Array<{ forSection: string; type: string; content: string; source: string; reliability: string }>) {
+      const results = [...obsidianResults];
+      if (results.length < 2) {
+        webSearchCalled = true;
+        results.push({ forSection: 'c', type: 'case', content: 'web c', source: 'web:http://c.com', reliability: 'low' });
+      }
+      return results;
+    }
+
+    const result = runMaterialSearch(obsidianResults);
+    expect(webSearchCalled).toBe(true);
+    expect(result).toHaveLength(2);
+    expect(result[0].source).toBe('obsidian:a.md');
+    expect(result[1].source).toBe('web:http://c.com');
+  });
+});
+
+// T29: web results have web: prefix
+describe('T29: web results have web: source prefix', () => {
+  it('web search results are prefixed with web:', () => {
+    const webUrl = 'http://example.com/article';
+    const source = `web:${webUrl}`;
+
+    expect(source).toBe('web:http://example.com/article');
+    expect(source.startsWith('web:')).toBe(true);
+    expect(source.startsWith('obsidian:')).toBe(false);
+  });
+
+  it('obsidian and web sources are distinguishable', () => {
+    const materials = [
+      { forSection: 'a', type: 'case', content: 'obsidian', source: 'obsidian:a.md', reliability: 'high' },
+      { forSection: 'b', type: 'case', content: 'web', source: 'web:http://b.com', reliability: 'medium' },
+    ];
+
+    const obsidian = materials.filter(m => m.source.startsWith('obsidian:'));
+    const web = materials.filter(m => m.source.startsWith('web:'));
+    expect(obsidian).toHaveLength(1);
+    expect(web).toHaveLength(1);
   });
 });

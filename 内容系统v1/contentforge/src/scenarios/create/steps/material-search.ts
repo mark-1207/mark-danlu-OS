@@ -415,15 +415,51 @@ export class MaterialSearchStep extends PipelineStep<z.infer<typeof InputSchema>
       { key: 'douyin', assignment: assignments.douyin?.angle ?? '' },
     ];
 
+    // Phase 1: Obsidian local material channel (primary source)
+    if (searchConfig.obsidianEnabled) {
+      const store = new ObsidianMaterialStore();
+      try {
+        await store.loadIndex();
+      } catch {
+        logger.warn('[Step:material-search] obsidian store loadIndex failed, skipping obsidian channel');
+      }
+
+      const topK = searchConfig.obsidianTopK ?? 3;
+      for (const { key } of platforms) {
+        const slotTexts = extractCaseSlotTexts(outlines[key]);
+        for (const slot of slotTexts.slice(0, 3)) {
+          const matches = await store.search(slot, topK);
+          for (const m of matches) {
+            results[key].push({
+              forSection: m.filePath,
+              type: 'case',
+              content: m.content,
+              source: `obsidian:${m.filePath}`,
+              reliability: 'high',
+            });
+          }
+        }
+      }
+
+      logger.info('[Step:material-search] obsidian channel completed', {
+        wechat: results.wechat.length,
+        xiaohongshu: results.xiaohongshu.length,
+        douyin: results.douyin.length,
+      });
+    }
+
+    // Phase 2: Web search supplement (only when obsidian results are sparse)
     for (const { key, assignment } of platforms) {
+      if (results[key].length >= 2) continue;
+
       const platformQueries = queries[key];
       if (platformQueries.length === 0) continue;
 
-      logger.info(`[Step:material-search] searching ${key} with ${platformQueries.length} queries: ${platformQueries.join(', ')}`);
+      logger.info(`[Step:material-search] obsidian sparse for ${key} (${results[key].length} items), supplementing with web search`);
 
       const searchResults = await searcher.search(platformQueries, apiKey);
       if (searchResults.length === 0) {
-        logger.info(`[Step:material-search] no results for ${key}`);
+        logger.info(`[Step:material-search] no web results for ${key}`);
         continue;
       }
 
@@ -445,39 +481,10 @@ export class MaterialSearchStep extends PipelineStep<z.infer<typeof InputSchema>
         assignment,
       );
 
-      results[key] = materials;
-    }
-
-    // Obsidian local material channel: supplement when web results are sparse
-    if (searchConfig.obsidianEnabled) {
-      const store = new ObsidianMaterialStore();
-      try {
-        await store.loadIndex();
-      } catch {
-        logger.warn('[Step:material-search] obsidian store loadIndex failed, skipping obsidian channel');
+      // Prefix web sources with 'web:' for clear attribution
+      for (const m of materials) {
+        results[key].push({ ...m, source: `web:${m.source}` });
       }
-
-      const topK = searchConfig.obsidianTopK ?? 3;
-      for (const { key } of platforms) {
-        // Only supplement if web results are empty or very sparse (<2 items)
-        if (results[key].length >= 2) continue;
-
-        const slotTexts = extractCaseSlotTexts(outlines[key]);
-        for (const slot of slotTexts.slice(0, 3)) {
-          const matches = await store.search(slot, topK);
-          for (const m of matches) {
-            results[key].push({
-              forSection: m.filePath,
-              type: 'case',
-              content: m.content,
-              source: `obsidian:${m.filePath}`,
-              reliability: 'high',
-            });
-          }
-        }
-      }
-
-      logger.info('[Step:material-search] obsidian channel completed');
     }
 
     logger.info('[Step:material-search] completed', {

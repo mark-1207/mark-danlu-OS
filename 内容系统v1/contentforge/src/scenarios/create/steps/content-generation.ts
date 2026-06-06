@@ -27,7 +27,6 @@ function loadMaterialSearchMaterials(context: PipelineContext, platform: 'wechat
   const materials = output[platform] ?? [];
   if (materials.length === 0) return '';
   return materials
-    .filter((m) => m.source?.startsWith('obsidian:'))
     .map((m) => `[${m.type}] ${m.content}`)
     .join('\n');
 }
