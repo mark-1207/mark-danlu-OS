@@ -148,6 +148,8 @@ def get_latest_selected_title(platform: str = None) -> Optional[Dict]:
 
 def load_log(limit: int = 10) -> List[Dict]:
     """加载最近的选题日志"""
+    if not isinstance(limit, int) or limit < 0:
+        limit = 10
     log_path = os.path.join(get_data_dir(), "topic_log.yaml")
     logs = load_yaml(log_path)
     return logs[-limit:] if logs else []
