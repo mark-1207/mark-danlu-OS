@@ -140,6 +140,7 @@ class PipelineConfig:
     history_topics: List[str] = field(default_factory=list)
     from_queue: bool = False
     panic_on_error: bool = False
+    dry_run: bool = False
 
 
 class Phase(ABC):
@@ -205,6 +206,15 @@ class PrismPipeline:
             # 更新状态
             self.state.update_from_result(phase.name, result)
             phase.display_result(result, self.state)
+
+            # dry_run：每个 Phase 后暂停让用户看输出
+            if self.config.dry_run and result.status not in ("need_input", "rejected"):
+                import sys
+                print(f"[DRY-RUN] Phase {phase.name} 完成。按 Enter 继续...", file=sys.stderr)
+                try:
+                    sys.stdin.readline()
+                except (EOFError, KeyboardInterrupt):
+                    sys.exit(2)
 
             # need_input：暂停，把 prompt 展示到 stderr，返回状态
             if result.status == "need_input":

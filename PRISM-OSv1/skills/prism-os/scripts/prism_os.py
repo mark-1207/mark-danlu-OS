@@ -252,6 +252,7 @@ def run_prism_os(
     ccos_review: bool = True,
     _state = None,
     panic_on_error: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """
     PRISM-OS 完整工作流程（Pipeline 版）
@@ -280,6 +281,7 @@ def run_prism_os(
         user_clarification=user_clarification,
         history_topics=history_topics or [],
         panic_on_error=panic_on_error,
+        dry_run=dry_run,
     )
     pipeline = FullPrismPipeline(config)
 
@@ -824,6 +826,7 @@ def main():
         run_platform = "both"
         run_interactive_only = False
         run_panic = False
+        run_dry_run = False
 
         i = 2
         while i < len(sys.argv):
@@ -842,6 +845,9 @@ def main():
                 i += 1
             elif arg == "--panic":
                 run_panic = True
+                i += 1
+            elif arg == "--dry-run":
+                run_dry_run = True
                 i += 1
             elif arg == "--skip-gateway":
                 run_skip_gateway = True
@@ -1013,6 +1019,7 @@ def main():
             ccos_review=run_ccos_review,
             platform=run_platform,
             panic_on_error=run_panic,
+            dry_run=run_dry_run,
         )
 
         # GAP-2: run 成功后自动接力 narrate
