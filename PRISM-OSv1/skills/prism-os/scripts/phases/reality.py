@@ -23,4 +23,14 @@ class RealityPhase(Phase):
     def display_result(self, result: PhaseResult, state: PipelineState) -> None:
         import sys
         validated = result.data.get("validated", [])
-        print(f"[Phase 3] 校验完成: {len(validated)} 个候选通过", file=sys.stderr)
+        rejected = result.data.get("rejected", [])
+        stats = result.data.get("statistics", {})
+        total = stats.get("total_count", len(validated) + len(rejected))
+        if rejected:
+            print(f"[Phase 3] 校验: {total}→{len(validated)} 候选，reject {len(rejected)} 个", file=sys.stderr)
+            for r in rejected[:3]:
+                title = r.get("title", "?")[:30]
+                reason = r.get("reason", "未知")
+                print(f"        - \"{title}\"（{reason}）", file=sys.stderr)
+        else:
+            print(f"[Phase 3] 校验: {len(validated)}/{total} 通过，无 reject", file=sys.stderr)

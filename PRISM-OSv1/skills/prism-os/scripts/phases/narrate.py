@@ -26,6 +26,9 @@ class NarratePhase(Phase):
         import sys
         if result.status == "success":
             wc = result.data.get("word_count", 0)
-            print(f"[Narrate] 内容生成完成: {wc} 字", file=sys.stderr)
+            output_file = result.data.get("output_file", "")
+            print(f"[Narrate] 内容生成: {wc} 字", file=sys.stderr)
+            if output_file:
+                print(f"        输出: {output_file}", file=sys.stderr)
         else:
             print(f"[Narrate] 生成失败: {result.message}", file=sys.stderr)

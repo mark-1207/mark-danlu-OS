@@ -66,11 +66,17 @@ class CCOSPhase(Phase):
         })
 
     def display_result(self, result: PhaseResult, state: PipelineState) -> None:
+        import sys
         if result.status == "rejected":
             print(f"[Phase 4.5] CCOS 未通过: {result.message}", file=sys.stderr)
         elif result.status == "need_input":
             print(result.prompt, file=sys.stderr)
         else:
             outline = result.data.get("ccos_outline", {})
-            立场 = outline.get("内容立场", "") or outline.get("主结构", "")
-            print(f"[Phase 4.5] CCOS 大纲生成完成: {立场[:30]}", file=sys.stderr)
+            结构 = outline.get("主结构", "")
+            推进 = outline.get("推进方式", "")
+            立场 = outline.get("内容立场", "")
+            print(f"[Phase 4.5] CCOS: 已生成（{结构} / {推进}）", file=sys.stderr)
+            if 立场:
+                print(f"        立场: {立场[:40]}", file=sys.stderr)
+            print(f"        └─ 决策点 2 等待审核", file=sys.stderr)

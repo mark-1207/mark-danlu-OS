@@ -29,4 +29,5 @@ class StoragePhase(Phase):
 
     def display_result(self, result: PhaseResult, state: PipelineState) -> None:
         import sys
-        print("[Phase 6] 数据已持久化", file=sys.stderr)
+        count = len(state.candidates) if state.candidates else 0
+        print(f"[Phase 6] 存储: topic_log.yaml（candidates={count}, ccos={'已存' if state.ccos_outline else '无'})", file=sys.stderr)

@@ -30,4 +30,5 @@ class LogicPhase(Phase):
         import sys
         audit = result.data.get("logic_audit", [])
         journey = result.data.get("cognitive_journey", {})
-        print(f"[Phase 5] 逻辑审计: {len(audit)} 条, 认知旅程: {'有' if journey else '无'}", file=sys.stderr)
+        avg_dist = journey.get("avg_distance", 0)
+        print(f"[Phase 5] 逻辑: {len(audit)} 条审计, 认知旅程 avg_distance={avg_dist:.2f}", file=sys.stderr)

@@ -89,6 +89,7 @@ class GapPhase(Phase):
         })
 
     def display_result(self, result: PhaseResult, state: PipelineState) -> None:
+        import sys
         if result.status == "need_input":
             print(result.prompt, file=sys.stderr)
         elif result.status == "rejected":
@@ -99,4 +100,7 @@ class GapPhase(Phase):
             if ga:
                 score = ga.get("gap_score", 0)
                 readiness = ga.get("readiness", 0)
-                print(f"[Phase 4.6] Gap: score={score:.2f}, 就绪度={readiness:.0%}, 决策={decision}", file=sys.stderr)
+                missing = ga.get("missing_evidence", [])
+                missing_count = len(missing)
+                print(f"[Phase 4.6] Gap: score={score:.2f}（{'较大' if score > 0.5 else '较小'}）, 就绪度={readiness:.0%}, 缺失 {missing_count} 个证据", file=sys.stderr)
+                print(f"        └─ 决策点 3 等待决策", file=sys.stderr)

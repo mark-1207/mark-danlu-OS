@@ -95,17 +95,28 @@ class PrismPhase(Phase):
         })
 
     def _format_title_prompt(self, candidates: list) -> str:
-        """格式化标题选择提示"""
+        """格式化标题选择提示（按规范全展开）"""
         lines = ["\n【候选标题列表】"]
         for i, c in enumerate(candidates, 1):
             hkr = c.get("hkr", {})
             hkr_avg = hkr.get("hkr_avg", 0)
             mark = "⚠️" if c.get("low_hkr") else "✓"
+            dim = c.get("dimension", "?")
+            arch = c.get("archetype", "?")
+            rationale = c.get("rationale", "")
+            char_count = c.get("char_count", 0)
+            max_sim = c.get("max_similarity", 0)
+
             lines.append(f"  {i}. {mark} {c.get('title', '')} (HKR={hkr_avg:.2f})")
+            lines.append(f"     维度: {dim} | 原型: {arch}")
+            lines.append(f"     字数: {char_count} | 最高相似度: {max_sim:.2f}")
+            if rationale:
+                lines.append(f"     理由: {rationale[:50]}")
         lines.append("请选择标题编号（输入 q 退出，默认第一个）:")
         return "\n".join(lines)
 
     def display_result(self, result: PhaseResult, state: PipelineState) -> None:
+        import sys
         if result.status == "need_input":
             print(result.prompt, file=sys.stderr)
         else:
@@ -113,4 +124,16 @@ class PrismPhase(Phase):
             selected = result.data.get("selected_candidate", {})
             user_sel = result.data.get("user_selected_candidate", False)
             mark = "（用户选）" if user_sel else "（默认）"
-            print(f"[Phase 2] {len(candidates)} 个候选，选中{mark}: {selected.get('title', '')[:30]}", file=sys.stderr)
+            # 4 维计数
+            dim_counts = {}
+            for c in candidates:
+                dim = c.get("dimension", "?")
+                dim_counts[dim] = dim_counts.get(dim, 0) + 1
+            dim_str = " / ".join([f"{d} {n}" for d, n in dim_counts.items()])
+            # HKR 分布
+            hkr_5 = sum(1 for c in candidates if c.get("hkr", {}).get("hkr_avg", 0) >= 0.5)
+            hkr_3 = sum(1 for c in candidates if 0.3 <= c.get("hkr", {}).get("hkr_avg", 0) < 0.5)
+            hkr_low = sum(1 for c in candidates if c.get("hkr", {}).get("hkr_avg", 0) < 0.3)
+            print(f"[Phase 2] 棱镜: {len(candidates)} 个候选（{dim_str}）", file=sys.stderr)
+            print(f"        HKR 分布: ≥0.5={hkr_5} / 0.3-0.5={hkr_3} / <0.3={hkr_low}", file=sys.stderr)
+            print(f"        选中{mark}: {selected.get('title', '')[:40]}", file=sys.stderr)

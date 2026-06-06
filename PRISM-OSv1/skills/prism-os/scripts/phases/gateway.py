@@ -58,22 +58,24 @@ class GatewayPhase(Phase):
         for i, q in enumerate(questions, 1):
             lines.append(f"  {i}. {q}")
         if directions:
-            lines.append("\n可选方向：")
+            lines.append("\n可选方向（参考）：")
             for i, d in enumerate(directions, 1):
                 lines.append(f"  {i}. {d}")
         lines.append("━━━━━━━━━━━━━━━━━━━━")
-        lines.append("请回答上述问题（直接输入 / 选项编号 / skip 跳过）:")
+        lines.append("请直接回答上述问题（也可以 skip 跳过）:")
         return "\n".join(lines)
 
     def display_result(self, result: PhaseResult, state: PipelineState) -> None:
+        import sys
         if result.status == "rejected":
             print(f"[Phase 1] 被拦截: {result.message}", file=sys.stderr)
         elif result.status == "need_input":
             print(result.prompt, file=sys.stderr)
         else:
-            decision = result.data.get("decision", "")
+            status = result.data.get("status", "")
             score = result.data.get("combined_score", 0)
-            print(f"[Phase 1] 网关通过: decision={decision}, score={score:.2f}", file=sys.stderr)
             hkr = result.data.get("hkr", {})
-            if hkr:
-                print(f"  HKR: H={hkr.get('h', 0):.1f} K={hkr.get('k', 0):.1f} R={hkr.get('r', 0):.1f}", file=sys.stderr)
+            hkr_avg = hkr.get("hkr_avg", 0)
+            print(f"[Phase 1] 网关: status={status}, score={score:.2f}, HKR={hkr_avg:.2f}", file=sys.stderr)
+            if status == "need_clarification":
+                print(f"        └─ 决策点 0.5 触发（need_clarification）", file=sys.stderr)
