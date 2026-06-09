@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { loadConfig, setCachedConfig } from '../../config/loader.js';
 import { llmFactory } from '../../llm/factory.js';
-import { buildCreatePipeline, type PlatformSelection } from '../../scenarios/create/index.js';
+import { buildCreatePipeline, buildShortPipeline, type PlatformSelection } from '../../scenarios/create/index.js';
 import type {
   ReviewResult,
   TopicAnalysis,
@@ -509,6 +509,68 @@ function buildTopicAnalysisReview(ta: TopicAnalysis): TopicAnalysisReview {
   return { keyword: ta.keyword, subTopics, painPoints, trendingAngles, controversies, targetDemographics };
 }
 
+// ─── Phase: short (--short sub-mode) ──────────────────────────────────────────
+
+async function runShortPhase(
+  keyword: string,
+  outputDir: string,
+): Promise<void> {
+  const config = await loadConfig();
+  setCachedConfig(config);
+  for (const [name, providerConfig] of Object.entries(config.providers)) {
+    llmFactory.register(name, providerConfig);
+  }
+
+  const runId = `create_short_${Date.now()}`;
+  const runDir = path.resolve(outputDir, runId);
+  await fs.mkdir(runDir, { recursive: true });
+  await setupRunLogger(runDir);
+  await acquireRunLock(runId, outputDir);
+
+  const context = new PipelineContext('create_short', runDir, runId);
+
+  console.log(chalk.bold('\n⚡ ContentForge — 短文子模式 (--short)\n'));
+  console.log(`关键词: ${keyword}\n`);
+
+  const pipeline = buildShortPipeline(config);
+  const progress = new ProgressDisplay();
+  pipeline.onStepComplete((stepName, result) => {
+    if (result.success) {
+      progress.completeStep(stepName, result.durationMs, `tokens: +${result.tokenUsage.output}`);
+    } else {
+      progress.failStep(stepName, result.error ?? 'unknown error');
+    }
+  });
+
+  const input = { keyword };
+  progress.startStep('topic-analysis', '主题深挖');
+  let finalContext: PipelineContext;
+  try {
+    const result = await pipeline.run(input, context);
+    finalContext = result.context;
+  } finally {
+    await releaseRunLock(runId, outputDir);
+  }
+
+  const shortContent = finalContext.get<{ title: string; content: string; wordCount: number }>('short-content');
+  if (!shortContent) {
+    throw new Error('--short pipeline finished but no short-content was produced');
+  }
+
+  const safeTitle = sanitizeFilename(shortContent.title);
+  const outPath = path.join(runDir, `${safeTitle}.short.md`);
+  await fs.writeFile(outPath, shortContent.content, 'utf-8');
+
+  const tokenUsage = finalContext.getTotalTokenUsage();
+  const cost = estimateCost(tokenUsage.input, tokenUsage.output);
+  console.log(chalk.bold('\n✅ 短文生成完成\n'));
+  console.log(`标题: ${shortContent.title}`);
+  console.log(`字数: ${shortContent.wordCount}`);
+  console.log(`输出文件: ${outPath}`);
+  console.log(`总 token: input=${tokenUsage.input} output=${tokenUsage.output}`);
+  console.log(`预估成本: $${cost.toFixed(4)}\n`);
+}
+
 // ─── Main run function ─────────────────────────────────────────────────────────
 
 export async function runCreate(
@@ -520,6 +582,8 @@ export async function runCreate(
     keepArtifacts?: boolean;
     phase?: 'full' | 'outline' | 'material-gap' | 'content-draft' | 'content' | 'review';
     runId?: string;
+    short?: boolean;
+    opinion?: boolean;
   },
 ): Promise<void> {
   // Load config first (needed for all phases)
@@ -532,6 +596,12 @@ export async function runCreate(
   }
 
   const outputDir = config.output?.dir ?? './output';
+
+  // ─── Phase: short (--short sub-mode) ───────────────────────────────────────
+  if (options.short) {
+    await runShortPhase(keyword, outputDir);
+    return;
+  }
 
   // ─── Phase: resume modes (need runId) ──────────────────────────────────────
   if (options.phase === 'content' || options.phase === 'review') {
@@ -617,7 +687,8 @@ export async function runCreate(
 
   // Auto-detect TTY: if not explicitly disabled and stdin is a TTY, enable interactive
   // Explicit interactive:true overrides TTY requirement (for skill command in non-TTY mode)
-  const isInteractive = options.interactive === true || (options.interactive !== false && process.stdin.isTTY);
+  // FORCE_INTERACTIVE=1 env var also enables interactive mode (for Claude Code or non-TTY environments)
+  const isInteractive = options.interactive === true || (options.interactive !== false && (process.stdin.isTTY || process.env.FORCE_INTERACTIVE === '1'));
 
   if (isInteractive) {
     // ─── Interactive flow ───────────────────────────────────────────────────────
@@ -676,6 +747,29 @@ export async function runCreate(
         excludeDirections,
         extraDirections,
       });
+
+      // ── Step 1.5: Disambiguation (interactive only) — pick opinion or explore ─
+      let wantsOpinion = options.opinion === true;
+      if (options.opinion === undefined && isInteractive) {
+        const { askDisambiguation } = await import('../ui/disambiguation.js');
+        const choice = await askDisambiguation();
+        wantsOpinion = choice === 'opinion';
+      }
+
+      // ── Step 1.6: Opinion refinement (if user chose opinion) ──────────────────
+      if (wantsOpinion) {
+        progress.startStep('opinion-refine', '观点锤炼');
+        const { OpinionRefineStep } = await import('../../scenarios/opinion/steps/opinion-refine.js');
+        const opStep = new OpinionRefineStep(provider, defaultModel);
+        const opResult = await opStep.execute({ opinion: keyword }, context);
+        if (!opResult.success) {
+          throw new Error(`Opinion refine failed: ${opResult.error ?? 'unknown'}`);
+        }
+        context.set('refined-opinion', opResult.data);
+        context.setStepResult('opinion-refine', opResult);
+        progress.completeStep('opinion-refine', opResult.durationMs, `tokens: +${opResult.tokenUsage.output}`);
+        logger.info(`[create] opinion path: refined opinion stored in context`);
+      }
 
       // ── Step 2: Topic Assignment → TUI ────────────────────────────────────────
       progress.startStep('topic-assignment', '话题分配');
@@ -1050,6 +1144,8 @@ export function registerCreateCommand(program: Command): void {
     .option('-c, --context <text>', '用户补充说明')
     .option('--no-interactive', '跳过选题确认，直接全自动生成')
     .option('--keep-artifacts', '保留中间产物（用于调试 CCOS 输出）')
+    .option('--short', '使用短文子模式 (200-500字)')
+    .option('--opinion', '走观点路径（内联 OpinionRefineStep）')
     .action(async (opts) => {
       try {
         const interactive = opts.interactive !== false;
@@ -1058,6 +1154,8 @@ export function registerCreateCommand(program: Command): void {
           context: opts.context,
           interactive,
           keepArtifacts: opts.keepArtifacts,
+          short: opts.short,
+          opinion: opts.opinion,
         });
       } catch (error) {
         logger.error('create command failed', { error: String(error) });
