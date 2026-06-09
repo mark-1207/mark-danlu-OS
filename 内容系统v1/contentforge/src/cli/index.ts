@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { registerCreateCommand } from './commands/create.js';
+import { registerOpinionCommand } from './commands/opinion.js';
 import { registerRecreateCommand } from './commands/recreate.js';
 import { registerBatchCommand } from './commands/batch.js';
 import { registerResumeCommand } from './commands/resume.js';
@@ -26,6 +27,7 @@ export function buildCLI(): Command {
     .version('1.0.0');
 
   registerCreateCommand(program);
+  registerOpinionCommand(program);
   registerRecreateCommand(program);
   registerBatchCommand(program);
   registerResumeCommand(program);
