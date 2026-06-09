@@ -40,11 +40,13 @@ describe('parseIntent flags structure (Phase 1 infra)', () => {
     expect(result.flags.short).toBe(false);
   });
 
-  it('T7: current opinion-detected input still returns type=opinion (Phase 1 不破坏行为)', () => {
-    // Phase 1 不删 opinion 正则；当前行为保留
+  it('T7: opinion-like input now returns type=create (Phase 4: opinion detection removed)', () => {
+    // Phase 4: opinion auto-detection removed from parseIntent.
+    // Opinion path is now triggered by --opinion flag or interactive disambiguation in create flow.
     const result = parseIntent('AI让谁变富了？发公众号');
-    expect(result.type).toBe('opinion');
+    expect(result.type).toBe('create');
+    expect(result.platforms).toContain('wechat');
     expect(result.flags).toBeDefined();
-    expect(result.flags.opinion).toBe(false); // Phase 1 总是 false；Phase 4 才改
+    expect(result.flags.opinion).toBe(false);
   });
 });

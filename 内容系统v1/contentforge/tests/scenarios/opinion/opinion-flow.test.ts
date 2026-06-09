@@ -7,49 +7,46 @@ import { PipelineContext } from '../../../src/core/context.js';
 import { L1ForbiddenWordScanner, L1_REPLACEMENTS } from '../../../src/scenarios/opinion/quality/l1-forbidden.js';
 import { L2StyleChecker } from '../../../src/scenarios/opinion/quality/l2-style.js';
 
-// ── T1-T8: parseIntent opinion detection ───────────────────────────
+// ── T1-T8: parseIntent no longer auto-detects opinion (Phase 4) ──
 
-describe('parseIntent opinion detection', () => {
-  it('T1: detects opinion from 判断句 with question mark', () => {
+describe('parseIntent opinion detection (removed in Phase 4)', () => {
+  it('T1: question-mark input is type=create, not opinion (no auto-detect)', () => {
     const result = parseIntent('AI时代最大的受益者和失意者是谁？');
-    expect(result.type).toBe('opinion');
-    expect(result.opinion).toBeTruthy();
+    expect(result.type).toBe('create');
   });
 
-  it('T2: detects opinion from 判断句 with 是/不是', () => {
+  it('T2: 是/不是 判断句 input is type=create, not opinion', () => {
     const result = parseIntent('AI只是裁员借口，是过度招聘的修正吗');
-    expect(result.type).toBe('opinion');
-    expect(result.opinion).toBeTruthy();
+    expect(result.type).toBe('create');
   });
 
-  it('T3: detects opinion from 凭什么/为什么 question', () => {
+  it('T3: 凭什么/为什么 question input is type=create, not opinion', () => {
     const result = parseIntent('35岁职场人被优化，凭什么说是AI的锅？');
-    expect(result.type).toBe('opinion');
+    expect(result.type).toBe('create');
   });
 
-  it('T4: detects opinion from 讨论/分析 keywords', () => {
+  it('T4: 讨论/分析 keyword input is type=create, not opinion', () => {
     const result = parseIntent('讨论一下：AI到底是在创造就业还是消灭就业');
-    expect(result.type).toBe('opinion');
+    expect(result.type).toBe('create');
   });
 
-  it('T5: opinion with platform keyword', () => {
+  it('T5: opinion-like input with platform keyword is type=create with platforms extracted', () => {
     const result = parseIntent('AI让谁变富了？发公众号');
-    expect(result.type).toBe('opinion');
+    expect(result.type).toBe('create');
     expect(result.platforms).toContain('wechat');
   });
 
-  it('T6: 判断句 without question mark still triggers opinion (short input)', () => {
+  it('T6: short 判断句 input is type=create, not opinion (Phase 4 removes the short-input heuristic)', () => {
     const result = parseIntent('AI时代最大的受益者是资本家');
-    expect(result.type).toBe('opinion');
+    expect(result.type).toBe('create');
   });
 
-  it('T7: 普通create intent 不被误判为opinion', () => {
+  it('T7: 普通create intent still type=create', () => {
     const result = parseIntent('帮我写一篇关于AI时代的职场人文章 发公众号');
     expect(result.type).toBe('create');
-    expect(result.type).not.toBe('opinion');
   });
 
-  it('T8: recreate with path not misclassified as opinion', () => {
+  it('T8: recreate with path still type=recreate', () => {
     const result = parseIntent('d:/work/爆款文章.md');
     expect(result.type).toBe('recreate');
   });
