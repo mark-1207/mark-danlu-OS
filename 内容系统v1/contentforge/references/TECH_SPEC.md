@@ -69,26 +69,38 @@ contentforge/
 │   │   └── runner.ts               # 并发/批量执行器
 │   │
 │   ├── scenarios/                  # 场景定义
-│   │   ├── create/                 # 场景A：原创生成
-│   │   │   ├── index.ts            # Pipeline 组装
+│   │   ├── create/                 # 场景A：原创生成（含 --short）
+│   │   │   ├── index.ts            # Pipeline 组装（buildCreatePipeline + buildShortPipeline）
 │   │   │   ├── steps/
 │   │   │   │   ├── topic-analysis.ts
 │   │   │   │   ├── topic-assignment.ts
 │   │   │   │   ├── outline-generation.ts
 │   │   │   │   ├── material-search.ts
 │   │   │   │   ├── content-generation.ts
-│   │   │   │   └── review-optimization.ts
-│   │   │   └── types.ts            # 场景A的类型定义
+│   │   │   │   ├── review-optimization.ts
+│   │   │   │   ├── short-angle-selection.ts  # 短文角度选择
+│   │   │   │   ├── short-content.ts          # 短文生成（200-500字）
+│   │   │   │   └── short-review.ts           # 短文审查
+│   │   │   └── types.ts            # 场景A的类型定义（含 ShortAngle/ShortContent/ShortReview）
 │   │   │
-│   │   └── recreate/               # 场景B：爆款二创
-│   │       ├── index.ts            # Pipeline 组装
+│   │   ├── recreate/               # 场景B：爆款二创
+│   │   │   ├── index.ts            # Pipeline 组装
+│   │   │   ├── steps/
+│   │   │   │   ├── viral-deconstruction.ts
+│   │   │   │   ├── differentiation.ts
+│   │   │   │   ├── new-outline.ts
+│   │   │   │   ├── content-generation.ts
+│   │   │   │   └── dual-review.ts
+│   │   │   └── types.ts            # 场景B的类型定义
+│   │   │
+│   │   └── opinion/                # 场景C：观点输出（HKR 质检+证伪）
+│   │       ├── index.ts            # runOpinion 入口
 │   │       ├── steps/
-│   │       │   ├── viral-deconstruction.ts
-│   │       │   ├── differentiation.ts
-│   │       │   ├── new-outline.ts
-│   │       │   ├── content-generation.ts
-│   │       │   └── dual-review.ts
-│   │       └── types.ts            # 场景B的类型定义
+│   │       │   └── opinion-refine.ts  # HKR 质检+证伪+锤炼论点
+│   │       ├── types.ts            # RefinedOpinion/ConfirmedOpinion 类型
+│   │       └── quality/
+│   │           ├── l1-forbidden.ts  # L1 禁词扫描
+│   │           └── l2-style.ts     # L2 风格检查
 │   │
 │   ├── llm/                        # LLM 抽象层
 │   │   ├── provider.ts             # Provider 接口

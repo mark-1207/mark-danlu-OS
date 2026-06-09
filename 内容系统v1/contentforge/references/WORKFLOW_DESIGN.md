@@ -439,6 +439,112 @@ if (originalityReport.flaggedParagraphs.length > 0) {
 
 ---
 
+## 2.5 场景 A 短文子模式数据流 (--short)
+
+```plaintext
+keyword: "AI取代工作"
+    │
+    ▼
+[Step1: topic-analysis]
+    │ output: TopicAnalysis
+    ▼
+[Step2: short-angle-selection]
+    │ 从 TopicAnalysis 中选最能引发共鸣的角度
+    │ 确定钩子策略（悬念/共鸣/反常识/数据冲击）
+    │ output: ShortAngle { angle, hookStrategy, emotionalCore, targetAudience }
+    ▼
+[Step3: short-content]
+    │ 生成 200-500 字短文
+    │ 风格约束：接地气、不说教、金句洞察、口语化
+    │ output: ShortContent { title, content, wordCount, hookType, goldenSentence }
+    ▼
+[Step4: short-review]
+    │ 5维评分：情绪共鸣度/传播力/钩子强度/接地气/金句密度
+    │ 风格检测：isPreachy(说教)、isColloquial(口语化)
+    │ output: ShortReview { scores, styleFlags, suggestions[], approved }
+    ▼
+FinalOutput
+```
+
+**关键约束**：跳过 topic-assignment、outline、material-search、per-platform content/review。4步串行，无并行组。
+
+---
+
+## 2.6 场景 D 观点输出数据流 (--opinion)
+
+```plaintext
+keyword / opinion text: "远程办公才是未来"
+    │
+    ▼
+[Step0: topic-analysis]  ← 复用现有 topic-analysis
+    │ output: TopicAnalysis
+    ▼
+[Step0.5: opinion-refine]  ← 新增，内联 OpinionRefineStep
+    │ 输入：{ opinion: keyword }
+    │ HKR 质检（H=热度/K=知识密度/R=可反驳性）+ 证伪 + 锤炼论点 + 推荐标题
+    │ output: RefinedOpinion
+    │ context key: 'refined-opinion'
+    ▼
+[Step1: topic-assignment]  ← 标准 create 流程继续
+    │ output: PlatformAssignments
+    ▼
+    ├──────────────────┬──────────────────┐
+    ▼                  ▼                  ▼
+[Step3: outline]   [Step3: outline]   [Step3: outline]
+    ...                ...                ...
+    ▼                  ▼                  ▼
+[Step6: review]    [Step6: review]    [Step6: review]
+    ▼                  ▼                  ▼
+    └──────────────────┴──────────────────┘
+                       │
+                       ▼
+                 FinalOutput
+```
+
+**触发方式**：
+- `contentforge create -k "远程办公才是未来" --opinion`（显式 flag）
+- `contentforge opinion -k "远程办公才是未来"`（向后兼容别名，等同于 --opinion）
+- 交互模式：disambiguation TUI 选择"观点输出"
+
+**Disambiguation TUI** (`src/cli/ui/disambiguation.ts`)：在 topic-analysis 完成后、topic-assignment 之前，问用户"🎯 观点输出 / 🔍 探索生成"。选"观点"触发 opinion-refine，选"探索"跳过。
+
+---
+
+## 2.7 观点 Refine 步骤详细设计
+
+**目的**：将用户的观点打磨成有论据支撑、有标题推荐的 RefinedOpinion
+
+**LLM 调用配置**：
+- 温度：0.7
+- 最大输出 token：4000
+
+**输出 Schema**：
+
+```typescript
+interface RefinedOpinion {
+  originalOpinion: string;           // 用户原始观点
+  refinedThesis: string;             // 锤炼后的论点
+  type: 'comparison' | 'causal' | 'judgment';  // 观点类型
+  evidence: string[];                // 支撑论据
+  counterArguments: string[];        // 反面论据
+  boundaries: string;                // 适用范围
+  whyNow: string;                    // 为什么现在说
+  hkrScore: {
+    h: number;  // 热度 0-100
+    k: number;  // 知识密度 0-100
+    r: number;  // 可反驳性 0-100
+  };
+  recommendedTitles: string[];       // 推荐标题
+}
+```
+
+**HKR 质检维度**：
+- **H (热度)**：这个话题现在有多热？有多少人在讨论？
+- **K (知识密度)**：你的观点里有多少是别人不知道的？
+- **R (可反驳性)**：你的观点有多容易被反驳？（越容易被反驳=越有争议性=越有讨论价值）
+
+---
+
 ## 3. 输出校验与错误处理
 
 ### 3.1 Zod Schema 校验

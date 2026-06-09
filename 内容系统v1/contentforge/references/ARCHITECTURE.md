@@ -8,10 +8,16 @@
 │                        CLI Layer                             │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
 │  │ create   │ │ recreate │ │  batch   │ │  resume  │       │
+│  │ --short  │ │          │ │          │ │          │       │
+│  │ --opinion│ │          │ │          │ │          │       │
 │  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘       │
-└───────┼─────────────┼───────────┼─────────────┼─────────────┘
-        │             │           │             │
-        ▼             ▼           ▼             ▼
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐                    │
+│  │ opinion  │ │  skill   │ │  learn   │                    │
+│  │ (alias)  │ │          │ │          │                    │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘                    │
+└───────┼─────────────┼───────────┼───────────────────────────┘
+        │             │           │
+        ▼             ▼           ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                     Core Engine Layer                         │
 │                                                               │
@@ -132,6 +138,29 @@ original_article: "..."
 FinalOutput
 ```
 
+### 3.3 场景 A 短文子模式数据流 (--short)
+
+```plaintext
+keyword: "AI取代工作"
+    │
+    ▼
+[Step1: topic-analysis]       ← 复用现有 step
+    │ output: TopicAnalysis
+    ▼
+[Step2: short-angle-selection]  ← 选最佳角度+钩子策略
+    │ output: ShortAngle { angle, hookStrategy, emotionalCore, targetAudience }
+    ▼
+[Step3: short-content]          ← 直接生成 200-500 字短文
+    │ output: ShortContent { title, content, wordCount, hookType, goldenSentence }
+    ▼
+[Step4: short-review]           ← 情绪共鸣+传播力审查
+    │ output: ShortReview { scores, styleFlags, suggestions[], approved }
+    ▼
+FinalOutput (写入 {title}.short.md)
+```
+
+**关键约束**：跳过 topic-assignment、outline、material-search、per-platform content/review。4步串行，无并行组。风格要求：接地气、不说教、金句洞察、口语化。
+
 ## 4. 并行执行设计
 
 场景 A 中 Step 3-6 的三个平台分支是并行执行的。实现方式：
@@ -177,6 +206,18 @@ const createPipeline = new Pipeline({
     { stepNames: ['content-wechat', 'content-xiaohongshu', 'content-douyin'], concurrency: 3 },
     { stepNames: ['review-wechat', 'review-xiaohongshu', 'review-douyin'], concurrency: 3 },
   ],
+});
+
+// 短文子模式：4步串行，无并行组
+const shortPipeline = new Pipeline({
+  name: 'short',
+  steps: [
+    topicAnalysisStep,      // 复用
+    shortAngleSelectionStep,
+    shortContentStep,
+    shortReviewStep,
+  ],
+  parallelGroups: [],
 });
 ```
 
