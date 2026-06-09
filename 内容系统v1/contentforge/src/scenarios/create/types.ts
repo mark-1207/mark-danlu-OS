@@ -338,3 +338,45 @@ export interface TopicAssignmentConfirmed {
     douyin: PlatformSelectionConfirmed;
   };
 }
+
+// ─── Short Mode (--short sub-mode) ────────────────────────────────
+
+export const ShortAngleSchema = z.object({
+  angle: z.string().min(1),
+  hookStrategy: z.string().min(1),
+  emotionalCore: z.string().min(1),
+  targetAudience: z.string().min(1),
+});
+
+export type ShortAngle = z.infer<typeof ShortAngleSchema>;
+
+export const ShortContentSchema = z.object({
+  title: z.string().min(1),
+  content: z.string().min(200).max(500),
+  wordCount: z.number(),
+  hookType: z.string(),
+  goldenSentence: z.string().min(1, 'goldenSentence 必填，强制 LLM 提炼金句'),
+});
+
+export type ShortContent = z.infer<typeof ShortContentSchema>;
+
+export const ShortReviewSchema = z.object({
+  title: z.string().min(1),
+  content: z.string(),
+  wordCount: z.number(),
+  scores: z.object({
+    emotionalResonance: z.number().min(1).max(10),
+    virality: z.number().min(1).max(10),
+    hookStrength: z.number().min(1).max(10),
+    groundedness: z.number().min(1).max(10),
+    insightDensity: z.number().min(1).max(10),
+  }),
+  styleFlags: z.object({
+    isPreachy: z.boolean(),
+    isColloquial: z.boolean(),
+  }),
+  suggestions: z.array(z.string()),
+  approved: z.boolean(),
+});
+
+export type ShortReview = z.infer<typeof ShortReviewSchema>;

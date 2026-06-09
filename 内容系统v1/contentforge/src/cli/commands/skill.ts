@@ -11,6 +11,10 @@ export interface IntentResult {
   opinion?: string;  // present when type === 'opinion'
   platforms: string[];
   direction?: 'auto' | 'interactive';
+  flags: {
+    opinion: boolean;  // 标记为观点输入（Phase 4 启用，Phase 1 总是 false）
+    short: boolean;    // 标记为短文输入（Phase 3 启用，Phase 1 总是 false）
+  };
 }
 
 const RECREATE_INTENT_PATTERNS: Array<{ pattern: RegExp; platform?: string }> = [
@@ -136,6 +140,7 @@ export function parseIntent(text: string): IntentResult {
       opinion: opinion.length > 1 ? opinion : trimmed,
       platforms: platforms.length > 0 ? platforms : ALL_PLATFORMS,
       direction,
+      flags: { opinion: false, short: false },
     };
     logger.debug(`[skill] intent: opinion, opinion="${result.opinion}", platforms=${result.platforms.join(',')}`);
     return result;
@@ -149,6 +154,7 @@ export function parseIntent(text: string): IntentResult {
       inputPath: inputPath ?? undefined,
       platforms: platforms.length > 0 ? platforms : ALL_PLATFORMS,
       direction,
+      flags: { opinion: false, short: false },
     };
     logger.debug(`[skill] intent: recreate, path=${inputPath}, hasIntent=${hasIntent}, platforms=${result.platforms.join(',')}`);
     return result;
@@ -171,6 +177,7 @@ export function parseIntent(text: string): IntentResult {
     type: 'create',
     keyword: keyword.length > 1 ? keyword : trimmed,
     platforms: platforms.length > 0 ? platforms : ALL_PLATFORMS,
+    flags: { opinion: false, short: false },
   };
   logger.debug(`[skill] intent: create, keyword="${keyword}", platforms=${result.platforms.join(',')}`);
   return result;
