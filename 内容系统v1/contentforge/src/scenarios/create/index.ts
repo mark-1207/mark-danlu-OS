@@ -14,6 +14,9 @@ import {
   ReviewXiaohongshuStep,
   ReviewDouyinStep,
   MaterialSearchStep,
+  ShortAngleSelectionStep,
+  ShortContentStep,
+  ShortReviewStep,
 } from './steps/index.js';
 
 const ALL_PLATFORMS = ['wechat', 'xiaohongshu', 'douyin'] as const;
@@ -106,5 +109,34 @@ export function buildCreatePipeline(config: Config, platforms?: PlatformSelectio
     description: 'Generate multi-platform content from a keyword',
     steps: allSteps,
     parallelGroups,
+  });
+}
+
+/**
+ * Build and return a Short Pipeline (--short sub-mode).
+ * 4 sequential steps, no parallel groups:
+ *   topic-analysis → short-angle-selection → short-content → short-review
+ *
+ * Skips: topic-assignment, outline, material-search, per-platform content/review.
+ */
+export function buildShortPipeline(config: Config): Pipeline {
+  const providerConfig = config.providers[config.defaultProvider];
+  if (!providerConfig) {
+    throw new Error(`Default provider '${config.defaultProvider}' not found in config`);
+  }
+
+  const provider = llmFactory.get(config.defaultProvider);
+  const defaultModel = providerConfig.defaultModel;
+
+  const topicAnalysis = new TopicAnalysisStep(provider, defaultModel);
+  const shortAngle = new ShortAngleSelectionStep(provider, defaultModel);
+  const shortContent = new ShortContentStep(provider, defaultModel);
+  const shortReview = new ShortReviewStep(provider, defaultModel);
+
+  return new Pipeline({
+    name: 'short',
+    description: 'Generate 200-500 char short-form content (--short sub-mode)',
+    steps: [topicAnalysis, shortAngle, shortContent, shortReview],
+    parallelGroups: [],
   });
 }
