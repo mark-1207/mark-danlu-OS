@@ -1,6 +1,6 @@
 import { createInterface } from 'readline';
 import chalk from 'chalk';
-import { isTerminalInteractive } from './interactive.js';
+import { isTerminalInteractive, getNextAnswer } from './interactive.js';
 import type { WechatOutline, XiaohongshuOutline, DouyinOutline } from '../../scenarios/create/types.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -102,6 +102,12 @@ export async function recommendStructure(keyword: string, angle: string): Promis
 // ─── Interactive helpers ───────────────────────────────────────────────────────
 
 function ask(question: string, fallback: string = ''): Promise<string> {
+  // Check for pre-collected input from Claude Code
+  const preAnswer = getNextAnswer();
+  if (preAnswer !== null) {
+    console.log(`${question}${preAnswer}`);
+    return Promise.resolve(preAnswer);
+  }
   if (!isTerminalInteractive()) {
     return Promise.resolve(fallback);
   }
@@ -115,6 +121,16 @@ function ask(question: string, fallback: string = ''): Promise<string> {
 }
 
 function askChoice(question: string, options: string[]): Promise<number> {
+  // Check for pre-collected input from Claude Code
+  const preAnswer = getNextAnswer();
+  if (preAnswer !== null) {
+    console.log(question);
+    options.forEach((opt, i) => console.log(`  [${i + 1}] ${opt}`));
+    const idx = parseInt(preAnswer.trim(), 10) - 1;
+    const result = !isNaN(idx) && idx >= 0 && idx < options.length ? idx : 0;
+    console.log(`选择序号: ${result + 1}`);
+    return Promise.resolve(result);
+  }
   if (!isTerminalInteractive()) {
     return Promise.resolve(0); // default to first option
   }

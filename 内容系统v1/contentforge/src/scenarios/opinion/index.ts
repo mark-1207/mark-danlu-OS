@@ -65,7 +65,6 @@ export async function runOpinion(
 
   do {
     const reviewResult = await confirmOpinion(refined, platform);
-    confirmed = validateConfirmedOpinion(reviewResult.confirmed);
     if (reviewResult.regenerate) {
       // Re-run opinion-refine with same opinion
       logger.info('[opinion] regenerating opinion-refine...');
@@ -74,7 +73,9 @@ export async function runOpinion(
       const newRefined = validateRefinedOpinion(retryResult.data);
       context.set('refined-opinion', newRefined);
       refined = newRefined;
+      continue; // Skip confirmed assignment, loop again
     }
+    confirmed = validateConfirmedOpinion(reviewResult.confirmed);
   } while (!confirmed);
 
   context.set('confirmed-opinion', confirmed);

@@ -3,10 +3,16 @@
  */
 import { createInterface } from 'readline';
 import chalk from 'chalk';
-import { isTerminalInteractive } from '../../../cli/ui/interactive.js';
+import { isTerminalInteractive, getNextAnswer } from '../../../cli/ui/interactive.js';
 import type { RefinedOpinion, ConfirmedOpinion } from '../types.js';
 
 async function ask(question: string, fallback = ''): Promise<string> {
+  // Check for pre-collected input from Claude Code
+  const preAnswer = getNextAnswer();
+  if (preAnswer !== null) {
+    console.log(`${question}${preAnswer}`);
+    return preAnswer;
+  }
   if (!isTerminalInteractive()) return Promise.resolve(fallback);
   return new Promise((resolve) => {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -18,6 +24,16 @@ async function ask(question: string, fallback = ''): Promise<string> {
 }
 
 async function askChoice(question: string, options: string[]): Promise<number> {
+  // Check for pre-collected input from Claude Code
+  const preAnswer = getNextAnswer();
+  if (preAnswer !== null) {
+    console.log(question);
+    options.forEach((opt, i) => console.log(`  ${i + 1}. ${opt}`));
+    const idx = parseInt(preAnswer, 10) - 1;
+    const result = Number.isNaN(idx) ? 0 : Math.max(0, Math.min(idx, options.length - 1));
+    console.log(`选择: ${result + 1}`);
+    return result;
+  }
   if (!isTerminalInteractive()) return Promise.resolve(0);
   return new Promise((resolve) => {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -73,24 +89,31 @@ export async function confirmOpinion(
     console.log(`  ${refined.boundaries}`);
   }
 
-  // Recommended titles
-  const titleOptions = refined.recommendedTitles.slice(0, 5);
-  console.log(chalk.bold(`\n【推荐标题】（选一个或自己写）`));
+  // Recommended titles — must be present, regenerate if empty
+  let titleOptions = refined.recommendedTitles
+    .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
+    .slice(0, 5);
+  if (titleOptions.length === 0) {
+    console.log(chalk.yellow(`\n⚠️ LLM 未返回推荐标题，需要重新生成`));
+    return {
+      confirmed: {
+        confirmedTitle: '',
+        refinedThesis: refined.refinedThesis,
+        opinionType: refined.type,
+        personalCase: '',
+        seedMaterial: '',
+      },
+      regenerate: true,
+    };
+  }
+
+  console.log(chalk.bold(`\n【推荐标题】（选一个）`));
   const selectedTitleIdx = await askChoice(
     chalk.cyan('选择标题（直接回车用第1个）:\n'),
     titleOptions
   );
-  let customTitle = '';
-  console.log();
-  const customInput = await ask(
-    chalk.cyan(`自定义标题（直接回车用推荐）: `),
-    ''
-  );
-  if (customInput.trim()) {
-    customTitle = customInput.trim();
-  }
 
-  const confirmedTitle = customTitle || titleOptions[selectedTitleIdx] || refined.recommendedTitles[0];
+  const confirmedTitle = titleOptions[selectedTitleIdx];
 
   // Personal case
   console.log();

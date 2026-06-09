@@ -41,7 +41,7 @@ export async function loadConfig(): Promise<Config> {
   try {
     // Try config/contentforge.yaml first (project root config/ directory)
     const __dirname = dirname(fileURLToPath(import.meta.url));
-    const projectRoot = join(__dirname, '..');
+    const projectRoot = join(__dirname, '..', '..');
     const configInConfigDir = join(projectRoot, 'config', 'contentforge.yaml');
 
     const cosmiconfigInstance = cosmiconfig(moduleName);
