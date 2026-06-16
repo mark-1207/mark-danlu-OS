@@ -48,3 +48,29 @@
 
 ### 状态
 ✅ 已完成
+
+---
+
+## 阶段 2：思想模型（2026-06-16）
+
+### 做了什么
+- 写 `config/thinking_models/models.yaml`（12 个模型卡片：杠杆者/第一性原理/逆向思维/系统思维/JTBD/奥卡姆剃刀/反共识/因果链/5Why/类比/反馈回路/二阶效应）
+- 写 `config/thinking_models/frameworks.yaml`（4 框架：问题解构 chain / 决策分析 parallel / 系统思考 nested / 创新突破 divergent_then_convergent）
+- 扩展 `config/loader.py` 的 `ThinkingModel` schema（新增 `prompt_hint` 和 `avoid` 字段）
+- 实现 `thinking_models/registry.py`（YAML 加载 + 按 id 查询 + 迭代 + KeyError）
+- 实现 `thinking_models/strategies.py`（5 策略 + `get_strategy` 工厂 + `ModelOutput`/`StrategyContext`/`StrategyResult` 数据类）
+- 实现 `thinking_models/framework_selector.py`（关键词匹配，按 yaml 顺序 first match wins，无匹配回退 problem_decomposition）
+- 写 3 个测试文件，共 42 测试：strategies (21) + registry (13) + selector (8)
+
+### 学到什么
+- LLM 注入用 `Callable[[str], str]` 模式，让策略逻辑可独立测试、不依赖真实 LLM
+- prompt 构建模板在所有策略间复用（`_build_prompt`），保证提示风格一致
+- divergent_then_convergent 用 `len(models)//2` 切分；当总长 1 时 mid=1 避免 degenerate
+- condition 策略接受 `StrategyContext` 或单独 `route`，向后兼容 `proposition` 字符串
+
+### 接下来
+- 阶段 3：蓝图（blueprint/designer + anchors + sections + TUI）
+- 阶段 4-7：草稿 / 打磨 / 沉淀 / 流程集成 + CLI
+
+### 状态
+✅ 已完成（117/117 测试通过）

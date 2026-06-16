@@ -72,12 +72,12 @@
 
 ### 阶段 2：思想模型（3-4 天）
 
-- [ ] ⏳ 写 `config/thinking_models/models.yaml`
-- [ ] ⏳ 写 `config/thinking_models/frameworks.yaml`
-- [ ] ⏳ 实现 `thinking_models/registry.py`
-- [ ] ⏳ 实现 `thinking_models/framework_selector.py`
-- [ ] ⏳ 实现 `thinking_models/model_runner.py`（5 策略）
-- [ ] ⏳ 端到端测试
+- [x] ✅ 写 `config/thinking_models/models.yaml`（12 模型）
+- [x] ✅ 写 `config/thinking_models/frameworks.yaml`（4 框架）
+- [x] ✅ 实现 `thinking_models/registry.py`（YAML 加载）
+- [x] ✅ 实现 `thinking_models/framework_selector.py`（关键词匹配）
+- [x] ✅ 实现 `thinking_models/strategies.py`（5 策略：chain/parallel/nested/divergent_then_convergent/condition）
+- [x] ✅ 端到端测试（42 个 thinking_models 测试 + 117 个全量测试全过）
 
 ### 阶段 3：蓝图（2-3 天）
 

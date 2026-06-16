@@ -7,9 +7,9 @@
 
 ## 当前状态（2026-06-16）
 
-- **项目阶段**：方案已对齐，文档已完成，legacy 快照已就绪
-- **下一步**：进入 v1.0 MVP 实施
-- **实施**：未开始（基础设施 + 阶段 1 苏格拉底）
+- **项目阶段**：v1.0 MVP 实施中（阶段 0/1/2 完成）
+- **下一步**：阶段 3 蓝图（blueprint/designer + anchors + sections + TUI）
+- **实施进度**：阶段 0 ✅ / 阶段 1 ✅ / 阶段 2 ✅ / 阶段 3-7 ⏳
 
 ---
 
@@ -38,13 +38,17 @@ ls legacy/       # 源项目快照（待复制）
 - ✅ 经验教训沉淀清单（F1-F11 + D1-D9 + P1-P14 + 规则 0）
 - ✅ 19 个项目文档全部完成
 - ✅ 8 个 ADR（D-001 ~ D-008）全部完成
+- ✅ 阶段 0：基础设施（pyproject + config/loader + store/file_store + state/machine）
+- ✅ 阶段 1：苏格拉底追问（questions + engine + output + learning）
+- ✅ 阶段 2：思想模型（12 模型 + 4 框架 + 5 策略 + 选择器）
 
 ### 待办
-- ⏳ v1.0 MVP 实施（phases 0-7，按 `docs/06-DEV-PLAN.md`）
-  - 阶段 0：pyproject.toml + uv + config/loader + store/file_store + state/machine
-  - 阶段 1：socratic/（questions + engine + output + learning）
-  - 阶段 2：thinking_models/（4 框架 + 5 策略）
-  - 阶段 3-7：blueprint / draft / polish / sediment / pipeline / CLI
+- ⏳ v1.0 MVP 实施（phases 3-7，按 `docs/06-DEV-PLAN.md`）
+  - 阶段 3：blueprint/（designer + anchors + sections + TUI）
+  - 阶段 4：draft/（section_prompt + generator）
+  - 阶段 5：polish/（6 维质量 + scorer + suggester）
+  - 阶段 6：sediment/（harvester + style_updater）
+  - 阶段 7：pipeline/（orchestrator + steps + cli/commands/run）
 
 详见 `docs/14-TASKS.md`
 
@@ -75,10 +79,7 @@ ls legacy/       # 源项目快照（待复制）
 
 ## 待用户决策
 
-下一步进入哪条路径：
-1. 复制源项目快照 → 进入 v1.0 MVP 实施
-2. 暂停 / 回顾 / 补漏
-3. 其他
+无 — 继续按 DEV-PLAN 推进阶段 3-7。
 
 ---
 

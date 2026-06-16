@@ -1,0 +1,72 @@
+# 4 个内置思想模型框架
+# 详见 D-003 + D-007
+version: 1
+frameworks:
+  - id: problem_decomposition
+    name: 问题解构
+    strategy: chain
+    model_ids:
+      - first_principles
+      - five_why
+      - occam_razor
+    trigger_keywords:
+      - 为什么
+      - 怎么回事
+      - 原因
+      - 根因
+    description: 拆解问题的本质 → 追根因 → 简化到最少要素
+    output_contract: |
+      输出 3 段：(1) 第一性原理视角的命题重述 (2) 5Why 链 (3) 简化后的核心论点
+
+  - id: decision_analysis
+    name: 决策分析
+    strategy: parallel
+    model_ids:
+      - leverage_point
+      - jtbd
+      - contrarian
+    trigger_keywords:
+      - 选
+      - 决定
+      - 还是
+      - 哪个
+      - 要不要
+    description: 从杠杆 / 用户 / 反共识 3 视角独立分析
+    output_contract: |
+      输出 3 段（并行）：(1) 杠杆点 (2) 用户的 JTBD (3) 反共识角度
+
+  - id: systems_thinking
+    name: 系统思考
+    strategy: nested
+    model_ids:
+      - systems_thinking
+      - causal_chain
+      - feedback_loop
+      - second_order
+    trigger_keywords:
+      - 系统
+      - 长期
+      - 全局
+      - 影响
+      - 后果
+    description: 嵌套分析：系统结构 → 因果链 → 反馈回路 → 二阶效应
+    output_contract: |
+      输出嵌套 4 层：系统图 → 因果链 → 正/负反馈 → 二阶效应
+
+  - id: innovation_breakthrough
+    name: 创新突破
+    strategy: divergent_then_convergent
+    model_ids:
+      - inverse
+      - analogy
+      - first_principles
+      - contrarian
+    trigger_keywords:
+      - 新
+      - 不同
+      - 差异化
+      - 创新
+      - 突破
+    description: 先发散（逆向+类比），再收敛（第一性原理+反共识）
+    output_contract: |
+      输出：(1) 逆向视角 (2) 类比启发 (3) 收敛后新框架 (4) 反共识角度

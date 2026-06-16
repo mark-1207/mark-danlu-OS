@@ -58,6 +58,8 @@ class ThinkingModel(BaseModel):
     definition: str
     use_when: str | None = None
     example: str | None = None
+    prompt_hint: str | None = None
+    avoid: str | None = None
 
 
 class Framework(BaseModel):

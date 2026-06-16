@@ -1,0 +1,99 @@
+# 12 个核心思想模型卡片
+# 详见 D-007 4 框架 + 12 模型
+version: 1
+models:
+  - id: leverage_point
+    name: 杠杆者
+    definition: 找到投入产出比最高的关键支点
+    use_when: 资源有限 / 效率优化 / 抓重点
+    example: 健身的杠杆是睡眠，不是运动
+    prompt_hint: 从杠杆点角度分析，识别 1 个关键支点
+    avoid: 列举所有可能（变成清单而非杠杆）
+
+  - id: first_principles
+    name: 第一性原理
+    definition: 回到事物最基本的真理，重建认知
+    use_when: 打破常规 / 重新定义 / 质疑假设
+    example: 特斯拉从物理原理算电池成本
+    prompt_hint: 剥掉所有约定俗成，回到最基础的事实
+    avoid: 套用已有方法论而不质疑
+
+  - id: inverse
+    name: 逆向思维
+    definition: 反过来想：失败者做错了什么？
+    use_when: 卡住 / 找新路 / 避免陷阱
+    example: 查理芒格的反过来想
+    prompt_hint: 先想"如何失败"，再倒推"如何成功"
+    avoid: 简单反转（反而不思考）
+
+  - id: systems_thinking
+    name: 系统思维
+    definition: 看整体反馈回路，而非单点
+    use_when: 复杂问题 / 多方博弈 / 长期影响
+    example: 医疗费用高的根因不是费用，是系统结构
+    prompt_hint: 画出 3-5 个关键节点 + 它们之间的反馈
+    avoid: 线性归因（A 导致 B）
+
+  - id: jtbd
+    name: JTBD
+    definition: Jobs To Be Done — 用户雇你的产品做什么？
+    use_when: 产品设计 / 营销 / 用户研究
+    example: 钻头用户要的是"墙上的洞"
+    prompt_hint: 区分"产品功能"和"用户雇佣的真正任务"
+    avoid: 描述产品特性而非用户场景
+
+  - id: occam_razor
+    name: 奥卡姆剃刀
+    definition: 如无必要，勿增实体
+    use_when: 简化 / 去除冗余 / 收敛
+    example: 简单假设能解释，就别用复杂假设
+    prompt_hint: 砍掉一切不必要的概念/步骤/限制
+    avoid: 砍到破坏功能
+
+  - id: contrarian
+    name: 反共识
+    definition: 找到大多数人都错或忽略的角度
+    use_when: 差异化 / 创新 / 突破平庸
+    example: 巴菲特：在别人贪婪时恐惧
+    prompt_hint: 大多数人会说 X，但实际上 Y
+    avoid: 故意唱反调（无根据）
+
+  - id: causal_chain
+    name: 因果链
+    definition: 沿因果关系追溯，不只看相关性
+    use_when: 归因 / 根因 / 决策依据
+    example: 营销增长 → 品牌 → 复购 → LTV
+    prompt_hint: 沿因果链回溯 3-5 层，找真正的源头
+    avoid: 混淆相关和因果
+
+  - id: five_why
+    name: 5Why
+    definition: 连问 5 个为什么，找根因
+    use_when: 问题诊断 / 故障排查 / 深度归因
+    example: 丰田汽车的生产线问题
+    prompt_hint: 对"为什么"连续追问直到触及根本
+    avoid: 在浅层停止（问 1-2 次就交差）
+
+  - id: analogy
+    name: 类比
+    definition: 用熟悉的事物解释陌生的
+    use_when: 科普 / 教学 / 创新启发
+    example: 原子像太阳系
+    prompt_hint: 找一个听众熟悉的事物做类比
+    avoid: 强行类比（结构不对应）
+
+  - id: feedback_loop
+    name: 反馈回路
+    definition: 识别正/负反馈，看系统的自我调节
+    use_when: 系统分析 / 长期预测 / 动态问题
+    example: 社交媒体的算法推荐→用户停留→更多同类内容
+    prompt_hint: 标出每个回路的极性（增强/平衡）和时间常数
+    avoid: 单向归因
+
+  - id: second_order
+    name: 二阶效应
+    definition: 一阶效应的后果是什么？
+    use_when: 决策评估 / 政策分析 / 长期影响
+    example: 抗生素滥用 → 耐药菌
+    prompt_hint: 不只看直接结果，追问"然后呢？"
+    avoid: 只看一阶（直接结果）
