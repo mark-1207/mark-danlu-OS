@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ContentForge 技能运行流程</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #0d1117; color: #e6edf3; line-height: 1.7; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 40px 20px; }
+  h1 { font-size: 2em; text-align: center; margin-bottom: 8px; color: #58a6ff; }
+  .subtitle { text-align: center; color: #8b949e; margin-bottom: 40px; font-size: 0.95em; }
+  h2 { color: #79c0ff; margin: 36px 0 16px; font-size: 1.3em; border-left: 4px solid #388bfd; padding-left: 12px; }
+  h3 { color: #d2a8ff; margin: 20px 0 10px; font-size: 1.05em; }
+  .nav { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 36px; }
+  .nav a { background: #161b22; border: 1px solid #30363d; color: #8b949e; padding: 8px 18px; text-decoration: none; border-radius: 6px; font-size: 0.88em; transition: all 0.2s; }
+  .nav a:hover, .nav a.active { border-color: #58a6ff; color: #58a6ff; }
+  .scenario { background: #161b22; border: 1px solid #30363d; border-radius: 12px; margin-bottom: 40px; overflow: hidden; }
+  .scenario-header { background: #1c2128; padding: 20px 28px; border-bottom: 1px solid #30363d; }
+  .scenario-num { display: inline-block background: #388bfd22; border: 1px solid #388bfd; color: #79c0ff; font-size: 0.75em; padding: 2px 10px; border-radius: 20px; margin-bottom: 8px; }
+  .scenario-title { font-size: 1.25em; color: #f0f6fc; margin-bottom: 4px; }
+  .scenario-desc { color: #8b949e; font-size: 0.88em; }
+  .scenario-summary { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px 18px; margin: 0 0 18px 0; }
+  .scenario-summary p { margin: 4px 0; font-size: 0.9em; }
+  .scenario-summary .pain-point { color: #f0883e; }
+  .scenario-summary .solution { color: #7ee787; }
+  .scenario-summary strong { color: #d2a8ff; }
+  .scenario-body { padding: 28px; }
+  .flow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 20px 0; }
+  .flow-node { background: #1f6feb22; border: 1px solid #1f6feb; color: #79c0ff; padding: 8px 14px; border-radius: 8px; font-size: 0.85em; text-align: center; min-width: 90px; }
+  .flow-arrow { color: #484f58; font-size: 1.2em; }
+  .step { background: #0d1117; border: 1px solid #21262d; border-radius: 8px; padding: 16px 20px; margin-bottom: 14px; }
+  .step-num { display: inline-block; background: #30363d; color: #8b949e; font-size: 0.75em; width: 24px; height: 24px; text-align: center; line-height: 24px; border-radius: 50%; margin-right: 10px; }
+  .step-title { color: #f0f6fc; font-weight: 600; font-size: 0.95em; }
+  .step-detail { color: #8b949e; font-size: 0.85em; margin: 6px 0 8px 34px; }
+  .step-code { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 12px 16px; font-family: "Cascadia Code", "Consolas", monospace; font-size: 0.82em; color: #a5d6ff; white-space-pre-wrap; margin: 8px 0 0 34px; overflow-x: auto; }
+  .step-result { background: #1c2128; border: 1px solid #30363d; border-radius: 6px; padding: 10px 16px; font-size: 0.85em; color: #7ee787; margin: 8px 0 0 34px; }
+  .branch { border-left: 3px solid #d29922; padding-left: 14px; margin: 10px 0 10px 34px; }
+  .branch-label { color: #d29922; font-size: 0.82em; font-weight: 600; }
+  .tip { background: #1c2128; border: 1px solid #388bfd; border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 0.88em; color: #8b949e; }
+  .tip strong { color: #79c0ff; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 16px; font-size: 0.88em; }
+  th { background: #1c2128; color: #79c0ff; padding: 10px 14px; text-align: left; border: 1px solid #30363d; }
+  td { padding: 9px 14px; border: 1px solid #21262d; color: #c9d1d9; }
+  tr:nth-child(even) td { background: #161b22; }
+  .tag { display: inline-block; background: #388bfd22; border: 1px solid #388bfd; color: #79c0ff; font-size: 0.72em; padding: 1px 7px; border-radius: 4px; margin-right: 4px; }
+  .tag-green { background: #3fb95022; border-color: #3fb950; color: #7ee787; }
+  .tag-red { background: #f8514922; border-color: #f85149; color: #ffa198; }
+  .tag-yellow { background: #d2992222; border-color: #d29922; color: #d29922; }
+  .highlight { color: #f0883e; }
+  .caps { display: inline-block; background: #21262d; color: #8b949e; font-size: 0.72em; padding: 2px 8px; border-radius: 4px; margin-right: 6px; font-family: monospace; }
+  hr { border: none; border-top: 1px solid #21262d; margin: 28px 0; }
+  .output-box { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 16px 20px; margin: 14px 0; font-family: "Cascadia Code", "Consolas", monospace; font-size: 0.82em; color: #c9d1d9; white-space-pre-wrap; }
+  .output-box .comment { color: #8b949e; }
+  .output-box .key { color: #79c0ff; }
+  .output-box .str { color: #a5d6ff; }
+  .output-box .num { color: #d29922; }
+  .path-box { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 14px 18px; margin: 10px 0; font-family: "Cascadia Code", "Consolas", monospace; font-size: 0.82em; color: #7ee787; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>ContentForge 技能运行流程</h1>
+<p class="subtitle">Skill 驱动 · 修订学习闭环 &nbsp;|&nbsp; 版本 1.0 &nbsp;|&nbsp; 2026-05-19</p>
+
+<!-- 导航 -->
+<div class="nav">
+  <a href="#s1">场景一：原创生成</a>
+  <a href="#s2">场景二：爆款二创</a>
+  <a href="#s3">场景三：修订 + 学习</a>
+  <a href="#s4">场景四：竞品抓取</a>
+</div>
+
+<!-- ========== 场景一：原创生成 ========== -->
+<div class="scenario" id="s1">
+<div class="scenario-header">
+  <div class="scenario-num">场景一</div>
+  <div class="scenario-title">skill "帮我写..." → 原创生成 → Obsidian 回流</div>
+  <div class="scenario-desc">用户输入自然语言需求，系统全自动生成多平台适配内容，写入 Obsidian</div>
+</div>
+<div class="scenario-body">
+
+<div class="scenario-summary">
+  <p><strong>触发方式：</strong>CLI `skill "帮我写一篇关于XXX的文章 发公众号"` 或 Claude Code 里直接说需求</p>
+  <p><strong>用户痛点：</strong><span class="pain-point">有写作需求但不知道从哪开始，需要 AI 帮助构思标题、大纲和内容</span></p>
+  <p><strong>场景方案：</strong><span class="solution">skill 解析意图后自动走 6 步 pipeline，最终生成公众号/小红书/抖音三平台内容</span></p>
+</div>
+
+<h3>完整流程图</h3>
+<div class="flow">
+  <div class="flow-node">用户输入需求</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">intent 解析</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">topic-analysis</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">topic-assignment</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">outline 生成</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">素材搜索</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">内容生成</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">内容审查</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">Obsidian</div>
+</div>
+
+<h3>Step 1 — Intent 解析</h3>
+<div class="step">
+  <span class="step-num">1</span>
+  <span class="step-title">parseIntent() — 判断 intent 类型</span>
+  <div class="step-detail">
+    从用户输入提取关键词 + 目标平台。<br>
+    有 .md 文件路径 OR 有意图词（二创/改写/爆款/rewrite）→ recreate<br>
+    否则 → create。<br>
+    自动识别平台词（公众号/小红书/抖音）。
+  </div>
+  <div class="step-code">输入: "帮我写一篇关于AI时代的职场人文章 发公众号"
+intent.type: "create"
+intent.keyword: "AI时代的职场人"
+intent.platforms: ["wechat"]</div>
+  <div class="step-result">→ 进入 create pipeline</div>
+</div>
+
+<h3>Step 2 — Topic Analysis</h3>
+<div class="step">
+  <span class="step-num">2</span>
+  <span class="step-title">topic-analysis — 主题深挖</span>
+  <div class="step-detail">
+    LLM 分析选题方向，提取关键词 tags，生成爆款结构建议。<br>
+    输出供后续步骤使用的主题分析结果。
+  </div>
+  <div class="step-code">topic-analysis: {
+  tags: ["AI时代", "职场人", "职业危机", ...],
+  viralStructure: "对比型叙事结构",
+  topicAngle: "从普通人视角看AI带来的职业安全感缺失"
+}</div>
+</div>
+
+<h3>Step 3 — Outline 生成</h3>
+<div class="step">
+  <span class="step-num">3</span>
+  <span class="step-title">outline-wechat — 大纲 + 知识迁移规划</span>
+  <div class="step-detail">
+    从 Obsidian 40_知识库/ 加载相关素材（原子库/洞察库/金句库/思维模型等）。<br>
+    大纲阶段规划每个 section 使用哪个素材、怎么用（knowledgeTransfer）。<br>
+    遵循五步波纹法情绪曲线设计。
+  </div>
+  <div class="step-code">outline-wechat: {
+  sections: [
+    { title: "那个被AI'优化'掉的下午", knowledgeTransfer: "案例：朋友老李的故事" },
+    { title: "AI冲击不是意外，是系统重构", knowledgeTransfer: "数据：麦肯锡报告" },
+    ...
+  ],
+  emotionalCurve: ["钩子→铺垫→冲突→共鸣→CTA"]
+}</div>
+</div>
+
+<h3>Step 4 — 素材搜索</h3>
+<div class="step">
+  <span class="step-num">4</span>
+  <span class="step-title">material-search — Web + Obsidian 素材</span>
+  <div class="step-detail">
+    按大纲规划的每个知识点搜索 Web 素材。<br>
+    同时注入 Obsidian 素材（知识迁移方案B：动态激活）。<br>
+    合并去重后供 content 阶段使用。
+  </div>
+  <div class="step-code">material-search: {
+  wechat: 1,   // 找到1条素材
+  xiaohongshu: 0,
+  douyin: 0
+}
+Obsidian materials injected: 8 cards</div>
+</div>
+
+<h3>Step 5 — 内容生成 + 审查</h3>
+<div class="step">
+  <span class="step-num">5</span>
+  <span class="step-title">content-wechat → review-wechat</span>
+  <div class="step-detail">
+    按大纲 + 素材生成正文，执行六维质量规范（温度/热度/深度/厚度/情绪曲线/知识迁移）。<br>
+    review-wechat 对初稿进行质量审查，不通过则重写。
+  </div>
+  <div class="step-result">✓ 生成完成 tokens: +9326</div>
+</div>
+
+<h3>Step 6 — Obsidian 回流</h3>
+<div class="step">
+  <span class="step-num">6</span>
+  <span class="step-title">ObsidianWriter.writeArticle() — 文章入库</span>
+  <div class="step-detail">
+    生成完成后自动写入 Obsidian 50_资源/生成文章/。<br>
+    用户可手动拆解沉淀为原子卡，下次创作时调用。
+  </div>
+  <div class="step-code">写入路径:
+d:\软件\obsidian笔记\内容素材库\50_资源\生成文章\
+  AI不是电钻是筛子：30岁后如何构建反脆弱职业系统.md</div>
+  <div class="step-result">✓ 已同步 Obsidian</div>
+</div>
+
+<h3>最终输出</h3>
+<div class="output-box">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ 生成完成
+
+输出目录: output/create_1779178176652/
+总 token: input=14488 output=9326
+预估成本: $0.1834
+
+生成文件:
+  - AI不是电钻是筛子：30岁后如何构建反脆弱职业系统.wechat.md
+  - run-meta.json
+  - run.log
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+</div>
+</div>
+
+<!-- ========== 场景二：爆款二创 ========== -->
+<div class="scenario" id="s2">
+<div class="scenario-header">
+  <div class="scenario-num">场景二</div>
+  <div class="scenario-title">skill "二创：d:/文章.md" → 差异化二创 → 原创性审查</div>
+  <div class="scenario-desc">用户提供已有文章路径，系统分析爆款要素、生成差异化方向、产出新内容并进行原创性审查</div>
+</div>
+<div class="scenario-body">
+
+<div class="scenario-summary">
+  <p><strong>触发方式：</strong>`skill 二创：d:/文章.md` 或 `skill 帮我改写这篇文章` 或 `node dist/index.js recreate -i d:/文章.md`</p>
+  <p><strong>用户痛点：</strong><span class="pain-point">有一篇好文章，想以不同角度/受众/风格改写，但没有思路</span></p>
+  <p><strong>场景方案：</strong><span class="solution">系统先解剖原文爆款要素，再生成 3 个差异化方向，用户选择后生成新内容，最后审查原创性</span></p>
+</div>
+
+<h3>完整流程图</h3>
+<div class="flow">
+  <div class="flow-node">输入文章<br><small>.md 文件</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">病毒拆解<br><small>viral-deconstruction</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">差异化方向<br><small>viral-differentiation</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">新大纲<br><small>new-outline</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">二创内容<br><small>recreation-content</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">双重审查<br><small>dual-review</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">元素级优化<br><small>local-rewrite</small></div>
+</div>
+
+<h3>Step 1 — 原文验证</h3>
+<div class="step">
+  <span class="step-num">1</span>
+  <span class="step-title">validateAndCleanInput() — 输入验证 + 清理</span>
+  <div class="step-detail">
+    读取 .md 文件，检测 HTML 内容并自动清理。<br>
+    验证通过后提取正文供后续 pipeline 使用。
+  </div>
+  <div class="step-code">originalArticle: "（提取的正文内容）"
+validation: {
+  wasHtml: false,
+  errors: [],
+  warnings: []
+}</div>
+</div>
+
+<h3>Step 2 — 病毒拆解</h3>
+<div class="step">
+  <span class="step-num">2</span>
+  <span class="step-title">viral-deconstruction — 解剖原文爆款要素</span>
+  <div class="step-detail">
+    分析原文的：钩子技术、情绪曲线、叙事结构、金句、案例。<br>
+    输出 viral-genome（爆款基因组），供后续差异化方向和新大纲使用。
+  </div>
+  <div class="step-code">viral-genome: {
+  hookTechnique: { type: "判断式金句钩子", mechanism: "..." },
+  emotionCurve: [...],
+  narrativeStructure: [...],
+  powerSentences: [...]
+}</div>
+</div>
+
+<h3>Step 3 — 差异化方向</h3>
+<div class="step">
+  <span class="step-num">3</span>
+  <span class="step-title">viral-differentiation — 生成 3 个差异化方向</span>
+  <div class="step-detail">
+    三个维度生成差异化方向：视角转移、受众转移、内容转移。<br>
+    interactive 模式下暂停等待用户选择；auto 模式自动选最优。
+  </div>
+  <div class="step-code">directions: [
+  {
+    name: "受众降维",
+    newAngle: "从职场人视角降到普通家庭主妇",
+    perspectiveShift: "高管→普通人",
+    compositeScore: 8.2
+  },
+  {
+    name: "观点反转",
+    newAngle: "不是危机，是机会",
+    contentShift: "悲观→乐观",
+    compositeScore: 7.5
+  },
+  ...
+]</div>
+  <div class="step-result">⚠ interactive 模式暂停，等待用户选择方向</div>
+</div>
+
+<h3>Step 4 — 双重审查</h3>
+<div class="step">
+  <span class="step-num">4</span>
+  <span class="step-title">dual-review — 原创性审查 + 爆款潜力评估</span>
+  <div class="step-detail">
+    originalityReport：检测正文与原文相似段落（goldQuote/caseStudy/data 类型），输出相似度。<br>
+    viralPotentialReport：评估新内容的六维质量评分。
+  </div>
+  <div class="step-code">dual-review: {
+  originalityReport: {
+    overallScore: 7/10,
+    passThreshold: true,
+    flaggedParagraphs: [
+      { type: "caseStudy", similarity: 0.82, paragraphIndex: 2 }
+    ]
+  },
+  viralPotentialReport: { scores: {...} }
+}</div>
+</div>
+
+<h3>Step 5 — 元素级优化（条件触发）</h3>
+<div class="step">
+  <span class="step-num">5</span>
+  <span class="step-title">local-rewrite — 针对高相似段落重写</span>
+  <div class="step-detail">
+    当 flaggedParagraphs 有内容时，提示用户选择要替换的段落编号。<br>
+    触发 rewrite-actions 原子级重写（rewrite-title/hook/section/cta 等）。<br>
+    成本控制：超过 maxCostPerRun 时跳过。
+  </div>
+  <div class="step-code">输入要替换的编号（逗号分隔，如 1,3），回车确认，0 跳过: 2
+
+已选中：[案例] 相似度 0.82
+→ rewrite-section: 正在重写...</div>
+</div>
+
+<h3>Step 6 — post-gen 提示 + corpus 保存</h3>
+<div class="step">
+  <span class="step-num">6</span>
+  <span class="step-title">askPostGen() — 生成后提示</span>
+  <div class="step-detail">
+    二创完成后，TTY 环境下询问用户：接受 / 修改 / 放弃。<br>
+    <b>修订（revise）</b> → 进入修订 pipeline（场景三）。<br>
+    同时保存到 corpus/original/ 版本历史，供碎片库学习。
+  </div>
+  <div class="step-code">askPostGen() 选项:
+  [accept]  — 接受当前版本，退出
+  [revise]  — 修订（进入 RevisionPipeline）
+  [abort]  — 放弃
+
+corpus/original/ 保存格式:
+recreate_2026-05-19_AI不是电钻是筛子.md
+recreate_2026-05-19_AI不是电钻是筛子_v1.md  ← 上一版</div>
+</div>
+
+<h3>最终输出</h3>
+<div class="output-box">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ 二创完成
+
+输出目录: output/recreate_xxxxxx/
+总 token: input=XXX output=XXX
+预估成本: $0.XXXX
+
+生成文件:
+  - AI不是电钻是筛子：30岁后如何构建反脆弱职业系统.md
+  - 竞品分析报告-2026-05-19.md（竞品模式）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+</div>
+</div>
+
+<!-- ========== 场景三：修订 + 学习 ========== -->
+<div class="scenario" id="s3">
+<div class="scenario-header">
+  <div class="scenario-num">场景三</div>
+  <div class="scenario-title">revise → 元素选择 → 定向重写 → 确认循环</div>
+  <div class="scenario-desc">用户对生成结果不满意，通过 TUI 选择要修订的元素（标题/Hook/正文/案例/金句/CTA），AI 定向重写后可确认或继续修改</div>
+</div>
+<div class="scenario-body">
+
+<div class="scenario-summary">
+  <p><strong>触发方式：</strong>二创后选择 "revise"，或 `node dist/index.js revise <runId>`</p>
+  <p><strong>用户痛点：</strong><span class="pain-point">生成的文章有个别部分不满意（标题不够吸引、正文某个案例太旧），但不想整个重写</span></p>
+  <p><strong>场景方案：</strong><span class="solution">精准定位要改的元素（标题/Hook/正文/CTA/案例/金句），定向重写，循环确认直到满意</span></p>
+</div>
+
+<h3>完整流程图</h3>
+<div class="flow">
+  <div class="flow-node">选择元素<br><small>ElementSelector TUI</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">R0<br><small>元素选择</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">R1<br><small>定向重写</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">R2<br><small>确认/循环</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">保存版本<br><small>manifest</small></div>
+</div>
+
+<h3>Step 1 — 恢复上下文</h3>
+<div class="step">
+  <span class="step-num">1</span>
+  <span class="step-title">PipelineContext.restore() — 恢复父 runId 上下文</span>
+  <div class="step-detail">
+    从 parentRunId 恢复 topic-analysis、viral-genome、content 等中间结果。<br>
+    新建 revision runId（格式：rev-xxxxxxxx），不污染原 run。
+  </div>
+  <div class="step-code">parentRunId: "create_1779178176652"
+runId: "rev_a1b2c3d4"
+
+恢复的 artifacts:
+  - topic-analysis-confirmed
+  - viral-genome
+  - content-wechat
+  - content-xiaohongshu
+  - content-douyin</div>
+</div>
+
+<h3>Step 2 — R0 元素选择 TUI</h3>
+<div class="step">
+  <span class="step-num">2</span>
+  <span class="step-title">selectRevisionElements() — TUI 元素选择</span>
+  <div class="step-detail">
+    键盘操作：↑↓ 移动、空格 选中、回车 确认。<br>
+    可多选元素类型：标题 / Hook（开头）/ 正文 / CTA（结尾）/ 案例 / 金句。<br>
+    确认后输入修改指令（如"标题更有冲击力，hook 更短更有劲"）。
+  </div>
+  <div class="step-code">TUI 界面:
+╔════════════════════════════════════════╗
+║  Revision — 选择要修订的元素          ║
+╠════════════════════════════════════════╣
+║  > × 标题 (title)    3个平台          ║
+║    □ Hook (开头)      3个平台          ║
+║    □ 正文 (body)     3个平台          ║
+║    □ CTA (结尾召唤)  3个平台          ║
+║    □ 案例 (example)  3个平台          ║
+║    □ 金句 (power-sentence) 3个平台   ║
+╠════════════════════════════════════════╣
+║  ↑↓ 移动  空格 选中  回车 确认        ║
+╚════════════════════════════════════════╝
+
+已选中：标题(wechat、xiaohongshu、douyin)
+请说明要怎么改：标题更有冲击力，hook 更短更有劲</div>
+  <div class="step-result">→ selections: [{ element: 'title', platforms: ['wechat', 'xiaohongshu', 'douyin'] }]</div>
+</div>
+
+<h3>Step 3 — R1 定向重写</h3>
+<div class="step">
+  <span class="step-num">3</span>
+  <span class="step-title">executeRevisionRewrite() — 原子级重写</span>
+  <div class="step-detail">
+    根据选择的元素类型调用对应 rewrite 函数：<br>
+    <b>标题</b> → rewriteTitle() &nbsp; <b>Hook</b> → rewriteHook() &nbsp; <b>正文</b> → rewriteSection()<br>
+    <b>CTA</b> → rewriteCta() &nbsp; <b>案例</b> → replaceExample() &nbsp; <b>金句</b> → supplementPowerSentences()<br>
+    三平台同步重写（wechat/xiaohongshu/douyin）。
+  </div>
+  <div class="step-code">rewrite-title:
+  oldTitle: "AI不是电钻是筛子：30岁后如何构建反脆弱职业系统"
+  newTitle: "被AI筛掉的人：30岁后的职场人还有退路吗"
+
+appliedTriggers: [
+  { element: "title", action: "rewrite-title",
+    originalText: "AI不是电钻是筛子：30岁后如何构建反脆弱职业系统",
+    newText: "被AI筛掉的人：30岁后的职场人还有退路吗" }
+]</div>
+  <div class="step-result">✓ 修订完成</div>
+</div>
+
+<h3>Step 4 — R2 确认 / 循环</h3>
+<div class="step">
+  <span class="step-num">4</span>
+  <span class="step-title">confirm() — 等待用户确认</span>
+  <div class="step-detail">
+    显示修改摘要，询问"这版可以吗？"<br>
+    y → 保存版本 manifest，进入 review 优化<br>
+    n → 循环回 R0，继续选择元素修改
+  </div>
+  <div class="step-code">✓ 修订完成
+  title: rewrite-title
+    新: "被AI筛掉的人：30岁后的职场人还有退路吗..."
+
+这版可以吗？ [y/N]</div>
+</div>
+
+<h3>Step 5 — 版本持久化</h3>
+<div class="step">
+  <span class="step-num">5</span>
+  <span class="step-title">persistLineage() — 保存版本历史</span>
+  <div class="step-detail">
+    将修订记录写入 parentRunId/revisions/manifest.json。<br>
+    同时保存当前版本的完整内容到 revisions/v{N}.md。
+  </div>
+  <div class="step-code">manifest.json 结构:
+{
+  "parentRunId": "create_1779178176652",
+  "currentVersion": "v1",
+  "versions": [
+    {
+      "version": "v1",
+      "timestamp": "2026-05-19T10:30:00Z",
+      "userInstruction": "标题更有冲击力，hook 更短更有劲",
+      "selections": [{ "element": "title", "platforms": ["wechat", ...] }],
+      "appliedTriggers": [...]
+    }
+  ]
+}
+
+revisions/manifest.json
+revisions/v1.md  ← 当前版本完整内容</div>
+</div>
+
+<h3>修订循环可多次进行</h3>
+<div class="flow">
+  <div class="flow-node">R0<br>选择元素</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">R1<br>重写</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">确认</div>
+  <span class="flow-arrow">↺ 否</span>
+  <div class="flow-node">R0<br>再选</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">R1<br>重写</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">确认<br>✓ 是</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">保存</div>
+</div>
+
+</div>
+</div>
+
+<!-- ========== 场景四：竞品抓取 ========== -->
+<div class="scenario" id="s4">
+<div class="scenario-header">
+  <div class="scenario-num">场景四</div>
+  <div class="scenario-title">topic scrape → 飞书 → learn --analyze → 碎片提取 → Obsidian</div>
+  <div class="scenario-desc">用户输入竞品文章 URL，系统抓取 → 写入飞书 → AI 分析 → 碎片提取 → Obsidian 原子库</div>
+</div>
+<div class="scenario-body">
+
+<div class="scenario-summary">
+  <p><strong>触发方式：</strong>`topic scrape --url "URL"` 或 `topic scrape --file urls.txt`</p>
+  <p><strong>用户痛点：</strong><span class="pain-point">需要持续跟踪竞品内容，但手动抓取费时费力，分析和碎片提取更是负担</span></p>
+  <p><strong>场景方案：</strong><span class="solution">一键批量抓取 → 自动写入飞书 → learn 命令完成 AI 分析和碎片提取</span></p>
+</div>
+
+<h3>完整流程图</h3>
+<div class="flow">
+  <div class="flow-node">用户输入 URL<br><small>单条或批量</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">topic scrape<br><small>抓取正文</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">写入飞书<br><small>状态: 待分析</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">learn --analyze<br><small>AI 分析</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">learn --extract<br><small>碎片提取</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">Obsidian</div>
+</div>
+
+<h3>Step 1 — 竞品抓取</h3>
+<div class="step">
+  <span class="step-num">1</span>
+  <span class="step-title">topic scrape — 抓取 + 写入飞书</span>
+  <div class="step-detail">
+    支持单条 `--url` 或批量 `--file urls.txt`。<br>
+    抓取正文、去 HTML、写入飞书竞品表（来源类型=竞品抓取，状态=待分析）。<br>
+    错误跳过继续，进度报告。
+  </div>
+  <div class="step-code"># 单条
+node dist/index.js topic scrape --url "https://mp.weixin.qq.com/s/xxx"
+
+# 批量
+node dist/index.js topic scrape --file urls.txt
+
+# 桌面一键（双击运行）
+# 竞品抓取.bat</div>
+  <div class="step-result">✓ 写入飞书（状态: 待分析）</div>
+</div>
+
+<h3>Step 2 — AI 分析</h3>
+<div class="step">
+  <span class="step-num">2</span>
+  <span class="step-title">learn --analyze — AI 提取爆款结构/角度/标签</span>
+  <div class="step-detail">
+    读取飞书待分析记录，调用 LLM 分析：<br>
+    爆款结构、叙事结构（故事型/清单型/对比型/分析型/混合型）、情感调性（励志/冷静/温暖/犀利/幽默）、内容角度、标签。<br>
+    分析完成后更新飞书记录（状态=已分析），同时补填叙事结构/情感调性/内容角度字段。
+  </div>
+  <div class="step-code"># 执行
+node dist/index.js learn --analyze
+
+# 分析字段
+{
+  爆款结构: "对比型开头+清单型展开",
+  叙事结构: "对比型",
+  情感调性: "犀利",
+  内容角度: "反常识颠覆",
+  标签: ["职场", "效率", "反常识"]
+}</div>
+</div>
+
+<h3>Step 3 — 碎片提取</h3>
+<div class="step">
+  <span class="step-num">3</span>
+  <span class="step-title">learn --extract-fragments — 拆解为原子卡写入 Obsidian</span>
+  <div class="step-detail">
+    读取飞书已分析记录，按句子/段落拆解为原子卡。<br>
+    每个原子卡：类型标签（atom）、质量评分、使用次数统计。<br>
+    写入 Obsidian 40_知识库/原子库/，状态更新为"已入库"。
+  </div>
+  <div class="step-code"># 执行
+node dist/index.js learn --extract-fragments
+
+# 原子卡写入路径
+40_知识库/原子库/
+├── 01_观点/    # viewpoint 类型
+├── 02_案例/    # case 类型
+├── 03_金句/    # quote 类型
+└── 04_原理/    # principle 类型
+
+# 原子卡 frontmatter
+---
+type: atom
+subtype: viewpoint
+status: active
+topics: [职场, 效率]
+quality_score: 8
+usage_count: 0
+created: 2026-05-19
+---</div>
+  <div class="step-result">✓ 状态更新为"已入库"</div>
+</div>
+
+<h3>Step 4 — 竞品分析报告</h3>
+<div class="step">
+  <span class="step-num">4</span>
+  <span class="step-title">learn --include-competitor — 生成竞品 vs 我方对比报告</span>
+  <div class="step-detail">
+    读取竞品表（analyzed/stored）和反馈表，计算各维度平均互动率。<br>
+    输出 6-section 完整报告（含核心发现、市场格局、高表现规律、差距缺口、洞察、下一步行动）。<br>
+    写入 output/corpus/竞品库/ + 同步 Obsidian 竞品库/。
+  </div>
+  <div class="step-code"># 执行
+node dist/index.js learn --include-competitor
+
+# 输出
+output/corpus/竞品库/竞品分析报告-2026-05-19.md
+→ 同步到 Obsidian 竞品库/</div>
+</div>
+
+<h3>完整数据流总览</h3>
+<div class="output-box">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【ContentForge 完整数据流】
+
+竞品文章
+  ↓ (topic scrape)
+飞书竞品表（待分析）
+  ↓ (learn --analyze)
+飞书竞品表（已分析）← 叙事结构/情感调性/内容角度
+  ↓ (learn --extract-fragments)
+Obsidian 原子库（已入库）
+  ↓ (用户阅读沉淀)
+Obsidian 知识库
+  ↓ (创作时调用)
+content generation（生成新文章）
+  ↓
+Obsidian 生成文章库（50_资源/生成文章/）
+  ↓ (用户拆解沉淀)
+Obsidian 原子库（再次入库）
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+</div>
+</div>
+
+<!-- ========== 能力边界总览 ========== -->
+<h2 id="capabilities">ContentForge 完整命令 &amp; 边界</h2>
+
+<table>
+  <tr><th>命令</th><th>作用</th><th>边界 / 限制</th></tr>
+  <tr>
+    <td><code>skill "需求描述"</code></td>
+    <td>自然语言触发，解析为 create/recreate</td>
+    <td>有路径或意图词（二创/改写/爆款）即触发二创，无需同时满足</td>
+  </tr>
+  <tr>
+    <td><code>recreate -i &lt;file&gt;</code></td>
+    <td>爆款二创，支持 --interactive / --platforms</td>
+    <td>interactive 模式需 TTY 环境</td>
+  </tr>
+  <tr>
+    <td><code>revise &lt;runId&gt;</code></td>
+    <td>修订已有 run，支持 --list / --revert</td>
+    <td>需要传入有效 parentRunId</td>
+  </tr>
+  <tr>
+    <td><code>topic scrape --url/--file</code></td>
+    <td>竞品抓取，写入飞书</td>
+    <td>URL 需要可公网访问</td>
+  </tr>
+  <tr>
+    <td><code>learn --analyze</code></td>
+    <td>批量 AI 分析飞书待分析记录</td>
+    <td>需要 lark-cli 认证</td>
+  </tr>
+  <tr>
+    <td><code>learn --extract-fragments</code></td>
+    <td>从已分析记录提取原子卡</td>
+    <td>碎片为 0 时写 fallback 卡</td>
+  </tr>
+  <tr>
+    <td><code>learn --include-competitor</code></td>
+    <td>竞品分析报告</td>
+    <td>需要竞品表有 analyzed 记录</td>
+  </tr>
+  <tr>
+    <td><code>learn --feedback-summary</code></td>
+    <td>我方内容分析（console）</td>
+    <td>需要反馈表有数据</td>
+  </tr>
+  <tr>
+    <td><code>learn --backfill-analysis</code></td>
+    <td>竞品历史记录回填</td>
+    <td>一次性操作</td>
+  </tr>
+</table>
+
+</div>
+</body>
+</html>

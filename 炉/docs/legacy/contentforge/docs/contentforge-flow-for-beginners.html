@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ContentForge 小白入门指南</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: #0f0f1a;
+    color: #e8e8f0;
+    min-height: 100vh;
+    padding: 40px 20px;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: #888;
+    font-size: 14px;
+    margin-bottom: 40px;
+  }
+
+  .flow-container {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  /* 第一步：抓竞品 */
+  .phase {
+    margin-bottom: 48px;
+  }
+
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .phase-num {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .phase-1 .phase-num { background: #667eea; }
+  .phase-2 .phase-num { background: #f093fb; }
+  .phase-3 .phase-num { background: #4facfe; }
+  .phase-4 .phase-num { background: #43e97b; }
+  .phase-5 .phase-num { background: #fa709a; }
+
+  .phase-title {
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .phase-desc {
+    color: #888;
+    font-size: 13px;
+    margin-top: 2px;
+  }
+
+  .step-row {
+    display: flex;
+    gap: 16px;
+    align-items: stretch;
+    position: relative;
+  }
+
+  .step-card {
+    flex: 1;
+    background: #1a1a2e;
+    border: 1px solid #2a2a4a;
+    border-radius: 16px;
+    padding: 20px;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+
+  .step-card:hover {
+    border-color: #667eea;
+  }
+
+  .step-icon {
+    font-size: 28px;
+    margin-bottom: 10px;
+  }
+
+  .step-name {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .step-detail {
+    font-size: 12px;
+    color: #999;
+    line-height: 1.6;
+    margin-bottom: 12px;
+  }
+
+  .step-cmd {
+    background: #12121f;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 12px;
+    color: #a0a0d0;
+    margin-bottom: 10px;
+  }
+
+  .step-cmd-label {
+    font-size: 11px;
+    color: #666;
+    margin-bottom: 4px;
+  }
+
+  .step-note {
+    font-size: 11px;
+    color: #5a9a5a;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .step-arrow {
+    display: flex;
+    align-items: center;
+    color: #444;
+    font-size: 20px;
+    padding: 0 4px;
+    flex-shrink: 0;
+  }
+
+  /* 连接线 */
+  .connector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 8px;
+    flex-shrink: 0;
+  }
+
+  .connector-line {
+    width: 2px;
+    flex: 1;
+    background: linear-gradient(to bottom, #667eea44, #667eea);
+    min-height: 30px;
+  }
+
+  /* 两阶段高亮 */
+  .phase-3 .phase-header { border-bottom: 2px dashed #4facfe; padding-bottom: 12px; }
+  .phase-3 .phase-num { background: #4facfe; }
+
+  /* 底部提示条 */
+  .tip-bar {
+    max-width: 1100px;
+    margin: 48px auto 0;
+    background: #1a1a2e;
+    border: 1px solid #2a2a4a;
+    border-radius: 12px;
+    padding: 20px 24px;
+    display: flex;
+    gap: 32px;
+    align-items: flex-start;
+  }
+
+  .tip-bar-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+
+  .tip-bar-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: #667eea;
+  }
+
+  .tip-bar-text {
+    font-size: 13px;
+    color: #aaa;
+    line-height: 1.7;
+  }
+
+  .tip-item {
+    flex: 1;
+  }
+
+  /* 移动端适配 */
+  @media (max-width: 768px) {
+    .step-row {
+      flex-direction: column;
+    }
+    .step-arrow {
+      transform: rotate(90deg);
+      padding: 8px 0;
+    }
+    .tip-bar {
+      flex-direction: column;
+      gap: 20px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<h1>ContentForge 小白入门指南</h1>
+<p class="subtitle">5 步完成从竞品分析到多平台内容发布的全流程</p>
+
+<div class="flow-container">
+
+  <!-- 阶段1 -->
+  <div class="phase phase-1">
+    <div class="phase-header">
+      <div class="phase-num">1</div>
+      <div>
+        <div class="phase-title">抓竞品 — 找到好文章</div>
+        <div class="phase-desc">把网上写得好的文章抓进来，让 AI 学习为什么它火</div>
+      </div>
+    </div>
+    <div class="step-row">
+      <div class="step-card">
+        <div class="step-icon">🌐</div>
+        <div class="step-name">复制文章链接</div>
+        <div class="step-detail">打开微信/小红书，看到好文章后复制链接<br>（点击文章右上角 → 复制链接）</div>
+        <div class="step-note">✓ 不用做任何处理</div>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step-card">
+        <div class="step-icon">⚡</div>
+        <div class="step-name">粘贴给 ContentForge</div>
+        <div class="step-detail">在终端输入命令，把链接扔给它<br>它会自动抓取文章内容并存到飞书</div>
+        <div class="step-cmd-label">终端命令</div>
+        <div class="step-cmd">node dist/index.js topic scrape --url "粘贴的链接"</div>
+        <div class="step-note">✓ 支持批量：一行一个链接</div>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step-card">
+        <div class="step-icon">📊</div>
+        <div class="step-name">飞书自动生成记录</div>
+        <div class="step-detail">抓取成功后，飞书表格里会自动出现一条记录<br>状态显示"待分析"</div>
+        <div class="step-note">✓ 等 AI 分析完成（约几分钟）</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 阶段2 -->
+  <div class="phase phase-2">
+    <div class="phase-header">
+      <div class="phase-num">2</div>
+      <div>
+        <div class="phase-title">AI 分析 — 找出爆款规律</div>
+        <div class="phase-desc">让 AI 自动读懂文章好在哪：结构/调性/角度/标签</div>
+      </div>
+    </div>
+    <div class="step-row">
+      <div class="step-card">
+        <div class="step-icon">🤖</div>
+        <div class="step-name">一键分析全部竞品</div>
+        <div class="step-detail">一条命令让 AI 逐篇分析飞书里所有待分析文章<br>自动提取：叙事结构、情感调性、内容角度、标签</div>
+        <div class="step-cmd-label">终端命令</div>
+        <div class="step-cmd">node dist/index.js learn --analyze</div>
+        <div class="step-note">✓ 自动跳过已分析的文章</div>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step-card">
+        <div class="step-icon">🧩</div>
+        <div class="step-name">提取碎片进知识库</div>
+        <div class="step-detail">把好文章的精华部分（开头/金句/结尾）<br>自动拆解成原子卡片存入 Obsidian</div>
+        <div class="step-cmd-label">终端命令</div>
+        <div class="step-cmd">node dist/index.js learn --extract-fragments</div>
+        <div class="step-note">✓ 写入 Obsidian 知识库，生成时随时调用</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 阶段3 -->
+  <div class="phase phase-3">
+    <div class="phase-header">
+      <div class="phase-num">3</div>
+      <div>
+        <div class="phase-title">生成内容 — 写出自己的文章</div>
+        <div class="phase-desc">告诉 ContentForge 你想写什么，它结合竞品洞察和你的知识库生成初稿</div>
+      </div>
+    </div>
+    <div class="step-row">
+      <div class="step-card">
+        <div class="step-icon">💬</div>
+        <div class="step-name">用中文描述需求（Phase 1）</div>
+        <div class="step-detail">直接说："帮我写一篇关于职场加薪的公众号文章"<br>它自动理解意图，生成大纲供你确认</div>
+        <div class="step-cmd-label">第一步：生成大纲</div>
+        <div class="step-cmd">node dist/index.js skill "帮我写一篇关于职场加薪的文章 发公众号" --phase outline</div>
+        <div class="step-note">✓ 也可以发给微信机器人处理</div>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step-card">
+        <div class="step-icon">✅</div>
+        <div class="step-name">确认大纲后再生成（Phase 2）</div>
+        <div class="step-detail">看到大纲后确认或修改标题/案例方向<br>注入你的真实经历，再生成完整文章</div>
+        <div class="step-cmd-label">第二步：生成内容</div>
+        <div class="step-cmd">node dist/index.js skill "帮我写一篇..." --phase content --run-id &lt;ID&gt;</div>
+        <div class="step-note">✓ run-id 从上一步输出中复制</div>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step-card">
+        <div class="step-icon">✨</div>
+        <div class="step-name">AI 自动 review + 同步</div>
+        <div class="step-detail">自动检查质量分数，同步到 Obsidian<br>直接复制发布，或用 revise 继续改稿</div>
+        <div class="step-cmd-label">继续改稿</div>
+        <div class="step-cmd">node dist/index.js revise</div>
+        <div class="step-note">✓ 支持直接编辑段落内容</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 阶段3-B：观点文（opinion） -->
+  <div class="phase phase-3" style="margin-top: 32px;">
+    <div class="phase-header">
+      <div class="phase-num" style="background: #fa709a;">3+</div>
+      <div>
+        <div class="phase-title">观点文（opinion）— 证伪+锤炼后生成</div>
+        <div class="phase-desc">输入是观点/判断/想法（问号/挑战词/讨论词触发），不是主题</div>
+      </div>
+    </div>
+    <div class="step-row">
+      <div class="step-card">
+        <div class="step-icon">💡</div>
+        <div class="step-name">输入观点（自动识别）</div>
+        <div class="step-detail">问号/挑战/讨论关键词触发 opinion 模式<br>不需要"帮我写一篇"前缀</div>
+        <div class="step-cmd-label">示例</div>
+        <div class="step-cmd">node dist/index.js skill "AI让谁变富了？发公众号"</div>
+        <div class="step-note">✓ 问号结尾自动识别为 opinion</div>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step-card">
+        <div class="step-icon">⚖️</div>
+        <div class="step-name">证伪 + 锤炼 + HKR 质检</div>
+        <div class="step-detail">AI 自动生成支持证据和反驳<br>HKR 三维打分：悬念/信息量/共鸣感<br>推荐 3-5 个候选标题</div>
+        <div class="step-cmd-label">自动</div>
+        <div class="step-cmd">opinion-refine → opinion-review</div>
+        <div class="step-note">✓ 用户 TUI 确认/选择标题/注入案例</div>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step-card">
+        <div class="step-icon">✨</div>
+        <div class="step-name">Phase 2 续跑 + 质检</div>
+        <div class="step-detail">续跑标准 content pipeline<br>L1 禁词扫描 + L2 风格检查自动跑</div>
+        <div class="step-cmd-label">续跑命令</div>
+        <div class="step-cmd">node dist/index.js skill "..." --phase content --run-id opinion_xxx</div>
+        <div class="step-note">✓ 输出更口语化、活人感更强</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 阶段4 -->
+  <div class="phase phase-4">
+    <div class="phase-header">
+      <div class="phase-num">4</div>
+      <div>
+        <div class="phase-title">发布 — 同步到各平台</div>
+        <div class="phase-desc">一篇文章同时生成公众号/小红书/抖音三个版本</div>
+      </div>
+    </div>
+    <div class="step-row">
+      <div class="step-card">
+        <div class="step-icon">📝</div>
+        <div class="step-name">生成多平台版本</div>
+        <div class="step-detail">创建时默认生成三个平台的内容<br>每个平台的结构/风格/长度都不同</div>
+        <div class="step-note">✓ 公众号重深度，小红书重美观，抖音脚本</div>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step-card">
+        <div class="step-icon">📤</div>
+        <div class="step-name">复制到对应平台发布</div>
+        <div class="step-detail">文章自动存入 Obsidian<br>手动复制到对应平台发布即可</div>
+        <div class="step-note">✓ 未来计划：直接对接发布 API</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 阶段5 -->
+  <div class="phase phase-5">
+    <div class="phase-header">
+      <div class="phase-num">5</div>
+      <div>
+        <div class="phase-title">反馈 — 让系统越学越聪明</div>
+        <div class="phase-desc">发布后把数据填回系统，它会自动分析什么写法更受欢迎</div>
+      </div>
+    </div>
+    <div class="step-row">
+      <div class="step-card">
+        <div class="step-icon">📈</div>
+        <div class="step-name">7天后填入数据</div>
+        <div class="step-detail">到各平台后台复制：阅读量/点赞/评论/转发<br>用一条命令快速录入</div>
+        <div class="step-cmd-label">快捷录入</div>
+        <div class="step-cmd">node dist/index.js learn --feedback --run-id abc123 --likes 500 --comments 80 --shares 30 --reads 8000 --platform wechat</div>
+        <div class="step-note">✓ run-id 在文章文件名里找</div>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step-card">
+        <div class="step-icon">🧠</div>
+        <div class="step-name">更新创作偏好</div>
+        <div class="step-detail">系统分析你的反馈 + 竞品数据<br>自动更新创作偏好（存在飞书）</div>
+        <div class="step-cmd-label">终端命令</div>
+        <div class="step-cmd">node dist/index.js learn --update-preferences</div>
+        <div class="step-note">✓ 样本越多，偏好越准</div>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step-card">
+        <div class="step-icon">👁</div>
+        <div class="step-name">查看学到了什么</div>
+        <div class="step-detail">随时查看当前学到的创作偏好<br>知道什么结构/调性最适合你</div>
+        <div class="step-cmd-label">终端命令</div>
+        <div class="step-cmd">node dist/index.js learn --show-preferences</div>
+        <div class="step-note">✓ 加 --json 输出原始数据</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部提示 -->
+  <div class="tip-bar">
+    <div class="tip-item">
+      <div class="tip-bar-icon">💡</div>
+      <div class="tip-bar-title">从哪里开始？</div>
+      <div class="tip-bar-text">先用 <code style="color:#a0a0d0">skill</code> 命令生成第一篇文章，它会自动理解你的意图。整个流程分两步：先出大纲确认，再生成内容。用 <code style="color:#a0a0d0">--help</code> 查看所有可用选项。</div>
+    </div>
+    <div class="tip-item">
+      <div class="tip-bar-icon">🔧</div>
+      <div class="tip-bar-title">遇到问题怎么办？</div>
+      <div class="tip-bar-text">每个命令都加 <code style="color:#a0a0d0">--help</code> 查看详细说明。比如 <code style="color:#a0a0d0">node dist/index.js skill --help</code> 查看 skill 命令的全部选项。</div>
+    </div>
+    <div class="tip-item">
+      <div class="tip-bar-icon">🔄</div>
+      <div class="tip-bar-title">系统多久更新一次？</div>
+      <div class="tip-bar-text">每次发布后填入反馈数据就跑一次 <code style="color:#a0a0d0">--update-preferences</code>。样本超过 30 条后启用时间衰减，优先看近期数据。</div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

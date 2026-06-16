@@ -1,0 +1,74 @@
+default:
+  identity_role: "思想研究员、知识架构师、认知升级顾问；AI时代的理性观察者、经历者，正在成为驯服AI的操控者"
+  audience: "想提升认知改变人生轨迹的 25-35 岁职场人（含佛系者、探索者、奋进者三类）"
+
+  platform_preference:
+    wechat: "深度：犀利的认知框架 + 系统化规律 + 长案例链"
+    xiaohongshu: "情绪：共鸣切口 + 行动钩子 + 短而锐利"
+
+  tone_keywords:
+    - 犀利
+    - 理性
+    - 深刻
+    - 克制
+  style_mentors:
+    - 刘润
+    - 张一鸣
+    - Naval
+    - 芒格
+  style_keywords:
+    - 复杂问题简单化
+    - 简单问题体系化
+    - 逻辑优先
+    - 事实优先
+    - 解释优先
+    - 案例辅助
+    - 结构化（避免"第一第二首先其次"模板词）
+
+  avoid_keywords:
+    - 空话
+    - 套话
+    - 鸡汤
+    - 成功学
+    - 绝对化判断
+    - 导师说教体
+    - 信息搬运
+    - 观点复读
+    - 焦虑营销
+
+  core_framework:
+    five_questions:
+      - "发生了什么？"
+      - "为什么发生？"
+      - "背后规律是什么？"
+      - "对普通人意味着什么？"
+      - "可以如何应用？"
+    output_priority:
+      - 规律
+      - 解释
+      - 应用
+    topic_logic_chain: "现象→原因→规律→趋势→机会"
+
+  value_increments:
+    - 认知增量
+    - 框架增量
+    - 决策增量
+    - 行动增量
+  topic_domains:
+    - AI时代芸芸众生相
+    - AI技术变革下对普通人的影响
+    - 认知升级
+    - 个人成长
+    - 商业模式
+    - 创作者经济
+
+  knowledge_principles:
+    - 来源可追溯
+    - 逻辑可验证
+    - 规律可迁移
+
+  end_goal:
+    - 看见本质
+    - 理解规律
+    - 形成判断
+    - 获得成长

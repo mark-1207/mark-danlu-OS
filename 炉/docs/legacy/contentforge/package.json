@@ -1,0 +1,62 @@
+{
+  "name": "contentforge",
+  "version": "1.0.0",
+  "description": "AI-powered multi-platform content generation workflow engine",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "contentforge": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "cleanup": "node --input-type=module -e \"import fs from 'node:fs';import path from 'node:path';const d='output';fs.readdirSync(d).filter(f=>f!='corpus'&&!f.startsWith('.')).forEach(f=>{fs.rmSync(path.join(d,f),{recursive:true,force:true});console.log('removed:',f)});\""
+  },
+  "keywords": [
+    "content-generation",
+    "ai",
+    "llm",
+    "social-media",
+    "wechat",
+    "xiaohongshu",
+    "douyin"
+  ],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.33.0",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "cosmiconfig": "^9.0.0",
+    "dotenv": "^16.4.5",
+    "inquirer": "^10.0.0",
+    "nanoid": "^5.0.9",
+    "openai": "^4.77.0",
+    "ora": "^8.1.0",
+    "p-limit": "^6.2.0",
+    "tiktoken": "^1.0.22",
+    "winston": "^3.17.0",
+    "yaml": "^2.6.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.58.1",
+    "@typescript-eslint/parser": "^8.58.1",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin": "^1.0.1",
+    "prettier": "^3.3.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}

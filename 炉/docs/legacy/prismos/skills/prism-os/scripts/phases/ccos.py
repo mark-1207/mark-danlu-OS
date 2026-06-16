@@ -1,0 +1,187 @@
+"""Phase 4.5: CCOS 大纲生成 + 决策点 2（审核）"""
+from .base import Phase, PhaseResult, PipelineState, PipelineConfig
+from prism_os import _format_ccos_review
+import sys
+
+
+class CCOSPhase(Phase):
+    """Phase 4.5: CCOS v2.0 认知推进流大纲生成"""
+
+    @property
+    def name(self) -> str:
+        return "ccos"
+
+    def should_run(self, state: PipelineState, config: PipelineConfig) -> bool:
+        return config.include_phase_4_8 and state.selected_candidate is not None
+
+    def execute(self, state: PipelineState, config: PipelineConfig) -> PhaseResult:
+        from cognitive_outline import cognitive_outline_workflow, generate_dual_platform_outline
+        from outline_quality import check_outline_quality, check_consistency_4_layers, format_b1_report, format_b2_report
+
+        # 如果有用户回复，处理审核决定
+        if state.user_reply and state.ccos_outline:
+            return self._handle_user_reply(state, config)
+
+        title = state.selected_candidate.get("title", "")
+        dimension = state.selected_candidate.get("dimension", "")
+
+        try:
+            if state.platform == "both":
+                ccos_result = generate_dual_platform_outline(title, dimension)
+            else:
+                ccos_result = cognitive_outline_workflow(title, dimension, state.platform)
+        except Exception as e:
+            state.ccos_failed = True
+            return PhaseResult(status="success", data={"ccos_outline": None}, message=str(e))
+
+        # 校验返回类型：LLM 可能返回字符串而非 dict
+        if isinstance(ccos_result, str):
+            state.ccos_failed = True
+            return PhaseResult(status="success", data={"ccos_outline": None},
+                               message=f"CCOS 返回字符串而非 dict: {ccos_result[:100]}")
+        if ccos_result is None:
+            state.ccos_failed = True
+            return PhaseResult(status="success", data={"ccos_outline": None},
+                               message="CCOS 返回 None")
+
+        # dual platform 返回嵌套结构，提取 wechat 版本用于审核显示
+        review_outline = ccos_result
+        if "wechat_cognitive_outline" in ccos_result:
+            review_outline = ccos_result.get("wechat_cognitive_outline", ccos_result)
+        # 再次校验：内部 outline 也可能是字符串
+        if isinstance(review_outline, str):
+            state.ccos_failed = True
+            return PhaseResult(status="success", data={"ccos_outline": None},
+                               message=f"CCOS 内部 outline 为字符串: {review_outline[:100]}")
+
+        # 决策点 2：CCOS 审核
+        if config.interactive and not config.skip_ccos_review:
+            # M7: B1 大纲 8 模块检查
+            b1_result = check_outline_quality(review_outline)
+            b1_report = format_b1_report(b1_result)
+            # M8: B2 4 层兑现（需 depth_expansion 上下文）
+            b2_result = None
+            b2_report = ""
+            depth = state.depth_analysis if hasattr(state, "depth_analysis") else None
+            # depth_analysis 来自标题深度模式（如果走了 deep mode）
+            # 如果没有 depth_analysis，B2 跳过（避免在浅层 mode 误报）
+            if depth and isinstance(depth, dict) and depth.get("surface"):
+                b2_result = check_consistency_4_layers(title, depth, review_outline)
+                b2_report = format_b2_report(b2_result)
+            display = _format_ccos_review(review_outline, title, state.platform)
+            prompt = (display + b1_report + b2_report
+                      + "\n请选择：\n"
+                      + "  [c] 继续 → 使用当前大纲，进入素材缺口分析\n"
+                      + "  [r] 重新生成 → 丢弃当前大纲，生成新的大纲（重新跑 CCOS，约 10-30 秒）\n"
+                      + "  [q] 退出 → 不保存（可重新跑 run 再来）\n"
+                      + "  其他输入 → 重新显示本提示")
+            return PhaseResult(
+                status="need_input",
+                data={
+                    "ccos_outline": ccos_result,
+                    "ccos_review_pending": True,
+                    "B1_result": b1_result,
+                    "B2_result": b2_result,
+                },
+                prompt=prompt,
+                input_type="ccos_review",
+            )
+
+        return PhaseResult(status="success", data={
+            "ccos_outline": ccos_result,
+            "ccos_review_passed": True,
+        })
+
+    def _handle_user_reply(self, state: PipelineState, config: PipelineConfig) -> PhaseResult:
+        """处理用户对 CCOS 审核的回复"""
+        reply = state.user_reply.strip().lower()
+
+        if reply == "q":
+            return PhaseResult(
+                status="rejected",
+                data={"ccos_outline": state.ccos_outline, "ccos_review_passed": False},
+                message="用户拒绝 CCOS 大纲",
+            )
+
+        # c: 通过
+        if reply in ("", "c", "continue"):
+            return PhaseResult(status="success", data={
+                "ccos_outline": state.ccos_outline,
+                "ccos_review_passed": True,
+            })
+
+        # r: 重生成（保留标题，重跑 CCOS）
+        if reply == "r":
+            return PhaseResult(status="success", data={
+                "ccos_outline": state.ccos_outline,
+                "ccos_review_passed": True,
+                "ccos_regenerate": True,
+            })
+
+        # v1.4: 无效输入 → 重新显示提示（不再静默通过）
+        from prism_os import _format_ccos_review
+        display = _format_ccos_review(
+            {"title": state.selected_candidate.get("title", "") if state.selected_candidate else ""},
+            state.ccos_outline,
+            state.platform,
+        )
+        # 重建 B1/B2 报告（如果可用）
+        b1_result = None
+        b2_result = None
+        from outline_quality import check_b1_coverage, format_b1_report
+        from b2_consistency import check_b2_delivery, format_b2_report
+        result_data = {}
+        b1_report = ""
+        b2_report = ""
+        try:
+            if state.ccos_outline:
+                b1_result = check_b1_coverage(state.ccos_outline)
+                b1_report = format_b1_report(b1_result)
+                b2_result = check_b2_delivery(state.ccos_outline, state.depth_analysis or {})
+                b2_report = format_b2_report(b2_result)
+        except Exception:
+            pass
+        prompt = (display + b1_report + b2_report
+                  + "\n请选择：\n"
+                  + "  [c] 继续 → 使用当前大纲，进入素材缺口分析\n"
+                  + "  [r] 重新生成 → 丢弃当前大纲，生成新的大纲（重新跑 CCOS，约 10-30 秒）\n"
+                  + "  [q] 退出 → 不保存（可重新跑 run 再来）\n"
+                  + "  其他输入 → 重新显示本提示")
+        return PhaseResult(
+            status="need_input",
+            data={
+                "ccos_outline": state.ccos_outline,
+                "ccos_review_pending": True,
+                "B1_result": b1_result,
+                "B2_result": b2_result,
+            },
+            prompt=prompt,
+            input_type="ccos_review",
+        )
+
+    def display_result(self, result: PhaseResult, state: PipelineState) -> None:
+        import sys
+        if result.status == "rejected":
+            print(f"[Phase 4.5] CCOS 未通过: {result.message}", file=sys.stderr)
+        elif result.status == "need_input":
+            print(result.prompt, file=sys.stderr)
+        else:
+            outline = result.data.get("ccos_outline")
+            if outline is None:
+                print(f"[Phase 4.5] CCOS: 生成失败（{result.message or 'outline=None'}）", file=sys.stderr)
+                print(f"        ⚠️ 后续流程继续，但 narrate 不会执行", file=sys.stderr)
+            else:
+                # dual platform 时 outline 是嵌套结构，提取 wechat 版本
+                display_outline = outline
+                if "wechat_cognitive_outline" in outline:
+                    display_outline = outline.get("wechat_cognitive_outline", outline)
+                if not isinstance(display_outline, dict):
+                    print(f"[Phase 4.5] CCOS: outline 类型异常 ({type(display_outline).__name__})", file=sys.stderr)
+                    return
+                结构 = display_outline.get("主结构", "")
+                推进 = display_outline.get("推进方式", "")
+                立场 = display_outline.get("内容立场", "")
+                print(f"[Phase 4.5] CCOS: 已生成（{结构} / {推进}）", file=sys.stderr)
+                if 立场:
+                    print(f"        立场: {立场[:40]}", file=sys.stderr)
+                print(f"        └─ 决策点 2 等待审核", file=sys.stderr)

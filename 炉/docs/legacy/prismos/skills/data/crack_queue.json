@@ -1,0 +1,214 @@
+[
+  {
+    "title": "AI让程序员失业率上升30%",
+    "source": "36氪",
+    "source_link": "https://36kr.com/p/123456",
+    "crack_type": "数据裂缝",
+    "consensus": "AI会创造更多就业机会",
+    "reality": "AI导致程序员失业率上升30%",
+    "confidence": 0.85,
+    "signals": {
+      "trend": "程序员职业安全感正在崩塌",
+      "emotion": [
+        "替代焦虑",
+        "身份危机"
+      ],
+      "contradiction": "AI 提高生产力，但降低普通内容价值",
+      "homogenization_alert": "否"
+    },
+    "expression_angles": [
+      {
+        "type": "认知型创作者",
+        "angle": "AI对普通程序员的影响：身份危机",
+        "resonance": 0.9
+      },
+      {
+        "type": "商业型创作者",
+        "angle": "AI 时代人力结构变化",
+        "resonance": 0.7
+      }
+    ],
+    "id": "77a4d2c5-6cdc-45a0-b087-9297aebf54a0",
+    "created_at": "2026-05-21T15:55:06.348412",
+    "status": "consumed",
+    "manual_tags": [],
+    "notes": "",
+    "consumed_by": "run_from_queue",
+    "priority_score": 0.85
+  },
+  {
+    "title": "程序员不需要学算法了",
+    "source": "知乎",
+    "crack_type": "视角裂缝",
+    "consensus": "程序员必须学好算法才能找到好工作",
+    "reality": "AI时代算法知识正在贬值，实际项目能力更重要",
+    "confidence": 0.78,
+    "signals": {
+      "trend": "技术教育正在被重新定义",
+      "emotion": [
+        "身份危机",
+        "焦虑"
+      ],
+      "contradiction": "会写代码不等于能写好代码",
+      "homogenization_alert": "不确定"
+    },
+    "id": "a420f25c-9d05-434f-ba4c-fde9afba95bf",
+    "created_at": "2026-05-21T16:15:34.106359",
+    "status": "consumed",
+    "manual_tags": [],
+    "notes": "",
+    "consumed_by": "run_from_queue",
+    "priority_score": 0.78
+  },
+  {
+    "title": "程序员职业发展面临AI挑战",
+    "source": "36氪",
+    "crack_type": "数据裂缝",
+    "consensus": "AI会创造更多就业机会",
+    "reality": "AI导致部分程序员失业率上升",
+    "confidence": 0.82,
+    "signals": {
+      "trend": "程序员职业安全感正在被重塑",
+      "emotion": [
+        "替代焦虑",
+        "身份危机"
+      ],
+      "contradiction": "AI 提高生产力，但降低普通内容价值",
+      "homogenization_alert": "否"
+    },
+    "expression_angles": [
+      {
+        "type": "认知型创作者",
+        "angle": "AI对程序员的影响：身份危机视角",
+        "resonance": 0.9
+      }
+    ],
+    "id": "4eb4c69f-cd8a-4ed1-85fd-379ab5e1217d",
+    "created_at": "2026-05-21T17:05:41.942645",
+    "status": "consumed",
+    "manual_tags": [],
+    "notes": "",
+    "consumed_by": "run_from_queue",
+    "priority_score": 0.82
+  },
+  {
+    "title": "程序员在AI时代如何保持竞争力",
+    "source": "36氪",
+    "crack_type": "数据裂缝",
+    "consensus": "程序员应该不断学习新技术",
+    "reality": "技术更新太快，学习速度跟不上AI替代的步伐",
+    "confidence": 0.82,
+    "signals": {
+      "trend": "技术人职业焦虑加剧",
+      "emotion": [
+        "焦虑",
+        "替代感"
+      ],
+      "contradiction": "学不完的新技术 vs 有限的精力 vs AI替代威胁",
+      "homogenization_alert": "否"
+    },
+    "id": "1b4d046e-297a-463d-a84f-e5cbb34cc923",
+    "created_at": "2026-05-21T17:13:31.925080",
+    "status": "consumed",
+    "manual_tags": [],
+    "notes": "",
+    "consumed_by": "run_from_queue",
+    "priority_score": 0.82
+  },
+  {
+    "source": "pipeline",
+    "content_summary": "为什么自媒体是ai时代失业人群最后的救赎",
+    "crack_type": "逻辑裂缝",
+    "consensus": "自媒体被视为失业人群的救赎，意味着它能为失业者提供新的就业机会或收入来源。",
+    "reality": "虽然自媒体确实为一些人提供了新的就业机会，但这并不意味着它是所有失业人群的普遍救赎。自媒体的成功依赖于多种因素，包括个人技能、内容质量、市场需求等，并非所有失业者都能成功转型为自媒体从业者。此外，自媒体市场竞争激烈，收入不稳定，不能保证所有参与者都能获得稳定收入。",
+    "confidence": 0.8,
+    "suggested_topic": "自媒体对失业人群就业影响的实证研究",
+    "id": "c8f80999-7a37-4e1f-8a36-27804bef2c2b",
+    "created_at": "2026-06-08T16:29:03.824847",
+    "status": "new",
+    "manual_tags": [],
+    "notes": "",
+    "consumed_by": null,
+    "priority_score": 0.8
+  },
+  {
+    "source": "pipeline",
+    "content_summary": "测试AI时代教育",
+    "crack_type": "时效性裂缝",
+    "consensus": "在2020年，普遍共识是传统教育模式仍然有效，并且是主导教育方式。",
+    "reality": "到了2026年，AI时代的到来已经促使教育模式发生了重大变化，越来越多的教育场景开始使用AI技术，传统教育模式可能不足以满足新的学习需求。",
+    "confidence": 0.8,
+    "suggested_topic": "AI时代下教育模式的转变及其对传统教育的挑战",
+    "id": "b8c1d2c6-28b7-45ed-bda6-9621c58d65fc",
+    "created_at": "2026-06-08T16:51:22.619160",
+    "status": "new",
+    "manual_tags": [],
+    "notes": "",
+    "consumed_by": null,
+    "priority_score": 0.8
+  },
+  {
+    "source": "pipeline",
+    "content_summary": "为什么自媒体是ai时代失业人群最后的救赎",
+    "crack_type": "人群裂缝",
+    "consensus": "自媒体被视为AI时代失业人群的一种救赎，提供了新的就业机会和创造力发挥的平台。",
+    "reality": "虽然自媒体为某些失业人群提供了机会，但并非所有人都能成功利用自媒体，特别是那些缺乏技术知识或创意能力的人群。此外，自媒体的成功往往高度依赖于个体的社交影响力和内容质量，这并不是所有失业人群都具备的。",
+    "confidence": 0.8,
+    "suggested_topic": "探索自媒体在AI时代对不同失业人群的实际影响和适应性",
+    "id": "49000648-8444-461b-a83a-f9d48d75c5da",
+    "created_at": "2026-06-08T16:58:12.268949",
+    "status": "new",
+    "manual_tags": [],
+    "notes": "",
+    "consumed_by": null,
+    "priority_score": 0.8
+  },
+  {
+    "source": "pipeline",
+    "content_summary": "为什么自媒体是ai时代失业人群最后的救赎",
+    "crack_type": "人群裂缝",
+    "consensus": "当前社会共识认为在AI时代，许多传统行业的工作岗位将被自动化技术替代，导致大规模失业，自媒体被视为失业人群的新出路。",
+    "reality": "虽然自媒体为失业人群提供了新的就业机会，但并非所有人都具备从事自媒体所需的技能和资源，特别是对于技术和网络不熟悉的人群，如老年人、文化水平较低的人群等，他们可能难以通过自媒体获得救赎。此外，自媒体市场竞争激烈，成功者只是少数，大多数人可能难以通过自媒体实现稳定收入。",
+    "confidence": 0.8,
+    "suggested_topic": "自媒体在AI时代对不同群体失业人群的影响差异",
+    "id": "b579ec0c-bf8e-4ad2-b083-076369940294",
+    "created_at": "2026-06-08T17:21:32.269810",
+    "status": "new",
+    "manual_tags": [],
+    "notes": "",
+    "consumed_by": null,
+    "priority_score": 0.8
+  },
+  {
+    "source": "pipeline",
+    "content_summary": "为什么有的人越努力离目标越远呢",
+    "crack_type": "逻辑裂缝",
+    "consensus": "普遍的共识是，越努力离目标越近，即‘努力就有回报’。",
+    "reality": "实际上，并非所有人越努力就越接近目标，可能因为方向错误、方法不当、资源限制或其他外部因素影响，导致越努力离目标越远。",
+    "confidence": 0.8,
+    "suggested_topic": "探讨努力与目标达成之间的复杂关系，分析哪些因素可能导致‘越努力离目标越远’的现象。",
+    "id": "7f7be83c-8ce3-4cb8-939f-9b22decaf205",
+    "created_at": "2026-06-08T18:12:39.098166",
+    "status": "new",
+    "manual_tags": [],
+    "notes": "",
+    "consumed_by": null,
+    "priority_score": 0.8
+  },
+  {
+    "source": "pipeline",
+    "content_summary": "AI是自媒体创作者的辅助工具，不是取代技术",
+    "crack_type": "逻辑裂缝/人群裂缝",
+    "consensus": "AI是自媒体创作者的辅助工具，不是取代技术",
+    "reality": "AI技术的发展使得其在某些领域和任务上已经展现出替代人类创作者的潜力，不同创作者对AI的看法存在分歧",
+    "confidence": 0.8,
+    "suggested_topic": "AI在自媒体创作中的作用与挑战，以及创作者对AI的不同态度和应对策略",
+    "id": "60b5ae9e-3dd4-46a9-b9b7-c56cc4ab2ded",
+    "created_at": "2026-06-09T10:01:09.866963",
+    "status": "new",
+    "manual_tags": [],
+    "notes": "",
+    "consumed_by": null,
+    "priority_score": 0.8
+  }
+]

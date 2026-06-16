@@ -1,0 +1,70 @@
+{
+  "thesis": "AI 时代 35 岁程序员为什么焦虑",
+  "timestamp": "2026-06-11T09:44:56.194282",
+  "cognitive_tension_3x": [
+    {
+      "raw_len": 312,
+      "parsed_ok": true,
+      "has_tension": true,
+      "has_depth": true,
+      "depth_keys": [
+        "surface",
+        "implication",
+        "deeper_meaning",
+        "universal_value"
+      ]
+    },
+    {
+      "raw_len": 386,
+      "parsed_ok": true,
+      "has_tension": true,
+      "has_depth": true,
+      "depth_keys": [
+        "surface",
+        "implication",
+        "deeper_meaning",
+        "universal_value"
+      ]
+    },
+    {
+      "raw_len": 337,
+      "parsed_ok": true,
+      "has_tension": true,
+      "has_depth": true,
+      "depth_keys": [
+        "surface",
+        "implication",
+        "deeper_meaning",
+        "universal_value"
+      ]
+    }
+  ],
+  "cognitive_tension_stable": true,
+  "title_deep_gen_3x": [
+    {
+      "raw_len": 630,
+      "titles_count": 5,
+      "titles_sample": [
+        "35岁程序员的AI时代焦虑：技术浪潮下的中年危机",
+        "AI时代的中年程序员：35岁的焦虑与机遇"
+      ]
+    },
+    {
+      "raw_len": 708,
+      "titles_count": 5,
+      "titles_sample": [
+        "解码35岁程序员的AI时代焦虑：未来与挑战",
+        "AI浪潮下，35岁程序员如何自处？"
+      ]
+    },
+    {
+      "raw_len": 584,
+      "titles_count": 5,
+      "titles_sample": [
+        "35岁程序员的AI时代焦虑：技术的快速变化与职业未来",
+        "中年危机与AI时代：程序员的职场焦虑与应对策略"
+      ]
+    }
+  ],
+  "title_deep_stable": true
+}

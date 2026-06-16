@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ContentForge 操作手册 — AI 多平台内容生成工作流引擎</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #252936;
+      --border: #2e3344;
+      --text: #e4e7f0;
+      --text2: #9ca3b4;
+      --accent: #6366f1;
+      --accent2: #818cf8;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --red: #ef4444;
+      --code-bg: #0d1117;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      font-size: 15px;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      position: fixed;
+      left: 0; top: 0; bottom: 0;
+      width: 260px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 24px 0;
+    }
+
+    .sidebar-logo {
+      padding: 0 20px 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+
+    .sidebar-logo h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent2);
+    }
+
+    .sidebar-logo p {
+      font-size: 12px;
+      color: var(--text2);
+      margin-top: 4px;
+    }
+
+    .sidebar-nav { padding: 0 12px; }
+
+    .nav-group { margin-bottom: 20px; }
+
+    .nav-group-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text2);
+      padding: 0 8px;
+      margin-bottom: 6px;
+    }
+
+    .nav-item {
+      display: block;
+      padding: 8px 12px;
+      color: var(--text2);
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: all 0.15s;
+    }
+
+    .nav-item:hover, .nav-item.active {
+      background: var(--surface2);
+      color: var(--text);
+    }
+
+    .nav-item.active { color: var(--accent2); }
+
+    /* Main content */
+    .main {
+      margin-left: 260px;
+      min-height: 100vh;
+      padding: 40px 60px 80px;
+      max-width: 900px;
+    }
+
+    /* Typography */
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 16px; }
+    h2 { font-size: 22px; font-weight: 600; margin: 48px 0 20px; color: var(--text); }
+    h3 { font-size: 17px; font-weight: 600; margin: 28px 0 14px; color: var(--text); }
+    p { margin-bottom: 14px; color: var(--text2); }
+
+    .lead {
+      font-size: 17px;
+      color: var(--text);
+      margin-bottom: 24px;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
+    .badge-yellow { background: rgba(234,179,8,0.15); color: var(--yellow); }
+    .badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+    .badge-blue { background: rgba(99,102,241,0.15); color: var(--accent2); }
+
+    /* Code blocks */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      overflow-x: auto;
+      margin: 16px 0;
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #c9d1d9;
+    }
+
+    code {
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 13px;
+      background: var(--surface2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--accent2);
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+    }
+
+    .code-label {
+      font-size: 12px;
+      color: var(--text2);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin: 16px 0;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin: 16px 0;
+    }
+
+    .card-small {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+
+    .card-small h4 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .card-small p {
+      font-size: 13px;
+      margin: 0;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background: var(--surface2);
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    td { color: var(--text2); }
+    tr:hover td { background: var(--surface); }
+
+    /* Callouts */
+    .callout {
+      padding: 14px 18px;
+      border-radius: 8px;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    .callout-info {
+      background: rgba(99,102,241,0.1);
+      border-left: 3px solid var(--accent);
+      color: var(--text2);
+    }
+
+    .callout-warn {
+      background: rgba(234,179,8,0.1);
+      border-left: 3px solid var(--yellow);
+      color: var(--text2);
+    }
+
+    .callout-success {
+      background: rgba(34,197,94,0.1);
+      border-left: 3px solid var(--green);
+      color: var(--text2);
+    }
+
+    /* Steps */
+    .step {
+      display: flex;
+      gap: 16px;
+      margin: 20px 0;
+      align-items: flex-start;
+    }
+
+    .step-num {
+      width: 28px; height: 28px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .step-content { flex: 1; }
+
+    /* Command blocks */
+    .cmd-block {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 10px 0;
+    }
+
+    .cmd-prompt {
+      color: var(--green);
+      font-family: monospace;
+      font-size: 14px;
+    }
+
+    .cmd-cmd {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-family: monospace;
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    /* Divider */
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 40px 0;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--surface); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* Anchor links */
+    :target { scroll-margin-top: 20px; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .main { margin-left: 0; padding: 24px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ========== SIDEBAR ========== -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <h1>ContentForge</h1>
+    <p>AI 多平台内容生成引擎</p>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-group">
+      <div class="nav-group-title">快速入门</div>
+      <a class="nav-item" href="#intro">产品简介</a>
+      <a class="nav-item" href="#quickstart">5 分钟上手</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-title">使用手册</div>
+      <a class="nav-item" href="#commands">命令大全</a>
+      <a class="nav-item" href="#create">内容生成</a>
+      <a class="nav-item" href="#opinion">观点文（opinion）</a>
+      <a class="nav-item" href="#recreate">爆款二创</a>
+      <a class="nav-item" href="#topic">竞品抓取</a>
+      <a class="nav-item" href="#learn">碎片学习</a>
+      <a class="nav-item" href="#style">风格分析</a>
+      <a class="nav-item" href="#compliance">合规检测</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-title">本地开发</div>
+      <a class="nav-item" href="#install">安装部署</a>
+      <a class="nav-item" href="#config">配置说明</a>
+      <a class="nav-item" href="#dev">开发命令</a>
+      <a class="nav-item" href="#structure">目录结构</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-title">附表</div>
+      <a class="nav-item" href="#faq">常见问题</a>
+      <a class="nav-item" href="contentforge-flow-for-beginners.html" target="_blank">小白全流程图 ↗</a>
+    </div>
+  </nav>
+</aside>
+
+<!-- ========== MAIN ========== -->
+<main class="main">
+
+<!-- ========== 第一章：快速入门 ========== -->
+<section id="intro">
+  <h1>ContentForge 操作手册</h1>
+  <p class="lead">一款基于 AI 的多平台内容生成工作流引擎，支持从关键词自动生成公众号、小红书、抖音文章，以及爆款文章的智能二创。</p>
+
+  <div class="card-grid">
+    <div class="card-small">
+      <h4>场景 A：原创生成</h4>
+      <p>输入关键词，AI 自动分析主题并生成适配三个平台的原创文章</p>
+    </div>
+    <div class="card-small">
+      <h4>场景 B：爆款二创</h4>
+      <p>粘贴一篇爆款文章，AI 自动解构爆款基因，生成差异化二创内容</p>
+    </div>
+    <div class="card-small">
+      <h4>竞品追踪</h4>
+      <p>抓取微信公众号文章，分析竞品内容策略，提取可复用碎片</p>
+    </div>
+    <div class="card-small">
+      <h4>质量保障</h4>
+      <p>内置原创度检测、合规审查、风格融合，确保输出质量</p>
+    </div>
+  </div>
+</section>
+
+<hr id="quickstart">
+
+<h2>快速入门 · 5 分钟上手</h2>
+
+<h3>第一步：环境要求</h3>
+<div class="card">
+  <p>在开始之前，请确保你的电脑安装了以下软件：</p>
+  <table>
+    <tr><th>软件</th><th>最低版本</th><th>说明</th></tr>
+    <tr><td><strong>Node.js</strong></td><td><span class="badge badge-green">v20+</span></td><td>JavaScript 运行时，前往 <a href="https://nodejs.org/" style="color:var(--accent2)">nodejs.org</a> 下载</td></tr>
+    <tr><td><strong>pnpm</strong></td><td><span class="badge badge-green">v8+</span></td><td>包管理器，安装命令：<code>npm i -g pnpm</code></td></tr>
+  </table>
+</div>
+
+<h3>第二步：安装 ContentForge</h3>
+<div class="callout callout-info">
+  如果是下载的预编译版本（contentforge.zip），解压即可使用，无需执行安装步骤。
+</div>
+<div class="step">
+  <div class="step-num">1</div>
+  <div class="step-content">
+    <p>克隆或下载项目到本地：</p>
+    <pre><code>git clone &lt;项目地址&gt; contentforge
+cd contentforge</code></pre>
+  </div>
+</div>
+<div class="step">
+  <div class="step-num">2</div>
+  <div class="step-content">
+    <p>安装依赖（自动安装 Node.js 包）：</p>
+    <pre><code>pnpm install</code></pre>
+  </div>
+</div>
+<div class="step">
+  <div class="step-num">3</div>
+  <div class="step-content">
+    <p>构建项目：</p>
+    <pre><code>pnpm run build</code></pre>
+  </div>
+</div>
+
+<h3>第三步：配置 API Key</h3>
+<p>在项目根目录创建 <code>.env</code> 文件，填入以下内容：</p>
+<pre><code>KIMI_API_KEY=sk-你的API密钥
+KIMI_BASE_URL=https://yunwu.ai/v1
+TAVILY_API_KEY=tvly-你的搜索密钥   # 可选，素材检索用
+FEISHU_TOPIC_TABLE_APP_TOKEN=xxx   # 可选，飞书同步用
+FEISHU_TOPIC_TABLE_ID=xxx</code></pre>
+<div class="callout callout-warn">
+  API Key 请前往对应平台官网申请：Kimi（<code>yunwu.ai</code>）、Tavily（<code>tavily.com</code>）
+</div>
+
+<h3>第四步：运行第一个内容生成</h3>
+<p>ContentForge 使用 <code>skill</code> 命令作为统一入口，用自然语言描述需求即可：</p>
+<div class="step">
+  <div class="step-num">1</div>
+  <div class="step-content">
+    <p>进入项目目录，运行 skill 命令：</p>
+    <pre><code>cd contentforge
+node dist/index.js skill "帮我写一篇关于AI的文章 发公众号"</code></pre>
+    <p class="callout callout-info" style="margin-top:12px">
+      <strong>命令格式：</strong><code>node dist/index.js skill "&lt;需求描述&gt;"</code><br>
+      自动识别：原创生成 vs 爆款二创、目标平台（公众号/小红书/抖音）
+    </p>
+  </div>
+</div>
+
+<h3>两阶段协议（原创生成）</h3>
+<p>原创内容分两个阶段执行，<strong>确认大纲后再生成正文</strong>：</p>
+<table>
+  <tr><th>阶段</th><th>命令</th><th>做什么</th></tr>
+  <tr><td>Phase 1：出大纲</td><td><code>skill "..." --phase outline</code></td><td>生成大纲摘要，输出 runId</td></tr>
+  <tr><td>Phase 2：生成正文</td><td><code>skill "..." --phase content --run-id &lt;ID&gt;</code></td><td>确认大纲后生成完整文章</td></tr>
+</table>
+<div class="callout callout-success">
+  <strong>为什么分两阶段？</strong><br>
+  大纲阶段可以看到：推荐角度、标题候选、章节结构。确认后再生成，避免生成后才发现跑偏。你可以修改标题、注入真实案例/经历、调整案例方向，素材会进入 content-generation 的 prompt。
+</div>
+
+<h3>TUI 交互模式说明</h3>
+<p>ContentForge 会<strong>自动检测</strong>当前终端是否支持交互：</p>
+<table>
+  <tr><th>运行方式</th><th>效果</th></tr>
+  <tr><td>直接运行命令</td><td>自动进入 TUI 交互模式，提示确认后继续</td></tr>
+  <tr><td>加 <code>--auto</code></td><td>全自动运行，适合 CI / 批量 / 脚本调用</td></tr>
+  <tr><td>管道输入 / 非 TTY 环境</td><td>自动退化为非交互模式，不会卡住</td></tr>
+</table>
+<div class="callout callout-info">
+  <strong>哪些命令支持 TUI 交互？</strong><br>
+  <code>skill</code>（原创大纲确认 + 观点文 opinion-refine/review 确认）、<code>recreate</code>（差异化方向选择）、<code>topic scrape</code>（碎片提取确认）、<code>style</code>（风格选择）均支持 TUI 交互。
+</div>
+
+<hr>
+
+<!-- ========== 第二章：使用手册 ========== -->
+<h2 id="commands">命令大全</h2>
+<p>ContentForge 提供以下核心命令，覆盖内容生成、竞品分析、碎片管理的完整工作流：</p>
+
+<div class="callout callout-success">
+  <strong>推荐使用 <code>skill</code> 作为统一入口</strong> — 只需用自然语言描述需求，它自动判断：原创生成 vs 爆款二创、目标平台（公众号/小红书/抖音）、内容方向。</div>
+
+<div class="callout callout-info">
+  <strong>想快速了解完整流程？</strong> 另有 <a href="contentforge-flow-for-beginners.html" style="color:var(--accent2)">面向小白的全流程图</a>，用可视化方式展示从抓竞品到反馈闭环的 5 大步骤。
+</div>
+
+<table>
+  <tr><th>命令</th><th>功能</th><th>典型用法</th></tr>
+  <tr><td><code>skill</code></td><td>统一入口（原创/观点/二创）</td><td><code>skill "帮我写一篇关于AI的文章 发公众号"</code> 或 <code>skill "AI时代最大受益者是谁？"</code></td></tr>
+  <tr><td><code>recreate</code></td><td>爆款文章二创</td><td><code>recreate --input ./article.md</code></td></tr>
+  <tr><td><code>topic scrape</code></td><td>竞品文章抓取</td><td><code>topic scrape --url "https://..."</code></td></tr>
+  <tr><td><code>learn</code></td><td>碎片学习与管理</td><td><code>learn --stats --list</code></td></tr>
+  <tr><td><code>learn --update-preferences</code></td><td>更新创作偏好到飞书</td><td><code>learn --update-preferences</code></td></tr>
+  <tr><td><code>learn --show-preferences</code></td><td>查看当前创作偏好</td><td><code>learn --show-preferences [--json]</code></td></tr>
+  <tr><td><code>learn --feedback</code></td><td>快捷录入反馈数据</td><td><code>learn --feedback --run-id abc123 --likes 500 --platform wechat</code></td></tr>
+  <tr><td><code>learn --include-competitor</code></td><td>生成竞品风格报告</td><td><code>learn --include-competitor</code></td></tr>
+  <tr><td><code>style</code></td><td>风格分析与融合</td><td><code>style blend --file style.md</code></td></tr>
+  <tr><td><code>compliance</code></td><td>合规检测</td><td><code>compliance --input ./article.md</code></td></tr>
+  <tr><td><code>revise</code></td><td>文章修改润色</td><td><code>revise --input ./article.md</code></td></tr>
+  <tr><td><code>config</code></td><td>配置管理</td><td><code>config --show</code></td></tr>
+  <tr><td><code>batch</code></td><td>批量生成</td><td><code>batch --input ./keywords.txt</code></td></tr>
+  <tr><td><code>resume</code></td><td>断点续跑</td><td><code>resume --run-id &lt;id&gt;</code></td></tr>
+</table>
+
+<hr id="create">
+
+<h2>场景 A：原创内容生成</h2>
+
+<h3>命令格式</h3>
+<pre><code>node dist/index.js create --keyword "关键词"
+node dist/index.js create --keyword "关键词" --no-interactive   # 全自动</code></pre>
+
+<h3>工作流程（6 步 Pipeline）</h3>
+
+<div class="card">
+  <p><strong>Step 1 — 主题深挖</strong> &nbsp;<span class="badge badge-blue">自动</span></p>
+  <p style="margin-top:8px;font-size:14px;color:var(--text2)">输入关键词后，AI 自动发散出 10-15 个子话题、痛点、热门角度、争议话题、目标人群分析</p>
+</div>
+
+<div class="card">
+  <p><strong>Step 2 — 三平台选题分配</strong> &nbsp;<span class="badge badge-blue">需确认</span></p>
+  <p style="margin-top:8px;font-size:14px;color:var(--text2)">AI 为公众号、小红书、抖音分别选定差异化的切入角度（重合度不超过 30%）</p>
+</div>
+
+<div class="card">
+  <p><strong>Step 3 — 大纲生成（三路并行）</strong> &nbsp;<span class="badge badge-blue">自动</span></p>
+  <p style="margin-top:8px;font-size:14px;color:var(--text2)">根据各平台特点生成内容大纲：钩子设计、论点结构、案例位置、结尾升华</p>
+</div>
+
+<div class="card">
+  <p><strong>Step 4 — 素材检索（可选）</strong> &nbsp;<span class="badge badge-yellow">可选</span></p>
+  <p style="margin-top:8px;font-size:14px;color:var(--text2)">通过搜索 API 检索相关数据、案例、故事素材</p>
+</div>
+
+<div class="card">
+  <p><strong>Step 5 — 全文生成（三路并行）</strong> &nbsp;<span class="badge badge-blue">自动</span></p>
+  <p style="margin-top:8px;font-size:14px;color:var(--text2)">按大纲逐段生成正文：公众号 2000-3000 字、小红书 500-800 字、抖音 150-300 字</p>
+</div>
+
+<div class="card">
+  <p><strong>Step 6 — 审校优化</strong> &nbsp;<span class="badge badge-blue">自动</span></p>
+  <p style="margin-top:8px;font-size:14px;color:var(--text2)">平台适配性审查 + 质量评分（标题吸引力/开头留存/内容价值/情绪调动/互动引导）+ 5 个候选标题</p>
+</div>
+
+<h3>输出结果</h3>
+<p>运行完成后，产物保存在 <code>output/&lt;时间戳&gt;/</code> 目录下：</p>
+<pre><code>output/
+└── 2026-05-02_10-30-00_AI/
+    ├── step1_topic-analysis.json      # 主题分析
+    ├── step2_topic-assignments.json   # 三平台选题
+    ├── step3_outlines.json            # 三平台大纲
+    ├── step5_content-generation.json  # 生成的正文
+    └── step6_review-optimization.json # 审校结果 + 终稿</code></pre>
+
+<hr id="opinion">
+
+<h2>场景 A-2：观点文生成（opinion）</h2>
+
+<p>观点文是原创生成的子场景，输入不是"主题"，而是"观点/判断/想法"。系统会先做<strong>证伪+锤炼</strong>，再由你确认论点方向，最后汇入标准 pipeline 生成文章。</p>
+
+<h3>触发条件（parseIntent 自动识别）</h3>
+<table>
+  <tr><th>触发模式</th><th>示例输入</th></tr>
+  <tr><td>问号结尾</td><td><code>AI时代最大受益者是谁？</code></td></tr>
+  <tr><td>挑战词</td><td><code>凭什么说是AI的锅？</code> / <code>为什么裁员反而增多了？</code></td></tr>
+  <tr><td>讨论词</td><td><code>讨论一下AI到底创造还是消灭就业</code></td></tr>
+  <tr><td>短判断句（≤30字含"是"/"不是"/"才是"）</td><td><code>AI时代最大受益者是资本家</code></td></tr>
+</table>
+<div class="callout callout-info">
+  <strong>意图识别优先级：</strong><code>opinion &gt; create &gt; recreate</code>。即问号结尾优先识别为观点文而非"帮我写一篇关于xxx的文章"。
+</div>
+
+<h3>工作流程（两阶段协议）</h3>
+<div class="card">
+  <p><strong>Phase 1 — 观点锤炼（opinion-refine + opinion-review）</strong> &nbsp;<span class="badge badge-blue">需交互</span></p>
+  <p style="margin-top:8px;font-size:14px;color:var(--text2)">
+    AI 自动完成：判断观点类型（comparison/causal/judgment）、生成支持证据和反驳、HKR 质检（Happy 悬念 / Knowledge 信息量 / Resonance 共鸣）、锤炼出 1-2 句精炼核心论点、推荐 3-5 个候选标题。
+    <br>用户确认：精炼论点是否认可、选择或自定义标题、注入真实经历/案例。
+  </p>
+</div>
+<div class="card">
+  <p><strong>Phase 2 — 内容生成（topic-assignment → outline → material-search → content → review）</strong> &nbsp;<span class="badge badge-blue">自动</span></p>
+  <p style="margin-top:8px;font-size:14px;color:var(--text2)">
+    确认后系统用已确认的精炼论点和标题作为输入，完整跑一遍 create pipeline（topic-assignment → outline → material-search → content → review）。
+    <br>中间包含卡兹克风格 L1 禁词扫描（自动替换）+ L2 风格检查（生成 report）。
+  </p>
+</div>
+
+<h3>命令格式</h3>
+<pre><code># Phase 1：观点锤炼 + 用户确认
+node dist/index.js skill "AI让谁变富了？发公众号"
+# 输出 runId，如：opinion_1780368074779
+
+# Phase 2：续跑生成内容
+node dist/index.js skill "AI让谁变富了？发公众号" --phase content --run-id opinion_1780368074779
+
+# 跳过 TUI 全自动（--auto）
+node dist/index.js skill "AI让谁变富了？" --auto</code></pre>
+
+<h3>输出 artifacts</h3>
+<p>运行完成后，保存在 <code>output/opinion_&lt;timestamp&gt;/</code> 目录下：</p>
+<pre><code>output/opinion_1780368074779/
+├── run-meta.json                  # 元数据 + token 统计
+├── refined-opinion.json           # AI 锤炼后的观点（含 HKR 分、标题候选）
+├── confirmed-opinion.json         # 用户确认的论点+标题+案例
+├── confirmed-outline-wechat.json   # 兼容 create 流程的 outline artifact
+├── confirmed-title-wechat.json     # 已确认的标题
+├── topic-analysis.json            # 兼容 artifact（subTopics=[]，单点深挖）
+├── outline-wechat.json            # 大纲
+├── material-search.json
+├── content-wechat.json            # 生成的正文
+├── review-wechat.json             # 终稿 + 质量评分
+└── quality-check-wechat.json      # L1 替换 + L2 风格报告</code></pre>
+
+<div class="callout callout-warn">
+  <strong>opinion 与 create 的核心区别：</strong>
+  <ul style="margin-left:20px">
+    <li>输入差异：opinion 输入是判断/观点/想法，create 输入是主题/话题</li>
+    <li>第一步差异：opinion 多做证伪+锤炼+标题推荐，create 直接发散子话题</li>
+    <li>生成差异：opinion 单点深挖（subTopics=[]），create 多角度发散</li>
+    <li>质检差异：opinion 强制走 L1+L2 风格检查，create 走标准 review</li>
+  </ul>
+</div>
+
+<hr id="recreate">
+
+<h2>场景 B：爆款二创</h2>
+
+<h3>命令格式</h3>
+<pre><code>node dist/index.js recreate --input ./article.md
+node dist/index.js recreate --input ./article.md --direction auto      # 自动选方向
+node dist/index.js recreate --input ./article.md --direction interactive # 交互选方向</code></pre>
+
+<h3>工作流程（5 步 Pipeline）</h3>
+
+<div class="card">
+  <p><strong>Step 1 — 爆款解构分析</strong> &nbsp;<span class="badge badge-blue">自动</span></p>
+  <p style="margin-top:8px;font-size:14px;color:var(--text2)">深度解剖原文的爆款基因：击中的痛点/痒点、叙事结构、开头钩子技巧、情绪曲线、高传播力金句</p>
+</div>
+
+<div class="card">
+  <p><strong>Step 2 — 差异化方向生成</strong> &nbsp;<span class="badge badge-yellow">需确认</span></p>
+  <p style="margin-top:8px;font-size:14px;color:var(--text2)">AI 生成 3-5 个差异化二创方向（视角迁移、受众迁移、内容替换策略），可选择自动或手动选定方向</p>
+</div>
+
+<div class="card">
+  <p><strong>Step 3 — 新大纲生成</strong> &nbsp;<span class="badge badge-blue">自动</span></p>
+  <p style="margin-top:8px;font-size:14px;color:var(--text2)">保留叙事骨架，用全新内容填充。⚠️ 关键约束：原文全文不传入后续步骤，从架构上防止抄袭</p>
+</div>
+
+<div class="card">
+  <p><strong>Step 4 — 全文生成</strong> &nbsp;<span class="badge badge-blue">自动</span></p>
+  <p style="margin-top:8px;font-size:14px;color:var(--text2)">按新大纲生成二创文章，Prompt 明确禁止复用原文句子、案例、比喻</p>
+</div>
+
+<div class="card">
+  <p><strong>Step 5 — 双重审查</strong> &nbsp;<span class="badge badge-blue">自动</span></p>
+  <p style="margin-top:8px;font-size:14px;color:var(--text2)">原创度审查（逐段对比，标记相似段落）+ 爆款潜力评估（与原文对比 5 个维度评分）。如有不达标段落，自动回到 Step 4 重写（最多循环 3 次）</p>
+</div>
+
+<hr id="topic">
+
+<h2>竞品抓取（topic scrape）</h2>
+<p>抓取微信公众号文章，分析内容策略并提取碎片存入素材库。</p>
+
+<h3>命令格式</h3>
+<pre><code>node dist/index.js topic scrape --url "https://mp.weixin.qq.com/s/xxxxx"</code></pre>
+
+<h3>Phase 说明</h3>
+<table>
+  <tr><th>Phase</th><th>功能</th><th>对应命令</th></tr>
+  <tr><td><span class="badge badge-green">Phase 1</span></td><td>抓取文章 + AI 分析 → 写入飞书</td><td><code>topic scrape --url "..."</code></td></tr>
+  <tr><td><span class="badge badge-green">Phase 2</span></td><td>确认碎片提取 → 追加到 fragment-library.json</td><td>在 CLI 交互中确认</td></tr>
+  <tr><td><span class="badge badge-green">Phase 3</span></td><td>create 时自动读取竞品数据 → 输出竞品洞察</td><td><code>create --keyword "..."</code> 时自动触发</td></tr>
+  <tr><td><span class="badge badge-green">Phase 4</span></td><td>生成竞品风格报告</td><td><code>learn --include-competitor</code></td></tr>
+  <tr><td><span class="badge badge-green">Phase 5</span></td><td>碎片库健康度报告</td><td><code>learn --decay</code></td></tr>
+</table>
+
+<hr id="learn">
+
+<h2>碎片学习与管理（learn）</h2>
+<p>管理句式碎片和段落碎片，用于内容生成时的风格参考。</p>
+
+<h3>命令格式</h3>
+<pre><code>node dist/index.js learn --stats        # 查看统计
+node dist/index.js learn --list        # 列出所有碎片
+node dist/index.js learn --delete &lt;id&gt;  # 删除指定碎片
+node dist/index.js learn --decay       # 碎片库健康度报告
+node dist/index.js learn --include-competitor  # 生成竞品风格报告</code></pre>
+
+<h3>碎片类型</h3>
+<table>
+  <tr><th>来源</th><th>说明</th></tr>
+  <tr><td><code>crawled</code></td><td>从竞品抓取文章中提取</td></tr>
+  <tr><td><code>external</code></td><td>外部参考文章</td></tr>
+  <tr><td><code>edited</code></td><td>人工编辑修改后的碎片</td></tr>
+  <tr><td><code>manual</code></td><td>手动输入的碎片</td></tr>
+</table>
+
+<hr id="style">
+
+<h2>风格分析与融合（style）</h2>
+
+<h3>命令格式</h3>
+<pre><code>node dist/index.js style import --file ./style.md   # 导入风格文件
+node dist/index.js style analyze                    # 分析当前风格
+node dist/index.js style blend                      # 融合已有风格
+node dist/index.js style list                       # 列出已有风格</code></pre>
+
+<h3>新增命令</h3>
+<pre><code>node dist/index.js learn --show-preferences          # 查看当前创作偏好
+node dist/index.js learn --show-preferences --json    # 输出原始 JSON
+node dist/index.js learn --update-preferences         # 从数据更新创作偏好
+node dist/index.js learn --feedback --run-id xxx --likes 100 --comments 20 --shares 10 --reads 5000 --platform wechat</code></pre>
+
+<div class="callout callout-success">
+  <strong>创作偏好已持久化到飞书</strong><br>
+  偏好数据不再只存在本地文件，而是写入飞书表格，支持三端（wechat/xiaohongshu/douyin）各自独立学习。新记录写入时会优先从飞书读取，保证多端一致。
+</div>
+
+<h3>内容进化的工作原理</h3>
+<p>系统通过三个阶段让创作能力不断提升：</p>
+
+<table>
+  <tr><th>阶段</th><th>做什么</th><th>数据来源</th></tr>
+  <tr><td>记录</td><td>追踪每次改稿的决定</td><td>revision manifest</td></tr>
+  <tr><td>分析</td><td>统计什么写法受欢迎</td><td>feedback records + competitor records</td></tr>
+  <tr><td>应用</td><td>生成时参考学到的偏好</td><td>buildPreferencePrompt()</td></tr>
+</table>
+
+<h3>竞品洞察注入</h3>
+<p>运行 <code>learn --update-preferences</code> 时，系统会：</p>
+<ol style="margin-left:20px;color:var(--text2);margin-bottom:14px">
+  <li>从竞品表读取所有已分析记录，计算各叙事结构的平均互动率</li>
+  <li>找出竞品中高表现的结构和调性（样本量 > 0 时生效）</li>
+  <li>将竞品洞察写入 <code>competitorInsights</code> 区块</li>
+  <li>生成内容时，<code>buildPreferencePrompt()</code> 会输出竞品洞察段落作为参考</li>
+</ol>
+
+<h3>时间衰减权重</h3>
+<p>当反馈记录超过 30 条时，系统启用时间衰减：</p>
+<pre><code>weight = e^(-λ × daysAgo)，λ = 0.01（约 100 天衰减到 36%）</code></pre>
+<p>即近期数据权重更高，历史数据逐渐淡化。样本量低于 30 时不启用，保持简单平均。</p>
+
+<h3>查看学到了什么</h3>
+<div class="step">
+  <div class="step-num">1</div>
+  <div class="step-content">
+    <p>运行命令查看偏好报告：</p>
+    <pre><code>node dist/index.js learn --show-preferences</code></pre>
+    <p>输出示例：</p>
+    <pre><code>📊 创作偏好报告
+
+【wechat】
+  ✓ 叙事结构: 对比型 (样本12, 置信度 high)
+  ⚠️ 情感调性: 励志 (样本8, 置信度 medium)
+  竞品结构偏好: 对比型 (8.1%, n=23)
+  竞品调性偏好: 励志 (7.5%, n=18)
+
+【xiaohongshu】
+  ✗ 叙事结构: 故事型 (样本3, 置信度 low)
+  ✗ 情感调性: 温暖 (样本2, 置信度 low)
+
+最后更新: 2026-05-21</code></pre>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">2</div>
+  <div class="step-content">
+    <p>加 <code>--json</code> 输出原始数据：</p>
+    <pre><code>node dist/index.js learn --show-preferences --json</code></pre>
+  </div>
+</div>
+
+<hr id="compliance">
+
+<h2>合规检测（compliance）</h2>
+<p>检测文章是否符合平台规范，包括敏感词、违禁内容、格式要求等。</p>
+
+<h3>命令格式</h3>
+<pre><code>node dist/index.js compliance --input ./article.md
+node dist/index.js compliance --input ./article.md --platform wechat  # 指定平台</code></pre>
+
+<hr>
+
+<!-- ========== 第三章：本地开发 ========== -->
+<h2 id="install">安装部署</h2>
+
+<h3>源码安装步骤</h3>
+<pre><code># 1. 进入项目目录
+cd D:\myproject\内容系统v1\contentforge
+
+# 2. 安装依赖（使用 pnpm）
+pnpm install
+
+# 3. 构建项目
+pnpm run build
+
+# 4. 验证构建成功
+node dist/index.js --version</code></pre>
+
+<h3>预编译版本使用</h3>
+<p>如果使用预编译版本（contentforge.zip）：</p>
+<pre><code># 解压到任意目录
+# 直接运行 dist/index.js 即可
+node dist/index.js create --keyword "测试"</code></pre>
+
+<hr id="config">
+
+<h2>配置说明（.env）</h2>
+
+<h3>必须配置</h3>
+<pre><code># Kimi API（主力模型，提供yunwu.ai兼容接口）
+KIMI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx
+KIMI_BASE_URL=https://yunwu.ai/v1</code></pre>
+
+<h3>可选配置</h3>
+<pre><code># Tavily 搜索 API（Step 4 素材检索用，可关闭以降低成本）
+TAVILY_API_KEY=tvly-xxxxxxxxxxxxxxxxxxxx
+
+# 飞书同步（竞品数据持久化）
+FEISHU_TOPIC_TABLE_APP_TOKEN=xxxxxxxxxxxxxxxx
+FEISHU_TOPIC_TABLE_ID=xxxxxxxx</code></pre>
+
+<div class="callout callout-info">
+  配置修改后需要重新运行命令才能生效。部分配置也支持通过 <code>node dist/index.js config --show</code> 查看当前生效的配置。
+</div>
+
+<hr id="dev">
+
+<h2>常用开发命令</h2>
+
+<pre><code># 开发模式（热重载）
+pnpm run dev
+
+# 构建项目
+pnpm run build
+
+# 运行测试
+pnpm run test
+
+# 带 UI 的测试
+pnpm run test:ui
+
+# 代码检查
+pnpm run lint
+
+# 代码格式化
+pnpm run format
+
+# 类型检查
+pnpm run typecheck
+
+# 清理 output 目录（保留 corpus）
+pnpm run cleanup</code></pre>
+
+<hr id="structure">
+
+<h2>目录结构</h2>
+<pre><code>contentforge/
+├── dist/                  # 构建输出目录（运行时代码）
+├── src/
+│   ├── index.ts          # CLI 入口
+│   ├── cli/              # 命令行接口
+│   │   ├── index.ts      # 命令注册
+│   │   └── commands/     # 各命令实现
+│   │       ├── create.ts       # 场景 A：原创生成
+│   │       ├── recreate.ts     # 场景 B：爆款二创
+│   │       ├── topic.ts       # 竞品抓取
+│   │       ├── learn.ts       # 碎片管理
+│   │       ├── style.ts       # 风格融合
+│   │       ├── compliance.ts  # 合规检测
+│   │       └── ...
+│   ├── scenarios/        # 业务场景
+│   │   ├── create/       # 场景 A 各步骤
+│   │   ├── recreate/     # 场景 B 各步骤
+│   │   ├── topic/       # 竞品分析
+│   │   └── ...
+│   ├── fragment-library/ # 碎片管理
+│   ├── llm/             # LLM 调用封装
+│   ├── prompts/         # Prompt 模板
+│   └── utils/           # 工具函数
+├── references/          # 设计文档（开发参考）
+│   ├── PRD.md
+│   ├── WORKFLOW_DESIGN.md
+│   └── PROMPT_TEMPLATES.md
+└── output/              # 运行产物目录
+    └── corpus/          # 碎片库持久化</code></pre>
+
+<hr id="faq">
+
+<h2>常见问题（FAQ）</h2>
+
+<h3>Q: 运行时报错 "Command not found"</h3>
+<p>确保在项目目录下运行命令，并使用完整路径：</p>
+<pre><code>node dist/index.js create --keyword "AI"</code></pre>
+
+<h3>Q: 报 API Key 错误</h3>
+<p>检查 <code>.env</code> 文件是否放在项目根目录，以及 Key 是否正确。API Key 区分开发环境和生产环境。</p>
+
+<h3>Q: 交互模式下如何退出？</h3>
+<p>按 <code>Ctrl + C</code> 可随时退出当前操作。</p>
+
+<h3>Q: Step 5 素材检索可以关闭吗？</h3>
+<p>可以。关闭素材检索将跳过 Step 4，直接进入全文生成，可节省 API 调用成本。</p>
+
+<h3>Q: 如何查看详细日志？</h3>
+<p>运行命令时，默认会输出进度信息。如果需要调试日志，可以查看 <code>output/&lt;run-id&gt;/</code> 目录下的中间产物 JSON 文件。</p>
+
+<h3>Q: 如何批量生成内容？</h3>
+<p>将要生成的关键词按行写入文件（如 <code>keywords.txt</code>），然后运行：</p>
+<pre><code>node dist/index.js batch --input ./keywords.txt --scenario create</code></pre>
+
+<h3>Q: 内容生成中途失败了怎么办？</h3>
+<p>使用断点续跑功能，找到上次运行的 ID：</p>
+<pre><code>node dist/index.js resume --run-id &lt;run-id&gt; --from-step 3</code></pre>
+
+<h3>Q: 观点文（opinion）和普通 create 有什么区别？</h3>
+<p>观点文输入是"观点/判断/想法"（如问号结尾、挑战词、讨论词触发），不是"主题"。系统会先做证伪+HKR 质检+锤炼论点+标题推荐（Phase 1），用户确认后再走标准 content pipeline（Phase 2）。详见 <a href="#opinion" style="color:var(--accent2)">观点文生成章节</a>。</p>
+
+<h3>Q: opinion 流程的 --phase content 是必填吗？</h3>
+<p>当 Phase 1 完成时，命令行会输出 <code>runId</code>，你需要把这个 ID 传给 <code>--phase content --run-id &lt;ID&gt;</code> 才能进入 Phase 2。直接运行 <code>--phase content</code> 不带 runId 会报错。</p>
+
+<h3>Q: opinion 怎么确认标题不满意重新生成？</h3>
+<p>Phase 1 的 <code>opinion-review</code> 步骤会在末尾询问"是否重新生成（y: 重新生成）"，输入 y 即可触发一次 opinion-refine 重新跑，得到新标题后再确认。如果对论点方向不满意，也可以在确认标题时输入自定义标题覆盖推荐结果。</p>
+
+<h3>Q: L1 禁词扫描会不会破坏我的内容？</h3>
+<p>不会。L1 扫描只在 review 阶段后自动运行，对命中禁词进行替换（如"说白了"→"坦率的讲"，"不可否认"→直接删除）。所有修改都会同步到 <code>quality-check-{platform}.json</code> 报告中可查。</p>
+
+<h3>Q: 观点文的注入案例用第一人称还是第三人称？</h3>
+<p>建议用自己的第一人称叙述："我经历过xxx"。如果只有第二方案例素材（如新闻报道），用泛指："某大厂技术总监张某"或"听说有位朋友"——避免编造具体人物细节。</p>
+
+<hr>
+
+<p style="color:var(--text2);font-size:13px;text-align:center;padding:40px 0">
+  ContentForge v1.0.0 · AI 多平台内容生成工作流引擎<br>
+  技术支持：Node.js 20+ · TypeScript · pnpm
+</p>
+
+</main>
+</body>
+</html>
