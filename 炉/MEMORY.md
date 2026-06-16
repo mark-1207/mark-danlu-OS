@@ -7,9 +7,9 @@
 
 ## 当前状态（2026-06-16）
 
-- **项目阶段**：方案已对齐，文档已完成
-- **下一步**：复制源项目代码快照 → 进入 v1 实施
-- **实施**：未开始（必须文档先完整 ✅）
+- **项目阶段**：方案已对齐，文档已完成，legacy 快照已就绪
+- **下一步**：进入 v1.0 MVP 实施
+- **实施**：未开始（基础设施 + 阶段 1 苏格拉底）
 
 ---
 
@@ -40,8 +40,11 @@ ls legacy/       # 源项目快照（待复制）
 - ✅ 8 个 ADR（D-001 ~ D-008）全部完成
 
 ### 待办
-- ⏳ `legacy/contentforge/` + `legacy/prismos/` 源项目代码快照复制
 - ⏳ v1.0 MVP 实施（phases 0-7，按 `docs/06-DEV-PLAN.md`）
+  - 阶段 0：pyproject.toml + uv + config/loader + store/file_store + state/machine
+  - 阶段 1：socratic/（questions + engine + output + learning）
+  - 阶段 2：thinking_models/（4 框架 + 5 策略）
+  - 阶段 3-7：blueprint / draft / polish / sediment / pipeline / CLI
 
 详见 `docs/14-TASKS.md`
 
