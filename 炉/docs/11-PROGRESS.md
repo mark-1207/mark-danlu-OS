@@ -142,3 +142,23 @@
 
 ### 状态
 ✅ 已完成（242/242 测试通过）
+
+---
+
+## 阶段 6：沉淀（2026-06-17）
+
+### 做了什么
+- 实现 `sediment/models.py`：Insight + DiffResult + Harvested
+- 实现 `sediment/harvester.py`：LLM 提取 + difflib 对比（短段落 < 10 字进 forbidden_candidates）
+- 实现 `sediment/style_updater.py`：forbidden 去重合并
+
+### 学到什么
+- difflib.SequenceMatcher.get_opcodes() 输出 (tag, i1, i2, j1, j2)
+- 短段落作为 forbidden 候选：经验值 10 字以内
+- StyleProfile 用 model_copy(update=...) 保持不变性
+
+### 接下来
+- 阶段 7：流程集成（orchestrator + steps + CLI）
+
+### 状态
+✅ 已完成（268/268 测试通过）
