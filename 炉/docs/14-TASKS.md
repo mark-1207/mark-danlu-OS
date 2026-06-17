@@ -97,10 +97,11 @@
 
 ### 阶段 5：打磨（2-3 天）
 
-- [ ] ⏳ 实现 `polish/dimensions/6_old.py`
-- [ ] ⏳ 实现 `polish/quality_scorer.py`
-- [ ] ⏳ 实现 `polish/suggester.py`
-- [ ] ⏳ 端到端测试
+- [x] ✅ 实现 `polish/models.py`（DimensionScore + QualityReport + FixSuggestion）
+- [x] ✅ 实现 `polish/dimensions.py`（6 维 + L5 三项 = 9 维度 dataclass）
+- [x] ✅ 实现 `polish/quality_scorer.py`（串行 9 维度评分 + 容错 5.0 默认）
+- [x] ✅ 实现 `polish/suggester.py`（只为未通过维度生成修复建议）
+- [x] ✅ 端到端测试（49 个 polish 测试 + 全量 242 测试无回归）
 
 ### 阶段 6：沉淀（1-2 天）
 
