@@ -97,3 +97,25 @@
 
 ### 状态
 ✅ 已完成（164/164 测试通过）
+
+---
+
+## 阶段 4：草稿（2026-06-17）
+
+### 做了什么
+- 实现 `draft/models.py`：Draft 数据模型
+- 实现 `draft/section_prompt.py`：SectionPromptBuilder（6 块注入）
+- 实现 `draft/generator.py`：DraftGenerator（每段独立 LLM + 重试 2 次）
+- 修复 `config/loader.py` ForbiddenTerm 校验器
+
+### 学到什么
+- Pydantic v2 `mode="before"` 验证器需要处理已构造对象分支
+- 重试模式：解析失败 N 次后跳过
+- 字数用字符数，避免分词器依赖
+
+### 接下来
+- 阶段 5：打磨
+- 阶段 6-7：沉淀 + 流程集成 + CLI
+
+### 状态
+✅ 已完成（193/193 测试通过）

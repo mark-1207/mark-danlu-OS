@@ -90,10 +90,10 @@
 
 ### 阶段 4：草稿（2-3 天）
 
-- [ ] ⏳ 实现 `draft/section_prompt.py`
-- [ ] ⏳ 实现 `draft/generator.py`
-- [ ] ⏳ 写 prompt 模板
-- [ ] ⏳ 端到端测试
+- [x] ✅ 实现 `draft/models.py`（Draft 数据模型：title + sections + total_word_count + generated_at + duration + failed_sections）
+- [x] ✅ 实现 `draft/section_prompt.py`（6 块注入：风格/必避免/must_have/role/锚点/思想模型）
+- [x] ✅ 实现 `draft/generator.py`（每段独立 LLM 调用 + 重试 2 次 + 失败跳过 + 计时）
+- [x] ✅ 端到端测试（29 个 draft 测试 + 全量 193 测试无回归）
 
 ### 阶段 5：打磨（2-3 天）
 

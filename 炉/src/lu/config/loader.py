@@ -49,6 +49,8 @@ class StyleProfile(BaseModel):
                 normalized.append({"term": item})
             elif isinstance(item, dict):
                 normalized.append(item)
+            else:
+                normalized.append(item)
         return normalized
 
 
