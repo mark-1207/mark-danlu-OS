@@ -144,6 +144,29 @@ def build_parser() -> argparse.ArgumentParser:
     vir_p.add_argument("--provider", choices=["openai", "echo"], default=None)
     vir_p.add_argument("--model", default="gpt-4o-mini")
 
+    # 复盘 / 雷达 / 周报子命令
+    from lu.cli.report import build_parser as build_report_parser
+    rpt_p = sub.add_parser("report", help="复盘 / 雷达 / 周报")
+    rpt_sub = rpt_p.add_subparsers(dest="report_action", required=True)
+    # review
+    rv = rpt_sub.add_parser("review", help="复盘")
+    rv.add_argument("--runs-dir", default="runs")
+    rv.add_argument("--feedback", default="config/feedback.jsonl")
+    rv.add_argument("--period", default="all")
+    rv.add_argument("--output", default=None)
+    # radar
+    rd = rpt_sub.add_parser("radar", help="雷达")
+    rd.add_argument("--runs-dir", default="runs")
+    rd.add_argument("--dry-run", action="store_true")
+    rd.add_argument("--provider", choices=["openai", "echo"], default=None)
+    rd.add_argument("--model", default="gpt-4o-mini")
+    # weekly
+    wk = rpt_sub.add_parser("weekly", help="周报")
+    wk.add_argument("--runs-dir", default="runs")
+    wk.add_argument("--feedback", default="config/feedback.jsonl")
+    wk.add_argument("--period", default="本周")
+    wk.add_argument("--output", default=None)
+
     return parser
 
 
@@ -405,7 +428,7 @@ def main(argv: list[str] | None = None) -> int:
     # 当用 -m 调用时自动补 "run" 子命令
     if argv is None:
         argv = sys.argv[1:]
-    _KNOWN_SUBCOMMANDS = ("run", "interactive", "config", "viral")
+    _KNOWN_SUBCOMMANDS = ("run", "interactive", "config", "viral", "report")
     if argv and not argv[0].startswith("-") and argv[0] not in _KNOWN_SUBCOMMANDS:
         argv = ["run"] + argv
     args = parser.parse_args(argv)
@@ -431,6 +454,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.style:
             argv.extend(["--style", args.style])
         return viral_main(argv)
+    if args.command == "report":
+        from lu.cli.report import cmd_report
+        args.action = args.report_action
+        return cmd_report(args)
 
     parser.print_help()
     return 1

@@ -277,3 +277,24 @@
 
 ### 状态
 🚧 进行中（351/351 测试通过）
+
+---
+
+## v1.4：复盘 / 雷达 / 周报（2026-06-17）
+
+### 做了什么
+- 实现 `src/lu/report/review.py`：`review()` 生成复盘 Markdown（通过率/弱维度/接受率）
+- 实现 `src/lu/report/radar.py`：`suggest_propositions()` 从历史衍生候选命题
+- 实现 `src/lu/report/weekly.py`：`weekly_report()` 周报（含评分趋势 + 沉淀统计 + 下周建议）
+- 实现 `src/lu/cli/report.py`：`lu report review/radar/weekly` 子命令
+- CLI run.py 注册 `report` 子命令
+- 新增 3 个测试文件：test_report_review (3) + test_report_radar (4) + test_report_weekly (3)
+
+### 学到什么
+- 三个 report 子命令都纯消费 `Context` + `Feedback`，不引入新数据模型
+- 雷达 LLM 容错：JSON 失败时返回空列表（用户友好降级）
+- 周报"待提升维度"按出现次数排序 top-3
+- `review` 用 `Counter` 统计弱维度分布
+
+### 状态
+🚧 进行中（361/361 测试通过）

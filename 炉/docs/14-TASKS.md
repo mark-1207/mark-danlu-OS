@@ -154,13 +154,13 @@
 - [x] ✅ 实现 `src/lu/cli/viral.py`（`lu viral` 子命令）
 - [x] ✅ 端到端测试（351/351 全量通过）
 
-### v1.4 仅方案（待实施）
+### v1.4 实施中（2026-06-17）
 
-- [ ] 复盘 (`lu review`)
-- [ ] 雷达 (`lu radar`)
-- [ ] 周报 (`lu weekly`)
-
-详见 plan 文件 v1.4 方案部分。
+- [x] ✅ 实现 `src/lu/report/review.py`（复盘 Markdown）
+- [x] ✅ 实现 `src/lu/report/radar.py`（雷达候选）
+- [x] ✅ 实现 `src/lu/report/weekly.py`（周报）
+- [x] ✅ 实现 `src/lu/cli/report.py`（`lu report review/radar/weekly`）
+- [x] ✅ 端到端测试（361/361 全量通过）
 
 ---
 

@@ -473,7 +473,7 @@ CREATED
 - v1.1 收尾：+ 续跑（`--resume` / `--from-step`）+ 反馈数据 + 飞书 hook
 - v1.2：+ TUI 交互（`lu interactive`）+ 飞书 config sync（`lu config pull/push/sync`）
 - v1.3：+ 爆款二创（`lu viral --reference <url|file>`）
-- v1.4：+ 复盘 / 雷达 / 周报生成（`lu review/radar/weekly`，仅方案）
+- v1.4：+ 复盘 / 雷达 / 周报（`lu report review/radar/weekly`）
 
 ### 7.2 v2.x
 - 飞书多维表格管理配置
