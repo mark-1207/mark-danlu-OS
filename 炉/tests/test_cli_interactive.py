@@ -14,6 +14,12 @@ class TestCLIInteractive:
         m.assert_called_once()
         assert ret == 0
 
+    def test_interactive_non_tty_errors(self) -> None:
+        """非 TTY 环境（如 CI）应优雅退出并提示用 lu run"""
+        with patch("lu.cli.interactive.sys.stdin.isatty", return_value=False):
+            ret = interactive_main(["测试", "--dry-run"])
+        assert ret == 2
+
     def test_interactive_subcommand_dry_run(self) -> None:
         import json
         refined = json.dumps({
@@ -45,7 +51,8 @@ class TestCLIInteractive:
                 return "m"
             return refined
 
-        with patch("lu.tui.prompts.Prompt.ask", return_value="a1"), \
+        with patch("lu.cli.interactive.sys.stdin.isatty", return_value=True), \
+             patch("lu.tui.prompts.Prompt.ask", return_value="a1"), \
              patch("lu.tui.prompts.Confirm.ask", return_value=True), \
              patch("rich.prompt.Prompt.ask", return_value="analysis"), \
              patch("lu.tui.sections.Confirm.ask", return_value=False), \

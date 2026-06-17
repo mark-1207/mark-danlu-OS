@@ -97,6 +97,12 @@ def main(argv: list[str] | None = None) -> int:
     else:
         args = parser.parse_args(argv)
 
+    # TUI 模式要求 TTY；非 TTY 环境（如 CI/管道）报错并提示用 lu run
+    if not sys.stdin.isatty():
+        print("[ERROR] TUI 模式需要交互式终端", file=sys.stderr)
+        print("        请在终端中运行，或用 `lu run` 走非交互模式", file=sys.stderr)
+        return 2
+
     style_path = Path(args.style)
     if not style_path.is_file():
         print(f"[WARN] 风格画像不存在: {style_path}，使用默认空画像", file=sys.stderr)
@@ -128,7 +134,14 @@ def main(argv: list[str] | None = None) -> int:
         file_store = FileStore(args.runs_dir)
 
     from rich.prompt import Prompt
-    content_type = Prompt.ask("内容类型 (decision/analysis/perspective/story/reflection)", default="perspective")
+    try:
+        content_type = Prompt.ask(
+            "内容类型 (decision/analysis/perspective/story/reflection)",
+            default="perspective",
+        )
+    except (EOFError, KeyboardInterrupt):
+        print("\n[ERROR] 用户中断 / 无输入", file=sys.stderr)
+        return 2
 
     from lu.blueprint.sections import SectionSelector
 
