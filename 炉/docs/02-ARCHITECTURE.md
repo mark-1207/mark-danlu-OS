@@ -471,7 +471,7 @@ CREATED
 - v1.0：核心 7 步 + 苏格拉底 + 思想模型 + 6 维评分 + L5 三子项
 - v1.1：+ 真实 LLM provider + 运行持久化（FileStore）+ Obsidian 素材库写入
 - v1.1 收尾：+ 续跑（`--resume` / `--from-step`）+ 反馈数据 + 飞书 hook
-- v1.2：+ TUI 交互 + 飞书真实 API
+- v1.2：+ TUI 交互（`lu interactive`）+ 飞书 config sync（`lu config pull/push/sync`）
 - v1.3：+ 爆款二创
 - v1.4：+ 复盘/雷达/周报生成
 

@@ -226,3 +226,29 @@
 
 ### 状态
 ✅ 已完成（315/315 测试通过）
+
+---
+
+## v1.2：TUI + 飞书 config sync（2026-06-17）
+
+### 做了什么
+- 实现 `src/lu/tui/`：`make_ask_user/yes_no`（rich.prompt）+ `select_sections_interactive`
+- 实现 `src/lu/cli/interactive.py`：`lu interactive` 子命令（TUI 全流程）
+- 实现 `src/lu/feishu/client.py`：FeishuBitableClient（lark-cli subprocess 包装）
+- 实现 `src/lu/feishu/style_profile.py`：StyleProfile ↔ Bitable 序列化
+- 实现 `src/lu/cli/config.py`：`lu config pull/push/sync` 子命令
+- CLI run.py 注册 `interactive` / `config` 子命令
+- 新增 6 个测试文件：tui_prompts (4) + tui_sections (3) + cli_interactive (2) + feishu_client (5) + feishu_style_profile (2) + cli_config (7)
+
+### 学到什么
+- TUI 不改 `SocraticEngine` 接口，仅替换 `ask_user/yes_no` 回调
+- 段位 TUI 直接构造 sections，不依赖 `SectionSelector.select`（避免 monkey-patch 递归）
+- 飞书 client 用 lark-cli subprocess，不引入 Python SDK
+- `lu config` 子命令需 2 级 subparser：`config → pull/push/sync`
+
+### 接下来
+- v1.3：爆款二创（ViralGenome）
+- v1.4：复盘/雷达/周报
+
+### 状态
+🚧 进行中（338/338 测试通过）

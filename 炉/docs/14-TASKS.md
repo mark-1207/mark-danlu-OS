@@ -137,11 +137,19 @@
 - [x] ✅ CLI 增加 `--feedback-note` / `--resume` / `--from-step`
 - [x] ✅ 端到端测试（315/315 全量通过）
 
-### v1.2+ 任务
+### v1.2 实施中（2026-06-17）
 
-- [ ] ⏳ TUI 交互
-- [ ] ⏳ 飞书真实 API 接入
+- [x] ✅ 实现 `src/lu/tui/`（make_ask_user/yes_no + select_sections_interactive）
+- [x] ✅ 实现 `src/lu/cli/interactive.py`（`lu interactive` 子命令）
+- [x] ✅ 实现 `src/lu/feishu/client.py`（FeishuBitableClient lark-cli 包装）
+- [x] ✅ 实现 `src/lu/feishu/style_profile.py`（Pydantic ↔ Bitable 序列化）
+- [x] ✅ 实现 `src/lu/cli/config.py`（`lu config pull/push/sync`）
+- [x] ✅ 端到端测试（338/338 全量通过）
+
+### v1.3+ 任务
+
 - [ ] ⏳ 爆款二创（ViralGenome）
+- [ ] ⏳ 复盘/雷达/周报生成
 
 ---
 

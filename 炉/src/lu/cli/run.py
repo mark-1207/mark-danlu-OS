@@ -114,7 +114,44 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_FEEDBACK_PATH,
         help="反馈文件路径（默认 config/feedback.jsonl）",
     )
+
+    # TUI 交互子命令
+    from lu.cli.interactive import build_parser as build_interactive_parser
+    int_p = sub.add_parser("interactive", help="TUI 模式全流程（rich.prompt）")
+    int_p.add_argument("proposition", help="原始命题字符串")
+    int_p.add_argument("--style", default="config/style_profile.yaml")
+    int_p.add_argument("--dry-run", action="store_true")
+    int_p.add_argument("--provider", choices=["openai", "echo"], default=None)
+    int_p.add_argument("--model", default="gpt-4o-mini")
+    int_p.add_argument("--runs-dir", default=None)
+
+    # 飞书 config 子命令
+    from lu.cli.config import build_parser as build_config_parser
+    cfg_p = sub.add_parser("config", help="飞书 config 同步")
+    cfg_sub = cfg_p.add_subparsers(dest="config_action", required=True)
+    for act in ("pull", "push", "sync"):
+        sp = cfg_sub.add_parser(act, help=f"{act} config")
+        sp.add_argument("--config", default="config/feishu.yaml", help="飞书 config 路径")
+        sp.add_argument("--style", default="config/style_profile.yaml", help="本地 style YAML")
+
     return parser
+
+
+def cmd_interactive(args: argparse.Namespace) -> int:
+    """分发到 lu.cli.interactive.main"""
+    from lu.cli.interactive import main as interactive_main
+    argv = [args.proposition]
+    if args.dry_run:
+        argv.append("--dry-run")
+    if args.provider:
+        argv.extend(["--provider", args.provider])
+    if args.model:
+        argv.extend(["--model", args.model])
+    if args.runs_dir:
+        argv.extend(["--runs-dir", args.runs_dir])
+    if args.style:
+        argv.extend(["--style", args.style])
+    return interactive_main(argv)
 
 
 def make_echo_llm() -> "callable":
@@ -358,12 +395,20 @@ def main(argv: list[str] | None = None) -> int:
     # 当用 -m 调用时自动补 "run" 子命令
     if argv is None:
         argv = sys.argv[1:]
-    if argv and not argv[0].startswith("-") and argv[0] not in ("run",):
+    _KNOWN_SUBCOMMANDS = ("run", "interactive", "config")
+    if argv and not argv[0].startswith("-") and argv[0] not in _KNOWN_SUBCOMMANDS:
         argv = ["run"] + argv
     args = parser.parse_args(argv)
 
     if args.command == "run":
         return cmd_run(args)
+    if args.command == "interactive":
+        return cmd_interactive(args)
+    if args.command == "config":
+        from lu.cli.config import cmd_config
+        # 把 config 子命令的 action 映射到 cmd_config 的 args.action
+        args.action = args.config_action
+        return cmd_config(args)
 
     parser.print_help()
     return 1
