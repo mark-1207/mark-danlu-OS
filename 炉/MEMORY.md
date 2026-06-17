@@ -7,9 +7,9 @@
 
 ## 当前状态（2026-06-17）
 
-- **项目阶段**：v1.1 实施中（LLM 接入 + 持久化 + Obsidian 写入）
-- **下一步**：完成 v1.1 CLI/provider/persistence/Obsidian，更新文档后提交推送
-- **实施进度**：v1.0 阶段 0-7 ✅ / v1.1 ⏳
+- **项目阶段**：v1.1 收尾完成（续跑 + 反馈 + 飞书 hook）
+- **下一步**：v1.2 — TUI 交互 / 飞书基础
+- **实施进度**：v1.0 ✅ / v1.1 核心 ✅ / v1.1 收尾 ✅ / v1.2 ⏳
 
 ---
 
@@ -53,13 +53,12 @@ PYTHONPATH=src python -m lu.cli.run "测试命题" --dry-run
 - ⏳ v1.1：LLM provider + 运行持久化 + Obsidian 写入
 
 ### 待办
-- ⏳ v1.1 实施中
-  - 实现 `src/lu/llm/`（OpenAIProvider + LLMChain）
-  - Orchestrator 集成 FileStore 持久化
-  - 实现 `sediment/obsidian_writer.py`
-  - CLI 增加 `--provider` / `--model` / `--runs-dir` / `--obsidian-vault`
-  - 更新 06-DEV-PLAN / 09-ROADMAP / PROGRESS / TASKS
-- ⏳ v1.2 及以后：TUI / 飞书 / 爆款二创
+- ✅ v1.1 核心 + 收尾全部完成
+  - LLM provider + 持久化 + Obsidian 写入
+  - 续跑 `--resume` / `--from-step`
+  - 反馈数据 `--feedback-note`
+  - 飞书 hook 预留（`FeedbackSink` 协议 + `LocalJsonlSink`）
+- ⏳ v1.2：TUI 交互 / 飞书基础 / 爆款二创
 
 详见 `docs/14-TASKS.md`
 

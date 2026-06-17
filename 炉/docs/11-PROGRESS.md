@@ -201,8 +201,28 @@
 - Obsidian 写入作为 CLI 后处理，不侵入沉淀模块核心逻辑
 - `--echo-llm` 现在默认走 echo LLM，可独立使用
 
+### 状态
+✅ 已完成（298/298 测试通过）
+
+---
+
+## v1.1 收尾：续跑 + 反馈 + 飞书 hook（2026-06-17）
+
+### 做了什么
+- Orchestrator 支持 `--resume` / `--from-step`（每步跳过已完成的）
+- 实现 `src/lu/feedback/`：Feedback 模型 + FeedbackStore 追加写
+- 实现 `src/lu/feishu/`：FeedbackSink 协议 + LocalJsonlSink 本地占位
+- CLI 增加 `--feedback-note` / `--feedback-path` / `--resume` / `--from-step`
+- 新增 4 个测试文件：orchestrator_resume (3) + feedback_store (7) + feishu_local_sink (5) + cli_feedback (2)
+
+### 学到什么
+- 续跑用 `_state_index` 辅助比较，state 越靠后数字越大
+- FileStore.load(run_id, key, type) 用 Pydantic 反序列化
+- `FeedbackSink` 用 `Protocol + runtime_checkable`，v2.x 直接换实现
+- sink 失败不应阻塞本地写入（异常隔离）
+
 ### 接下来
-- v1.2：TUI / 飞书基础 / 爆款二创
+- v1.2：TUI 交互 / 飞书真实 API / 爆款二创
 
 ### 状态
-🚧 进行中（297/297 测试通过）
+✅ 已完成（315/315 测试通过）

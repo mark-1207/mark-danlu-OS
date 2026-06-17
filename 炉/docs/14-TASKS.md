@@ -129,10 +129,18 @@
 - [x] ✅ CLI 增加 `--provider` / `--model` / `--runs-dir` / `--obsidian-vault`
 - [x] ✅ 端到端测试（297/297 全量通过）
 
+### v1.1 收尾（2026-06-17）
+
+- [x] ✅ Orchestrator 支持 `--resume` / `--from-step`（续跑机制）
+- [x] ✅ 实现 `src/lu/feedback/`（Feedback 模型 + Store 追加写）
+- [x] ✅ 实现 `src/lu/feishu/`（FeedbackSink 协议 + LocalJsonlSink 占位）
+- [x] ✅ CLI 增加 `--feedback-note` / `--resume` / `--from-step`
+- [x] ✅ 端到端测试（315/315 全量通过）
+
 ### v1.2+ 任务
 
 - [ ] ⏳ TUI 交互
-- [ ] ⏳ 飞书灵感池 + 反馈数据
+- [ ] ⏳ 飞书真实 API 接入
 - [ ] ⏳ 爆款二创（ViralGenome）
 
 ---

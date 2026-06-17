@@ -65,87 +65,112 @@ class Orchestrator:
         ask_yes_no: _AskYesNo | None = None,
         section_choice: list[str] | None = None,
         file_store: FileStore | None = None,
+        resume_run_id: str | None = None,
+        from_step: RunState | None = None,
     ) -> Context:
-        ctx = Context(proposition_cleaned=proposition.strip())
-        if file_store is not None:
-            ctx.run_id = _generate_run_id(ctx.proposition_cleaned)
+        # 续跑初始化
+        if resume_run_id is not None:
+            if file_store is None:
+                raise ValueError("续跑需要 file_store（--resume 需配合 --runs-dir）")
+            ctx = file_store.load(resume_run_id, "context", Context)
+            if from_step is None:
+                raise ValueError("续跑需要指定 from_step")
+            if _state_index(ctx.state) > _state_index(from_step):
+                raise ValueError(
+                    f"from_step ({from_step.value}) 早于已保存 state ({ctx.state.value})"
+                )
+            # 把 state 改到 from_step，让后续从 from_step 开始
+            ctx.state = from_step
+            self._persist(ctx, file_store)
+        else:
+            ctx = Context(proposition_cleaned=proposition.strip())
+            if file_store is not None:
+                ctx.run_id = _generate_run_id(ctx.proposition_cleaned)
+            if from_step is not None and _state_index(from_step) < 0:
+                raise ValueError(f"非法的 from_step: {from_step}")
 
         # Step 1 → STEP1_DONE
-        ctx.state = RunState.STEP1_DONE
-        self._persist(ctx, file_store)
+        if _state_index(ctx.state) < _state_index(RunState.STEP1_DONE):
+            ctx.state = RunState.STEP1_DONE
+            self._persist(ctx, file_store)
 
         # Step 2: 苏格拉底追问
-        if ask_user is None or ask_yes_no is None:
-            raise ValueError("Step 2 苏格拉底追问需要 ask_user 和 ask_yes_no 回调")
-        socratic_engine = SocraticEngine(
-            proposition=ctx.proposition_cleaned,
-            signal=self.style_profile.socratic_stop_signal,
-            ask_user=ask_user,
-            ask_yes_no=ask_yes_no,
-            llm_call=llm_call,
-        )
-        socratic_result = socratic_engine.run()
-        ctx.socratic_session = socratic_result
-        ctx.refined_proposition = socratic_result.refined_proposition
-        ctx.state = RunState.STEP2_DONE
-        self._persist(ctx, file_store)
+        if _state_index(ctx.state) < _state_index(RunState.STEP2_DONE):
+            if ask_user is None or ask_yes_no is None:
+                raise ValueError("Step 2 苏格拉底追问需要 ask_user 和 ask_yes_no 回调")
+            socratic_engine = SocraticEngine(
+                proposition=ctx.proposition_cleaned,
+                signal=self.style_profile.socratic_stop_signal,
+                ask_user=ask_user,
+                ask_yes_no=ask_yes_no,
+                llm_call=llm_call,
+            )
+            socratic_result = socratic_engine.run()
+            ctx.socratic_session = socratic_result
+            ctx.refined_proposition = socratic_result.refined_proposition
+            ctx.state = RunState.STEP2_DONE
+            self._persist(ctx, file_store)
 
         # Step 3: 蓝图设计
-        framework = self._select_framework_safe(ctx.proposition_cleaned)
-        strategy = get_strategy(framework.strategy)
-        models = [self.model_registry.get(mid) for mid in framework.model_ids]
-        fw_result = strategy(
-            models=models,
-            proposition=ctx.proposition_cleaned,
-            llm_call=llm_call,
-        )
-        framework_output = _collect_strategy_output(fw_result)
-        anchors = AnchorPool.build(ctx.refined_proposition, framework_output)
+        if _state_index(ctx.state) < _state_index(RunState.STEP3_DONE):
+            framework = self._select_framework_safe(ctx.proposition_cleaned)
+            strategy = get_strategy(framework.strategy)
+            models = [self.model_registry.get(mid) for mid in framework.model_ids]
+            fw_result = strategy(
+                models=models,
+                proposition=ctx.proposition_cleaned,
+                llm_call=llm_call,
+            )
+            framework_output = _collect_strategy_output(fw_result)
+            anchors = AnchorPool.build(ctx.refined_proposition, framework_output)
 
-        designer = BlueprintDesigner(llm_call=llm_call)
-        raw_blueprint = designer.design(
-            refined=ctx.refined_proposition,
-            framework_id=framework.id,
-            framework_output=framework_output,
-        )
-        with_anchors = raw_blueprint.model_copy(
-            update={"anti_ai_anchors": anchors}
-        )
-        with_sections = SectionSelector.select(with_anchors, section_choice or [])
-        with_must_have = with_sections.model_copy(
-            update={"sections": AnchorPool.assign(anchors, with_sections.sections)}
-        )
-        ctx.blueprint = with_must_have
-        ctx.selected_sections = list(with_must_have.sections)
-        ctx.state = RunState.STEP3_DONE
-        self._persist(ctx, file_store)
+            designer = BlueprintDesigner(llm_call=llm_call)
+            raw_blueprint = designer.design(
+                refined=ctx.refined_proposition,
+                framework_id=framework.id,
+                framework_output=framework_output,
+            )
+            with_anchors = raw_blueprint.model_copy(
+                update={"anti_ai_anchors": anchors}
+            )
+            with_sections = SectionSelector.select(with_anchors, section_choice or [])
+            with_must_have = with_sections.model_copy(
+                update={"sections": AnchorPool.assign(anchors, with_sections.sections)}
+            )
+            ctx.blueprint = with_must_have
+            ctx.selected_sections = list(with_must_have.sections)
+            ctx.state = RunState.STEP3_DONE
+            self._persist(ctx, file_store)
 
         # Step 4: 段位选择（已完成在 Step 3 中）
-        ctx.state = RunState.STEP4_DONE
-        self._persist(ctx, file_store)
+        if _state_index(ctx.state) < _state_index(RunState.STEP4_DONE):
+            ctx.state = RunState.STEP4_DONE
+            self._persist(ctx, file_store)
 
         # Step 5: 草稿生成
-        generator = DraftGenerator(llm_call=llm_call)
-        ctx.draft = generator.generate(ctx.blueprint, self.style_profile)
-        ctx.state = RunState.STEP5_DONE
-        self._persist(ctx, file_store)
+        if _state_index(ctx.state) < _state_index(RunState.STEP5_DONE):
+            generator = DraftGenerator(llm_call=llm_call)
+            ctx.draft = generator.generate(ctx.blueprint, self.style_profile)
+            ctx.state = RunState.STEP5_DONE
+            self._persist(ctx, file_store)
 
         # Step 6: 打磨质检
-        scorer = QualityScorer()
-        report = scorer.score(ctx.draft, ctx.blueprint, llm_call)
-        # 修复建议只对未通过维度生成（不阻断流程）
-        FixSuggester.suggest(report, llm_call)
-        ctx.quality_report = report
-        ctx.state = RunState.STEP6_DONE
-        self._persist(ctx, file_store)
+        if _state_index(ctx.state) < _state_index(RunState.STEP6_DONE):
+            scorer = QualityScorer()
+            report = scorer.score(ctx.draft, ctx.blueprint, llm_call)
+            FixSuggester.suggest(report, llm_call)
+            ctx.quality_report = report
+            ctx.state = RunState.STEP6_DONE
+            self._persist(ctx, file_store)
 
         # Step 7: 沉淀回写
-        harvested = Harvester.extract(ctx.draft, ctx.refined_proposition, llm_call)
-        updated_profile = StyleUpdater.update(harvested, self.style_profile)
-        ctx.harvested = harvested
-        ctx.style_profile_snapshot = updated_profile
-        ctx.state = RunState.COMPLETED
-        self._persist(ctx, file_store)
+        if _state_index(ctx.state) < _state_index(RunState.COMPLETED):
+            harvested = Harvester.extract(ctx.draft, ctx.refined_proposition, llm_call)
+            updated_profile = StyleUpdater.update(harvested, self.style_profile)
+            ctx.harvested = harvested
+            ctx.style_profile_snapshot = updated_profile
+            ctx.state = RunState.COMPLETED
+            self._persist(ctx, file_store)
 
         validate_transition(RunState.STEP6_DONE, RunState.COMPLETED)
 
@@ -176,3 +201,24 @@ def _generate_run_id(proposition: str) -> str:
     slug = re.sub(r"[^\w一-鿿]+", "_", proposition).strip("_")
     slug = slug[:40] or "untitled"
     return f"{date}_{slug}"
+
+
+_STATE_ORDER = [
+    RunState.CREATED,
+    RunState.STEP1_DONE,
+    RunState.STEP2_DONE,
+    RunState.STEP3_DONE,
+    RunState.STEP4_DONE,
+    RunState.STEP5_DONE,
+    RunState.STEP6_DONE,
+    RunState.COMPLETED,
+    RunState.FAILED,
+]
+
+
+def _state_index(state: RunState) -> int:
+    """返回 state 在 7 步流程中的位置（用于续跑时比较）"""
+    try:
+        return _STATE_ORDER.index(state)
+    except ValueError:
+        return -1

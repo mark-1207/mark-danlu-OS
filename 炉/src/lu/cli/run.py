@@ -20,6 +20,8 @@ import sys
 from pathlib import Path
 
 from lu.config.loader import StyleProfile, load_style_profile
+from lu.feedback.models import Feedback
+from lu.feedback.store import FeedbackStore
 from lu.llm.chain import LLMChain
 from lu.llm.errors import LLMError
 from lu.llm.providers import OpenAIProvider
@@ -31,6 +33,18 @@ from lu.thinking_models.registry import load_default_registries
 
 
 DEFAULT_STYLE_PATH = "config/style_profile.yaml"
+DEFAULT_FEEDBACK_PATH = "config/feedback.jsonl"
+
+
+_STEP_STATE_MAP = {
+    1: RunState.STEP1_DONE,
+    2: RunState.STEP2_DONE,
+    3: RunState.STEP3_DONE,
+    4: RunState.STEP4_DONE,
+    5: RunState.STEP5_DONE,
+    6: RunState.STEP6_DONE,
+    7: RunState.COMPLETED,
+}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -77,6 +91,28 @@ def build_parser() -> argparse.ArgumentParser:
         "--obsidian-vault",
         default=None,
         help="Obsidian vault 路径（默认不写入）",
+    )
+    run_p.add_argument(
+        "--resume",
+        default=None,
+        help="续跑指定 run_id（需配合 --runs-dir 与 --from-step）",
+    )
+    run_p.add_argument(
+        "--from-step",
+        type=int,
+        choices=[1, 2, 3, 4, 5, 6, 7],
+        default=None,
+        help="从第 N 步开始（1-7）",
+    )
+    run_p.add_argument(
+        "--feedback-note",
+        default=None,
+        help="run 完成后记录反馈备注",
+    )
+    run_p.add_argument(
+        "--feedback-path",
+        default=DEFAULT_FEEDBACK_PATH,
+        help="反馈文件路径（默认 config/feedback.jsonl）",
     )
     return parser
 
@@ -201,6 +237,18 @@ def cmd_run(args: argparse.Namespace) -> int:
     if args.runs_dir:
         file_store = FileStore(args.runs_dir)
 
+    # 续跑校验
+    if args.resume and not args.runs_dir:
+        print("[ERROR] --resume 必须配合 --runs-dir", file=sys.stderr)
+        return 2
+    if args.resume and not args.from_step:
+        print("[ERROR] --resume 必须配合 --from-step", file=sys.stderr)
+        return 2
+
+    from_step: RunState | None = None
+    if args.from_step:
+        from_step = _STEP_STATE_MAP[args.from_step]
+
     orch = Orchestrator(
         style_profile=style,
         model_registry=model_reg,
@@ -213,6 +261,8 @@ def cmd_run(args: argparse.Namespace) -> int:
             ask_user=make_echo_user(),
             ask_yes_no=make_echo_yes_no(),
             file_store=file_store,
+            resume_run_id=args.resume,
+            from_step=from_step,
         )
     except LLMError as e:
         print(f"[ERROR] LLM 调用失败 [{e.code}]: {e.message}", file=sys.stderr)
@@ -229,6 +279,32 @@ def cmd_run(args: argparse.Namespace) -> int:
             print(f"[INFO] 已写入 {len(paths)} 条 Obsidian 笔记", file=sys.stderr)
         except Exception as e:
             print(f"[WARN] Obsidian 写入失败: {e}", file=sys.stderr)
+
+    # 可选反馈记录
+    if args.feedback_note and ctx.state == RunState.COMPLETED:
+        try:
+            weakest = (
+                ctx.quality_report.weakest_dimension
+                if ctx.quality_report
+                else "未知"
+            )
+            feedback = Feedback(
+                run_id=ctx.run_id,
+                proposition=ctx.proposition_cleaned,
+                quality_overall_passed=(
+                    ctx.quality_report.overall_passed
+                    if ctx.quality_report
+                    else False
+                ),
+                weakest_dimension=weakest,
+                accepted=True,
+                note=args.feedback_note,
+            )
+            store = FeedbackStore(args.feedback_path)
+            store.write(feedback)
+            print(f"[INFO] 反馈已记录: {args.feedback_path}", file=sys.stderr)
+        except Exception as e:
+            print(f"[WARN] 反馈记录失败: {e}", file=sys.stderr)
 
     print(_format_summary(ctx))
     return 0 if ctx.state == RunState.COMPLETED else 1
