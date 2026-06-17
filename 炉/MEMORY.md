@@ -7,9 +7,9 @@
 
 ## 当前状态（2026-06-16）
 
-- **项目阶段**：v1.0 MVP 实施中（阶段 0/1/2 完成）
-- **下一步**：阶段 3 蓝图（blueprint/designer + anchors + sections + TUI）
-- **实施进度**：阶段 0 ✅ / 阶段 1 ✅ / 阶段 2 ✅ / 阶段 3-7 ⏳
+- **项目阶段**：v1.0 MVP 实施中（阶段 0/1/2/3 完成）
+- **下一步**：阶段 4 草稿（draft/section_prompt + generator）
+- **实施进度**：阶段 0 ✅ / 阶段 1 ✅ / 阶段 2 ✅ / 阶段 3 ✅ / 阶段 4-7 ⏳
 
 ---
 
@@ -41,10 +41,10 @@ ls legacy/       # 源项目快照（待复制）
 - ✅ 阶段 0：基础设施（pyproject + config/loader + store/file_store + state/machine）
 - ✅ 阶段 1：苏格拉底追问（questions + engine + output + learning）
 - ✅ 阶段 2：思想模型（12 模型 + 4 框架 + 5 策略 + 选择器）
+- ✅ 阶段 3：蓝图（designer + anchors + sections + models，47 测试）
 
 ### 待办
-- ⏳ v1.0 MVP 实施（phases 3-7，按 `docs/06-DEV-PLAN.md`）
-  - 阶段 3：blueprint/（designer + anchors + sections + TUI）
+- ⏳ v1.0 MVP 实施（phases 4-7，按 `docs/06-DEV-PLAN.md`）
   - 阶段 4：draft/（section_prompt + generator）
   - 阶段 5：polish/（6 维质量 + scorer + suggester）
   - 阶段 6：sediment/（harvester + style_updater）

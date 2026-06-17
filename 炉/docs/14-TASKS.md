@@ -81,11 +81,12 @@
 
 ### 阶段 3：蓝图（2-3 天）
 
-- [ ] ⏳ 实现 `blueprint/designer.py`
-- [ ] ⏳ 实现 `blueprint/anchors.py`
-- [ ] ⏳ 实现 `blueprint/sections.py`
-- [ ] ⏳ 实现 `blueprint/ui/`（TUI）
-- [ ] ⏳ 端到端测试
+- [x] ✅ 实现 `blueprint/designer.py`（CCOS 14 项映射 + LLM 注入）
+- [x] ✅ 实现 `blueprint/anchors.py`（Anti-AI 锚点池构建 + 段位分配）
+- [x] ✅ 实现 `blueprint/sections.py`（核心 5 段 + 5 种内容类型推荐可选）
+- [x] ✅ 实现 `blueprint/models.py`（SectionRole / Case / DataPoint / Quote / AntiAIAnchors / Section / Blueprint）
+- [ ] ⏳ 实现 `blueprint/ui/`（TUI — 推迟到 v1.1）
+- [x] ✅ 端到端测试（47 个蓝图测试 + 全量 164 测试无回归）
 
 ### 阶段 4：草稿（2-3 天）
 

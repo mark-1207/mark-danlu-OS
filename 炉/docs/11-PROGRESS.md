@@ -74,3 +74,26 @@
 
 ### 状态
 ✅ 已完成（117/117 测试通过）
+
+---
+
+## 阶段 3：蓝图（2026-06-16）
+
+### 做了什么
+- 实现 `blueprint/models.py`：SectionRole 枚举（核心 5 + 可选 8 = 13）+ Case/DataPoint/Quote + AntiAIAnchors + Section + Blueprint
+- 实现 `blueprint/designer.py`：BlueprintDesigner.design（LLM 注入 + CCOS 9 项映射 + JSON 容错）
+- 实现 `blueprint/sections.py`：SectionSelector（核心 5 段固定 + 5 种内容类型推荐可选 + select 不改入参）
+- 实现 `blueprint/anchors.py`：AnchorPool.build（从 refined 提取 contrarian + insight）+ assign（按 role 分配 must_have）
+
+### 学到什么
+- LLM 注入沿用 Phase 2 的 Callable[[str], str] 模式
+- `model_copy(update=...)` 是 Pydantic v2 的不变量更新方式
+- 段位顺序是叙事流硬约束（钩子→反共识→案例→思考→收尾）
+- Anti-AI 锚点的 must_have 是"prompt 素材"，不是"输出约束"
+
+### 接下来
+- 阶段 4：草稿生成（draft/section_prompt + generator）
+- 阶段 5-7：打磨 / 沉淀 / 流程集成 + CLI
+
+### 状态
+✅ 已完成（164/164 测试通过）
