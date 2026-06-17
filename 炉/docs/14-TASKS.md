@@ -112,7 +112,7 @@
 
 ### v1.1 推迟
 
-- ⏳ `sediment/obsidian_writer.py`（Obsidian 写入依赖 vault 配置，推迟到 v1.1）
+- [x] ✅ `sediment/obsidian_writer.py`（Obsidian 写入）
 
 ### 阶段 7：流程集成（2-3 天）
 
@@ -120,6 +120,20 @@
 - [x] ✅ 实现 `pipeline/orchestrator.py`（7 步串联）
 - [x] ✅ 实现 `cli/run.py`（极简 CLI --dry-run）
 - [x] ✅ 端到端测试（274/274 全量通过）
+
+### v1.1 实施中
+
+- [x] ✅ 实现 `src/lu/llm/`（OpenAIProvider + LLMChain）
+- [x] ✅ Orchestrator 集成 FileStore 持久化
+- [x] ✅ 实现 `sediment/obsidian_writer.py`
+- [x] ✅ CLI 增加 `--provider` / `--model` / `--runs-dir` / `--obsidian-vault`
+- [x] ✅ 端到端测试（297/297 全量通过）
+
+### v1.2+ 任务
+
+- [ ] ⏳ TUI 交互
+- [ ] ⏳ 飞书灵感池 + 反馈数据
+- [ ] ⏳ 爆款二创（ViralGenome）
 
 ---
 

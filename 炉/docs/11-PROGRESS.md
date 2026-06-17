@@ -183,3 +183,26 @@
 
 ### 状态
 ✅ 已完成（274/274 测试通过）
+
+---
+
+## v1.1：LLM + 持久化 + Obsidian（2026-06-17）
+
+### 做了什么
+- 实现 `src/lu/llm/`：OpenAIProvider + LLMChain（重试 + fallback）
+- Orchestrator 集成 FileStore：每步持久化 Context 到 `runs/<run_id>/context.json`
+- 实现 `sediment/obsidian_writer.py`：cases/quotes/insights 写入 Obsidian vault
+- CLI 增加 `--provider` / `--model` / `--runs-dir` / `--obsidian-vault` 参数
+- 新增 5 个测试文件：llm_provider (5) + llm_chain (5) + orchestrator_persistence (2) + obsidian_writer (5) + cli_provider (5)
+
+### 学到什么
+- LLMChain.call 保持 `Callable[[str], str]` 签名，兼容现有模块注入
+- FileStore 作为可选参数传入 Orchestrator，不传时 v1.0 行为不变
+- Obsidian 写入作为 CLI 后处理，不侵入沉淀模块核心逻辑
+- `--echo-llm` 现在默认走 echo LLM，可独立使用
+
+### 接下来
+- v1.2：TUI / 飞书基础 / 爆款二创
+
+### 状态
+🚧 进行中（297/297 测试通过）

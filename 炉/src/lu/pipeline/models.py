@@ -19,6 +19,7 @@ from lu.state.machine import RunState
 class Context(BaseModel):
     """7 步流程上下文：每步产出挂载到对应字段"""
 
+    run_id: str | None = None
     proposition_cleaned: str = ""
 
     socratic_session: SocraticResult | None = None

@@ -20,8 +20,12 @@ import sys
 from pathlib import Path
 
 from lu.config.loader import StyleProfile, load_style_profile
+from lu.llm.chain import LLMChain
+from lu.llm.providers import OpenAIProvider
 from lu.pipeline.orchestrator import Orchestrator
+from lu.sediment.obsidian_writer import ObsidianWriter
 from lu.state.machine import RunState
+from lu.store.file_store import FileStore
 from lu.thinking_models.registry import load_default_registries
 
 
@@ -51,6 +55,27 @@ def build_parser() -> argparse.ArgumentParser:
         "--echo-llm",
         action="store_true",
         help="LLM 调用时打印 prompt 到 stderr（调试用）",
+    )
+    run_p.add_argument(
+        "--provider",
+        choices=["openai", "echo"],
+        default=None,
+        help="LLM provider（默认需配合 --dry-run 使用 echo）",
+    )
+    run_p.add_argument(
+        "--model",
+        default="gpt-4o-mini",
+        help="模型名称（仅 openai provider）",
+    )
+    run_p.add_argument(
+        "--runs-dir",
+        default=None,
+        help="运行持久化目录（默认不持久化）",
+    )
+    run_p.add_argument(
+        "--obsidian-vault",
+        default=None,
+        help="Obsidian vault 路径（默认不写入）",
     )
     return parser
 
@@ -153,15 +178,27 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"[ERROR] 加载默认注册表失败: {e}", file=sys.stderr)
         return 2
 
-    if args.dry_run or args.echo_llm:
+    # 确定 LLM
+    if args.dry_run or args.echo_llm or args.provider == "echo":
         base_llm = make_echo_llm()
+    elif args.provider == "openai":
+        try:
+            base_llm = LLMChain([OpenAIProvider(model=args.model)])
+        except Exception as e:
+            print(f"[ERROR] 初始化 OpenAI provider 失败: {e}", file=sys.stderr)
+            return 2
     else:
-        print("[ERROR] v1 CLI 仅支持 --dry-run / --echo-llm 模式", file=sys.stderr)
-        print("        真实 LLM 接入推迟到 v1.1", file=sys.stderr)
+        print("[ERROR] 必须指定 --provider 或 --dry-run", file=sys.stderr)
+        print("        示例: --provider openai 或 --dry-run", file=sys.stderr)
         return 2
 
     if args.echo_llm:
         base_llm = _wrap_echo_llm(base_llm)
+
+    # 可选持久化
+    file_store: FileStore | None = None
+    if args.runs_dir:
+        file_store = FileStore(args.runs_dir)
 
     orch = Orchestrator(
         style_profile=style,
@@ -173,7 +210,17 @@ def cmd_run(args: argparse.Namespace) -> int:
         llm_call=base_llm,
         ask_user=make_echo_user(),
         ask_yes_no=make_echo_yes_no(),
+        file_store=file_store,
     )
+
+    # 可选 Obsidian 写入
+    if args.obsidian_vault and ctx.harvested:
+        try:
+            writer = ObsidianWriter(args.obsidian_vault)
+            paths = writer.write_harvested(ctx.harvested, ctx.run_id or "unknown")
+            print(f"[INFO] 已写入 {len(paths)} 条 Obsidian 笔记", file=sys.stderr)
+        except Exception as e:
+            print(f"[WARN] Obsidian 写入失败: {e}", file=sys.stderr)
 
     print(_format_summary(ctx))
     return 0 if ctx.state == RunState.COMPLETED else 1
