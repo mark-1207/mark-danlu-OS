@@ -105,9 +105,14 @@
 
 ### 阶段 6：沉淀（1-2 天）
 
-- [ ] ⏳ 实现 `sediment/harvester.py`
-- [ ] ⏳ 实现 `sediment/style_updater.py`
-- [ ] ⏳ 端到端测试
+- [x] ✅ 实现 `sediment/models.py`（Insight + DiffResult + Harvested）
+- [x] ✅ 实现 `sediment/harvester.py`（LLM 提取 + difflib 对比）
+- [x] ✅ 实现 `sediment/style_updater.py`（forbidden 去重合并）
+- [x] ✅ 端到端测试（26 个 sediment 测试 + 全量 268 测试无回归）
+
+### v1.1 推迟
+
+- ⏳ `sediment/obsidian_writer.py`（Obsidian 写入依赖 vault 配置，推迟到 v1.1）
 
 ### 阶段 7：流程集成（2-3 天）
 

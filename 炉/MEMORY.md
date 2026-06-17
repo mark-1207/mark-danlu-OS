@@ -7,9 +7,9 @@
 
 ## 当前状态（2026-06-17）
 
-- **项目阶段**：v1.0 MVP 实施中（阶段 0/1/2/3/4/5 完成）
-- **下一步**：阶段 6 沉淀（sediment/harvester + style_updater）
-- **实施进度**：阶段 0-5 ✅ / 阶段 6-7 ⏳
+- **项目阶段**：v1.0 MVP 实施中（阶段 0/1/2/3/4/5/6 完成）
+- **下一步**：阶段 7 流程集成（pipeline/orchestrator + steps + CLI）
+- **实施进度**：阶段 0-6 ✅ / 阶段 7 ⏳
 
 ---
 
@@ -44,10 +44,10 @@ ls legacy/       # 源项目快照（待复制）
 - ✅ 阶段 3：蓝图（designer + anchors + sections + models，47 测试）
 - ✅ 阶段 4：草稿（models + section_prompt + generator，29 测试）
 - ✅ 阶段 5：打磨（models + 9 dimensions + quality_scorer + suggester，49 测试）
+- ✅ 阶段 6：沉淀（models + harvester + style_updater，26 测试）
 
 ### 待办
-- ⏳ v1.0 MVP 实施（phases 6-7，按 `docs/06-DEV-PLAN.md`）
-  - 阶段 6：sediment/（harvester + style_updater）
+- ⏳ v1.0 MVP 实施（phase 7，按 `docs/06-DEV-PLAN.md`）
   - 阶段 7：pipeline/（orchestrator + steps + cli/commands/run）
 
 详见 `docs/14-TASKS.md`
