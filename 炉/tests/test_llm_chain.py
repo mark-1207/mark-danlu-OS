@@ -48,7 +48,7 @@ class TestLLMChain:
     def test_falls_back_on_failure(self) -> None:
         p1 = _FailProvider("SERVER")
         p2 = _OkProvider("fallback")
-        chain = LLMChain([p1, p2], max_retries=1)
+        chain = LLMChain([p1, p2], max_retries=1, backoff_seconds=())
 
         assert chain.call("prompt") == "fallback"
         assert p1.calls == 1
@@ -57,7 +57,7 @@ class TestLLMChain:
     def test_retries_failed_provider_before_fallback(self) -> None:
         p1 = _FailProvider("SERVER")
         p2 = _OkProvider("fallback")
-        chain = LLMChain([p1, p2], max_retries=3)
+        chain = LLMChain([p1, p2], max_retries=3, backoff_seconds=())
 
         assert chain.call("prompt") == "fallback"
         assert p1.calls == 3
@@ -66,7 +66,7 @@ class TestLLMChain:
     def test_raises_when_all_providers_fail(self) -> None:
         p1 = _FailProvider("SERVER")
         p2 = _FailProvider("TIMEOUT")
-        chain = LLMChain([p1, p2], max_retries=2)
+        chain = LLMChain([p1, p2], max_retries=2, backoff_seconds=())
 
         with pytest.raises(LLMError) as exc:
             chain.call("prompt")

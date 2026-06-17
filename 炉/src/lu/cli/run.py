@@ -21,6 +21,7 @@ from pathlib import Path
 
 from lu.config.loader import StyleProfile, load_style_profile
 from lu.llm.chain import LLMChain
+from lu.llm.errors import LLMError
 from lu.llm.providers import OpenAIProvider
 from lu.pipeline.orchestrator import Orchestrator
 from lu.sediment.obsidian_writer import ObsidianWriter
@@ -205,13 +206,20 @@ def cmd_run(args: argparse.Namespace) -> int:
         model_registry=model_reg,
         framework_registry=framework_reg,
     )
-    ctx = orch.run(
-        proposition=args.proposition,
-        llm_call=base_llm,
-        ask_user=make_echo_user(),
-        ask_yes_no=make_echo_yes_no(),
-        file_store=file_store,
-    )
+    try:
+        ctx = orch.run(
+            proposition=args.proposition,
+            llm_call=base_llm,
+            ask_user=make_echo_user(),
+            ask_yes_no=make_echo_yes_no(),
+            file_store=file_store,
+        )
+    except LLMError as e:
+        print(f"[ERROR] LLM 调用失败 [{e.code}]: {e.message}", file=sys.stderr)
+        return 2
+    except Exception as e:
+        print(f"[ERROR] 流程执行失败: {e}", file=sys.stderr)
+        return 2
 
     # 可选 Obsidian 写入
     if args.obsidian_vault and ctx.harvested:

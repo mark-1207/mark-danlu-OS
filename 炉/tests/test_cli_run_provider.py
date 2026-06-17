@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from lu.cli.run import main
 
 
@@ -31,6 +33,12 @@ class TestCLIRunProvider:
 
     def test_openai_provider_requires_api_key(self) -> None:
         with patch.dict("os.environ", {}, clear=True):
+            ret = main(["测试命题", "--provider", "openai"])
+        assert ret == 2
+
+    @pytest.mark.slow
+    def test_openai_fake_key_fails_gracefully(self) -> None:
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "sk-fake"}):
             ret = main(["测试命题", "--provider", "openai"])
         assert ret == 2
 
