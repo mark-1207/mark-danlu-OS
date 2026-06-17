@@ -146,10 +146,21 @@
 - [x] ✅ 实现 `src/lu/cli/config.py`（`lu config pull/push/sync`）
 - [x] ✅ 端到端测试（338/338 全量通过）
 
-### v1.3+ 任务
+### v1.3 实施中（2026-06-17）
 
-- [ ] ⏳ 爆款二创（ViralGenome）
-- [ ] ⏳ 复盘/雷达/周报生成
+- [x] ✅ 实现 `src/lu/ingest/`（URL + file 摄入 + HTML 清理）
+- [x] ✅ 实现 `src/lu/viral/structure.py`（爆款结构提取）
+- [x] ✅ 实现 `src/lu/viral/pipeline.py`（二创 Pipeline）
+- [x] ✅ 实现 `src/lu/cli/viral.py`（`lu viral` 子命令）
+- [x] ✅ 端到端测试（351/351 全量通过）
+
+### v1.4 仅方案（待实施）
+
+- [ ] 复盘 (`lu review`)
+- [ ] 雷达 (`lu radar`)
+- [ ] 周报 (`lu weekly`)
+
+详见 plan 文件 v1.4 方案部分。
 
 ---
 

@@ -252,3 +252,28 @@
 
 ### 状态
 🚧 进行中（338/338 测试通过）
+
+---
+
+## v1.3：爆款二创（2026-06-17）
+
+### 做了什么
+- 实现 `src/lu/ingest/article.py`：URL 抓取 + 本地文件读 + HTML 清理
+- 实现 `src/lu/viral/structure.py`：从参考文章提取 hook/contrarian/case/closing 等结构
+- 实现 `src/lu/viral/pipeline.py`：绕过苏格拉底，直接用 ArticleStructure 构造 RefinedProposition + 跑 draft/polish/sediment
+- 实现 `src/lu/cli/viral.py`：`lu viral <新命题> --reference <url|file>` 子命令
+- CLI run.py 注册 `viral` 子命令
+- 新增 4 个测试文件：ingest_article (6) + viral_structure (3) + viral_pipeline (1) + cli_viral (2)
+
+### 学到什么
+- 二创不需要重跑苏格拉底：参考文章已经提供结构
+- ArticleStructure 字段 + JSON 容错复用 `socratic.output._strip_code_fence` 风格
+- 摄入模块故意不引入 BeautifulSoup，用 re 简单去标签
+- Viral pipeline 复用 DraftGenerator / QualityScorer / Harvester，0 重复代码
+
+### 接下来
+- v1.4：复盘/雷达/周报（仅方案已就绪）
+- v2.x：飞书完整集成 / Embedding
+
+### 状态
+🚧 进行中（351/351 测试通过）

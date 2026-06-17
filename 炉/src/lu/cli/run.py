@@ -134,6 +134,16 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--config", default="config/feishu.yaml", help="飞书 config 路径")
         sp.add_argument("--style", default="config/style_profile.yaml", help="本地 style YAML")
 
+    # 爆款二创子命令
+    from lu.cli.viral import build_parser as build_viral_parser
+    vir_p = sub.add_parser("viral", help="爆款二创（参考文章衍生）")
+    vir_p.add_argument("proposition", help="新命题")
+    vir_p.add_argument("--reference", required=True, help="参考 URL 或本地文件")
+    vir_p.add_argument("--style", default=DEFAULT_STYLE_PATH)
+    vir_p.add_argument("--dry-run", action="store_true")
+    vir_p.add_argument("--provider", choices=["openai", "echo"], default=None)
+    vir_p.add_argument("--model", default="gpt-4o-mini")
+
     return parser
 
 
@@ -395,7 +405,7 @@ def main(argv: list[str] | None = None) -> int:
     # 当用 -m 调用时自动补 "run" 子命令
     if argv is None:
         argv = sys.argv[1:]
-    _KNOWN_SUBCOMMANDS = ("run", "interactive", "config")
+    _KNOWN_SUBCOMMANDS = ("run", "interactive", "config", "viral")
     if argv and not argv[0].startswith("-") and argv[0] not in _KNOWN_SUBCOMMANDS:
         argv = ["run"] + argv
     args = parser.parse_args(argv)
@@ -409,6 +419,18 @@ def main(argv: list[str] | None = None) -> int:
         # 把 config 子命令的 action 映射到 cmd_config 的 args.action
         args.action = args.config_action
         return cmd_config(args)
+    if args.command == "viral":
+        from lu.cli.viral import main as viral_main
+        argv = [args.proposition, "--reference", args.reference]
+        if args.dry_run:
+            argv.append("--dry-run")
+        if args.provider:
+            argv.extend(["--provider", args.provider])
+        if args.model:
+            argv.extend(["--model", args.model])
+        if args.style:
+            argv.extend(["--style", args.style])
+        return viral_main(argv)
 
     parser.print_help()
     return 1

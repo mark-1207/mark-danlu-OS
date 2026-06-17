@@ -7,9 +7,9 @@
 
 ## 当前状态（2026-06-17）
 
-- **项目阶段**：v1.2 实施中（TUI + 飞书 config）
-- **下一步**：完成 v1.2 文档 + 提交推送
-- **实施进度**：v1.0 ✅ / v1.1 ✅ / v1.1 收尾 ✅ / v1.2 ⏳
+- **项目阶段**：v1.3 实施中（爆款二创）
+- **下一步**：完成 v1.3 文档 + 提交推送
+- **实施进度**：v1.0 ✅ / v1.1 ✅ / v1.1 收尾 ✅ / v1.2 ✅ / v1.3 ⏳
 
 ---
 
@@ -58,11 +58,13 @@ PYTHONPATH=src python -m lu.cli.run "测试命题" --dry-run
   - 续跑 `--resume` / `--from-step`
   - 反馈数据 `--feedback-note`
   - 飞书 hook 预留（`FeedbackSink` 协议 + `LocalJsonlSink`）
-- 🚧 v1.2 实施中
-  - TUI 适配（`src/lu/tui/` + `lu interactive` 子命令）
-  - 飞书 client（`src/lu/feishu/client.py` + `style_profile` 序列化）
-  - `lu config pull/push/sync` 子命令
-- ⏳ 后续：爆款二创 / 复盘 / 飞书完整集成
+- 🚧 v1.3 实施中
+  - `src/lu/ingest/`（URL + file 摄入）
+  - `src/lu/viral/structure.py`（爆款结构提取）
+  - `src/lu/viral/pipeline.py`（二创 Pipeline）
+  - `lu viral` 子命令
+- ⏳ v1.4 方案已就绪（复盘 / 雷达 / 周报，仅方案）
+- ⏳ 后续：飞书完整集成 / Embedding / 阶段 2-3 学习
 
 详见 `docs/14-TASKS.md`
 
