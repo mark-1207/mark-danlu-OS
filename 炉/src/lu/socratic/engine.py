@@ -1,6 +1,7 @@
 """苏格拉底追问引擎 — 主循环
 
-参考 02-ARCHITECTURE 2.2 + D-004 + D-008
+参考 02-ARCHITECTURE 2.2 + D-004 + D-008 + D-008-v2
+v2 增强：可选 sample_store 记录每次结果供学习
 """
 from __future__ import annotations
 
@@ -28,6 +29,7 @@ class SocraticEngine:
     ask_user: "callable"  # (question: str) -> str
     ask_yes_no: "callable"  # (prompt: str) -> bool
     llm_call: "callable"  # (prompt: str) -> str
+    sample_store: "object | None" = None  # v2: 可选 SampleStore 记录每次结果
 
     def _user_signaled_stop(self, answer: str) -> bool:
         return any(kw in answer for kw in self.signal.saturation_keywords)
@@ -75,6 +77,10 @@ class SocraticEngine:
             llm_call=self.llm_call,
         )
 
+        # v2: 记录样本供学习
+        if self.sample_store is not None:
+            self._record_sample(rounds, user_says_stop, history)
+
         return SocraticResult(
             proposition=self.proposition,
             history=history,
@@ -82,3 +88,24 @@ class SocraticEngine:
             early_stopped=early_stopped or user_says_stop,
             rounds_completed=rounds,
         )
+
+    def _record_sample(
+        self,
+        rounds: int,
+        user_says_stop: bool,
+        history: list,
+    ) -> None:
+        """记录样本到 store"""
+        from lu.socratic.sample_store import SocraticSample
+        # 提取最后一轮回答的关键词（简单 split）
+        final_signals: list[str] = []
+        if history:
+            last_answer = history[-1][1]
+            final_signals = [w for w in last_answer.split() if len(w) >= 2][:3]
+        sample = SocraticSample(
+            proposition=self.proposition,
+            rounds=rounds,
+            user_says_stop=user_says_stop,
+            final_signals=final_signals,
+        )
+        self.sample_store.write(sample)
