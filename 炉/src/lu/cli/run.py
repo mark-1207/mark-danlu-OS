@@ -153,14 +153,15 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"[ERROR] 加载默认注册表失败: {e}", file=sys.stderr)
         return 2
 
-    if args.echo_llm and not args.dry_run:
-        base_llm = _make_real_llm_placeholder()
-    elif args.dry_run or args.echo_llm:
+    if args.dry_run or args.echo_llm:
         base_llm = make_echo_llm()
     else:
         print("[ERROR] v1 CLI 仅支持 --dry-run / --echo-llm 模式", file=sys.stderr)
         print("        真实 LLM 接入推迟到 v1.1", file=sys.stderr)
         return 2
+
+    if args.echo_llm:
+        base_llm = _wrap_echo_llm(base_llm)
 
     orch = Orchestrator(
         style_profile=style,
@@ -178,11 +179,14 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0 if ctx.state == RunState.COMPLETED else 1
 
 
-def _make_real_llm_placeholder():
-    """v1 暂未实现真实 LLM 接入。"""
-    raise NotImplementedError(
-        "v1 CLI 暂不支持真实 LLM，请使用 --dry-run 或 --echo-llm 跑通管道"
-    )
+def _wrap_echo_llm(llm):
+    """包装 LLM：调用前把 prompt 打印到 stderr"""
+    def echo_llm(prompt: str) -> str:
+        print("-" * 40, file=sys.stderr)
+        print(prompt[:500], file=sys.stderr)
+        print("-" * 40, file=sys.stderr)
+        return llm(prompt)
+    return echo_llm
 
 
 def _format_summary(ctx) -> str:

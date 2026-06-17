@@ -12,3 +12,8 @@ class TestCLIRun:
     def test_dry_run_implicit_command(self) -> None:
         ret = main(["测试命题2", "--dry-run"])
         assert ret == 0
+
+    def test_echo_llm_runs_cleanly(self) -> None:
+        ret = main(["run", "测试命题", "--echo-llm"])
+        assert ret == 0
+

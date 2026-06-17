@@ -1,0 +1,14 @@
+version: 1
+voice: 犀利直接
+forbidden:
+  - 赋能
+  - 在这个时代
+  - 让我们来看看
+socratic_stop_signal:
+  typical_rounds: 3.0
+  saturation_keywords:
+    - 够了
+    - 差不多了
+    - 先这样
+  auto_stop_enabled: false
+  sample_count: 0
