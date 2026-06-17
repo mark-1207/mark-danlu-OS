@@ -119,3 +119,26 @@
 
 ### 状态
 ✅ 已完成（193/193 测试通过）
+
+---
+
+## 阶段 5：打磨（2026-06-17）
+
+### 做了什么
+- 实现 `polish/models.py`：DimensionScore + QualityReport + FixSuggestion
+- 实现 `polish/dimensions.py`：9 个维度 dataclass（6 维 + L5 三项）
+- 实现 `polish/quality_scorer.py`：QualityScorer 串行评分
+- 实现 `polish/suggester.py`：FixSuggester 只为未通过维度生成建议
+
+### 学到什么
+- 维度用 dataclass + Callable 字段
+- passed 用 @property 计算
+- LLM 失败默认 5.0 + details 记 error
+- 修复建议只给 failed 维度
+
+### 接下来
+- 阶段 6：沉淀
+- 阶段 7：流程集成 + CLI
+
+### 状态
+✅ 已完成（242/242 测试通过）
