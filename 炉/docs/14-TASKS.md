@@ -116,10 +116,10 @@
 
 ### 阶段 7：流程集成（2-3 天）
 
-- [ ] ⏳ 实现 `pipeline/orchestrator.py`
-- [ ] ⏳ 实现 `pipeline/steps/`
-- [ ] ⏳ 实现 `cli/commands/run.py`
-- [ ] ⏳ 端到端测试（真实 LLM 跑通 1 篇）
+- [x] ✅ 实现 `pipeline/models.py`（Context）
+- [x] ✅ 实现 `pipeline/orchestrator.py`（7 步串联）
+- [x] ✅ 实现 `cli/run.py`（极简 CLI --dry-run）
+- [x] ✅ 端到端测试（274/274 全量通过）
 
 ---
 

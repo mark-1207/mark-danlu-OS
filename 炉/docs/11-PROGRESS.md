@@ -162,3 +162,24 @@
 
 ### 状态
 ✅ 已完成（268/268 测试通过）
+
+---
+
+## 阶段 7：流程集成（2026-06-17）
+
+### 做了什么
+- 实现 `pipeline/models.py`：Context Pydantic 模型（聚合 7 步产出 + 状态机字段）
+- 实现 `pipeline/orchestrator.py`：Orchestrator 7 步串联（命题→追问→蓝图→段位→草稿→质检→沉淀）
+- 实现 `cli/run.py`：极简 CLI（`python -m lu.cli.run "命题" --dry-run`）
+- 写 2 个测试文件，共 6 测试：orchestrator (4) + CLI (2)
+
+### 学到什么
+- Step 3 蓝图设计含 4 个子步骤：framework 选择 → 策略执行 → 蓝图生成 → 锚点分配
+- v1 CLI 仅支持 --dry-run（echo LLM），真实 LLM 推迟到 v1.1
+- Orchestrator 用 dataclass 注入所有依赖，保持每阶段模块独立
+
+### 接下来
+- v1.1：真实 LLM 接入 / Obsidian 写入 / TUI
+
+### 状态
+✅ 已完成（274/274 测试通过）

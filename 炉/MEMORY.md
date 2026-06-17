@@ -7,9 +7,9 @@
 
 ## 当前状态（2026-06-17）
 
-- **项目阶段**：v1.0 MVP 实施中（阶段 0/1/2/3/4/5/6 完成）
-- **下一步**：阶段 7 流程集成（pipeline/orchestrator + steps + CLI）
-- **实施进度**：阶段 0-6 ✅ / 阶段 7 ⏳
+- **项目阶段**：v1.0 MVP 完成（阶段 0-7 全部完成）
+- **下一步**：v1.1 — 真实 LLM 接入 / Obsidian 写入 / TUI 交互
+- **实施进度**：阶段 0-7 ✅ / v1.1 ⏳
 
 ---
 
@@ -18,10 +18,15 @@
 > v1 实施阶段才有验证命令。当前阶段：
 
 ```bash
+# 全量测试
+PYTHONPATH=src python -m pytest
+
 # 文档完整性
 ls docs/         # 应有 19 个 .md
 ls docs/decisions/  # 应有 8 个 ADR
-ls legacy/       # 源项目快照（待复制）
+
+# CLI dry-run 烟雾测试
+PYTHONPATH=src python -m lu.cli.run "测试命题" --dry-run
 ```
 
 ---
@@ -44,11 +49,12 @@ ls legacy/       # 源项目快照（待复制）
 - ✅ 阶段 3：蓝图（designer + anchors + sections + models，47 测试）
 - ✅ 阶段 4：草稿（models + section_prompt + generator，29 测试）
 - ✅ 阶段 5：打磨（models + 9 dimensions + quality_scorer + suggester，49 测试）
-- ✅ 阶段 6：沉淀（models + harvester + style_updater，26 测试）
+- ✅ 阶段 7：流程集成（pipeline/orchestrator + CLI run + 274 测试）
 
 ### 待办
-- ⏳ v1.0 MVP 实施（phase 7，按 `docs/06-DEV-PLAN.md`）
-  - 阶段 7：pipeline/（orchestrator + steps + cli/commands/run）
+- ⏳ v1.1 增强（真实 LLM / Obsidian / TUI）
+  - v1 CLI 仅支持 --dry-run / --echo-llm 模式
+  - 真实 LLM 接入推迟到 v1.1
 
 详见 `docs/14-TASKS.md`
 
