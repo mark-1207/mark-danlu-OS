@@ -142,7 +142,7 @@
 
 ---
 
-## 🆕 I-008: v1 实施前需要确认 LLM Provider
+## ✅ I-008: v1 实施前需要确认 LLM Provider
 
 **类型**：技术
 
@@ -151,7 +151,15 @@
 - 哪个是 primary？费用/质量/速度？
 - 需 mark 确认
 
-**状态**：🆕 待办
+**解决方案**：
+- 2026-06-18 mark 确认：
+  - 主要 LLM：mimo（OpenAI-compatible，https://api.xiaomimimo.com/v1）
+  - fallback 1：kimi（Moonshot）
+  - fallback 2：英伟达 NIM
+- 已实现 `lu run --provider openai` 走 mimo → kimi → 英伟达 fallback 链
+- `.env` / `.env.example` 已按此顺序配置
+
+**状态**：✅ 已解决（2026-06-18）
 
 **优先级**：P0
 

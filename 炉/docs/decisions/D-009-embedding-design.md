@@ -15,18 +15,22 @@ v2 P0 引入 Embedding 语义匹配，让流程在动笔前能看到自己历史
 
 ## 决策
 
-### D-009.1: OpenAI-compatible 协议作为统一抽象
+### D-009.1: OpenAI-compatible 协议作为统一抽象，Embedding primary 用智谱
 
 **选**：实现 `OpenAIEmbeddingProvider`，与现有 `lu.llm.providers.OpenAIProvider` 同协议风格。
-任何支持 `/v1/embeddings` 端点的服务（OpenAI / NVIDIA NIM / OpenRouter）都能直接接入。
+任何支持 `/v1/embeddings` 端点的服务（OpenAI / NVIDIA NIM / OpenRouter / 智谱）都能直接接入。
+
+**Embedding provider 顺序**（按用户 2026-06-18 决策）：
+1. 智谱 `embedding-3`（primary）
+2. NVIDIA NIM（fallback 1）
+3. OpenRouter（fallback 2）
 
 **理由**：
-- 用户已注册 NVIDIA（102 免费模型）+ OpenRouter（25+ 免费模型），未来切 provider 零代码改动
-- 智谱 / Tavily / Google 是 v2 路线图列出的备选，本期不实现（key 不可用）
-- OpenAI-compatible 协议已成事实标准
+- 智谱 embedding-3 是 v2 路线图原定 primary，2048 维
+- OpenAI-compatible 协议已成事实标准，智谱、NVIDIA、OpenRouter 均支持
+- 多 fallback 保证单 provider 失败时链路不断
 
 **未选**：
-- ❌ 智谱 zhipu embedding-3：用户的免费 key 列表中无
 - ❌ 专用 SDK（cohere / voyage）：增加依赖，未必免费
 - ❌ 自建本地模型（sentence-transformers）：体积大、首次运行慢
 
@@ -110,6 +114,8 @@ v2 P0 引入 Embedding 语义匹配，让流程在动笔前能看到自己历史
 
 ## 后续
 
-- 真实 API 联调：用户配置 OPENAI_API_KEY / NVIDIA_API_KEY 后跑通端到端
+- 真实 API 联调：用 `.env` 中已配置的智谱 / NVIDIA / OpenRouter key 跑一次 `lu embed` / `lu recall` / `lu run`
+- LLM provider 联调：确认 mimo → kimi → 英伟达 fallback 链在真实调用下按预期切换
 - 索引清理：v2.x 加 TTL / 按需重索引
-- 阈值校准：积累 100+ run 后用真实数据回测
+- 阈值校准：积累 100+ run 后用真实数据回测 recall_threshold=0.7 / similar_threshold=0.9
+- ruff / mypy 进本地验证流程（当前 pip 网络问题未安装）
