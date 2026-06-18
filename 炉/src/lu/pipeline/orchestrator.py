@@ -22,6 +22,7 @@ from lu.blueprint.models import Blueprint
 from lu.blueprint.sections import SectionSelector
 from lu.config.loader import StyleProfile
 from lu.draft.generator import DraftGenerator
+from lu.embedding.hook import EmbeddingHook
 from lu.pipeline.models import Context
 from lu.polish.quality_scorer import QualityScorer
 from lu.polish.suggester import FixSuggester
@@ -67,6 +68,7 @@ class Orchestrator:
         file_store: FileStore | None = None,
         resume_run_id: str | None = None,
         from_step: RunState | None = None,
+        embedding_hook: "EmbeddingHook | None" = None,
     ) -> Context:
         # 续跑初始化
         if resume_run_id is not None:
@@ -111,6 +113,15 @@ class Orchestrator:
             ctx.state = RunState.STEP2_DONE
             self._persist(ctx, file_store)
 
+            # v2 P0：embedding 相似检测 + 命题记录
+            if embedding_hook is not None:
+                ctx.similar_propositions = embedding_hook.find_similar(
+                    ctx.proposition_cleaned
+                )
+                embedding_hook.record_proposition(
+                    ctx.proposition_cleaned, run_id=ctx.run_id
+                )
+
         # Step 3: 蓝图设计
         if _state_index(ctx.state) < _state_index(RunState.STEP3_DONE):
             framework = self._select_framework_safe(ctx.proposition_cleaned)
@@ -124,11 +135,18 @@ class Orchestrator:
             framework_output = _collect_strategy_output(fw_result)
             anchors = AnchorPool.build(ctx.refined_proposition, framework_output)
 
+            # v2 P0：召回相关素材注入蓝图 prompt
+            recalled: list = []
+            if embedding_hook is not None and ctx.refined_proposition is not None:
+                recalled = embedding_hook.recall_materials(ctx.proposition_cleaned)
+                ctx.recalled_materials = recalled
+
             designer = BlueprintDesigner(llm_call=llm_call)
             raw_blueprint = designer.design(
                 refined=ctx.refined_proposition,
                 framework_id=framework.id,
                 framework_output=framework_output,
+                recalled_materials=recalled,
             )
             with_anchors = raw_blueprint.model_copy(
                 update={"anti_ai_anchors": anchors}
@@ -169,6 +187,12 @@ class Orchestrator:
             updated_profile = StyleUpdater.update(harvested, self.style_profile)
             ctx.harvested = harvested
             ctx.style_profile_snapshot = updated_profile
+
+            # v2 P0：把 harvested 写入素材索引
+            if embedding_hook is not None:
+                source_id = ctx.run_id or "unknown"
+                embedding_hook.record_materials(harvested, source=source_id)
+
             ctx.state = RunState.COMPLETED
             self._persist(ctx, file_store)
 

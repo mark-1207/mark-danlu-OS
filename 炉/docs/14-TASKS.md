@@ -162,6 +162,29 @@
 - [x] ✅ 实现 `src/lu/cli/report.py`（`lu report review/radar/weekly`）
 - [x] ✅ 端到端测试（361/361 全量通过）
 
+### v2 P0 阶段 2-3 学习（2026-06-17）
+
+- [x] ✅ 实现 `src/lu/socratic/sample_store.py`（JSONL 追加写 + 读多行）
+- [x] ✅ 实现 `src/lu/socratic/learner.py`（阶段判定 + 启发式预测）
+- [x] ✅ SocraticEngine 集成 sample_store（可选参数）
+- [x] ✅ 端到端测试（374/374 全量通过）
+
+### v2 P0 Embedding 语义匹配（2026-06-18）
+
+- [x] ✅ 实现 `src/lu/embedding/types.py`（Protocol + Result）
+- [x] ✅ 实现 `src/lu/embedding/providers.py`（OpenAI-compatible 协议）
+- [x] ✅ 实现 `src/lu/embedding/chain.py`（多 provider fallback）
+- [x] ✅ 实现 `src/lu/embedding/factory.py`（env 构造）
+- [x] ✅ 实现 `src/lu/embedding/index.py`（JSONL 追加写 + recall）
+- [x] ✅ 实现 `src/lu/embedding/recall.py`（cosine + recall_materials）
+- [x] ✅ 实现 `src/lu/embedding/hook.py`（orchestrator 胶水层）
+- [x] ✅ Orchestrator 集成：相似检测 + 召回注入 + 沉淀写入
+- [x] ✅ BlueprintDesigner 接受 recalled_materials 注入 prompt
+- [x] ✅ Context 新增 `similar_propositions` / `recalled_materials` 字段
+- [x] ✅ CLI 新增 `lu embed` / `lu recall` 子命令
+- [x] ✅ 端到端测试（465/465 全量通过）
+- [ ] ⏳ 写 `docs/decisions/D-009-embedding-design.md`（待办）
+
 ---
 
 ## v1.1+ 任务

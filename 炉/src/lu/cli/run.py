@@ -167,6 +167,20 @@ def build_parser() -> argparse.ArgumentParser:
     wk.add_argument("--period", default="本周")
     wk.add_argument("--output", default=None)
 
+    # v2 P0 embedding 子命令
+    from lu.cli.embedding import build_parser as build_embedding_parser
+    emb_p = sub.add_parser("embed", help="对单文本算 embedding")
+    emb_p.add_argument("text", help="要 embedding 的文本")
+    emb_p.add_argument("--propositions", default="config/embeddings/propositions.jsonl")
+    emb_p.add_argument("--model", default="text-embedding-3-small")
+    rec_p = sub.add_parser("recall", help="在素材索引中按 query 召回 top-k")
+    rec_p.add_argument("text", help="查询文本")
+    rec_p.add_argument("--materials", default="config/embeddings/materials.jsonl")
+    rec_p.add_argument("--top-k", type=int, default=3)
+    rec_p.add_argument("--kind", default=None)
+    rec_p.add_argument("--threshold", type=float, default=0.7)
+    rec_p.add_argument("--model", default="text-embedding-3-small")
+
     return parser
 
 
@@ -428,7 +442,7 @@ def main(argv: list[str] | None = None) -> int:
     # 当用 -m 调用时自动补 "run" 子命令
     if argv is None:
         argv = sys.argv[1:]
-    _KNOWN_SUBCOMMANDS = ("run", "interactive", "config", "viral", "report")
+    _KNOWN_SUBCOMMANDS = ("run", "interactive", "config", "viral", "report", "embed", "recall")
     if argv and not argv[0].startswith("-") and argv[0] not in _KNOWN_SUBCOMMANDS:
         argv = ["run"] + argv
     args = parser.parse_args(argv)
@@ -458,6 +472,12 @@ def main(argv: list[str] | None = None) -> int:
         from lu.cli.report import cmd_report
         args.action = args.report_action
         return cmd_report(args)
+    if args.command == "embed":
+        from lu.cli.embedding import cmd_embed
+        return cmd_embed(args)
+    if args.command == "recall":
+        from lu.cli.embedding import cmd_recall
+        return cmd_recall(args)
 
     parser.print_help()
     return 1

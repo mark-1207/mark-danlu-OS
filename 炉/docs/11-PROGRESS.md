@@ -298,3 +298,51 @@
 
 ### 状态
 🚧 进行中（361/361 测试通过）
+
+---
+
+## v2 P0 阶段 2-3 学习（2026-06-17）
+
+### 做了什么
+- `src/lu/socratic/sample_store.py`：SampleStore 追加写 + 读多行
+- `src/lu/socratic/learner.py`：阶段判定 + 启发式预测
+- `src/lu/socratic/engine.py`：可选 sample_store 注入
+- 13 个 Socratic 学习测试
+
+### 学到什么
+- 阶段 2 用 user_stop 比例建议，阶段 3 自动（启发式而非 ML）
+- v1.x 行为不变（sample_store 是可选参数）
+
+### 状态
+✅ 已完成（374/374 测试通过）
+
+---
+
+## v2 P0 Embedding 语义匹配（2026-06-18）
+
+### 做了什么
+- 新建 `src/lu/embedding/` 模块：types / providers / chain / factory / index / recall / hook
+- OpenAIEmbeddingProvider：OpenAI-compatible 协议（OpenAI / NVIDIA NIM / OpenRouter）
+- EmbeddingChain：多 provider 重试 + fallback
+- EmbeddingFactory：从 env 构造链（LU_EMBEDDING_API_KEY/BASE_URL/MODEL）
+- EmbeddingIndex：JSONL 追加写 + cosine recall
+- EmbeddingHook：orchestrator 胶水层（find_similar / record_proposition / recall_materials / record_materials）
+- Orchestrator 集成：Step 2 后检测相似 + 记录命题；Step 3 前召回 top-3 注入蓝图 prompt；Step 7 后写入 harvested
+- Context 新增 `similar_propositions` + `recalled_materials` 字段
+- BlueprintDesigner 新增 `recalled_materials` 参数注入 prompt
+- CLI 新增 `lu embed` / `lu recall` 子命令
+- 91 个新增测试
+
+### 学到什么
+- JSONL + numpy 足够 v2 P0（不引入向量库）
+- chain 失败时静默降级（warn-and-skip，不阻塞主流程）
+- embedding_chain 是 Orchestrator 的可选参数，向后兼容 v1.x
+- 召回素材在 prompt 中明确标注"参考素材，不是必用"
+
+### 状态
+✅ 已完成（465/465 测试通过）
+
+### 风险 / 待办
+- 真实 embedding API 未联调（仅 mock 测试）
+- 索引未配 TTL/清理（v2.x 评估）
+- 召回阈值 0.7 / 相似提示阈值 0.9 是初始值，需实际数据校准

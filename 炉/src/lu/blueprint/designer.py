@@ -40,8 +40,16 @@ def _build_prompt(
     refined: RefinedProposition,
     framework_id: str,
     framework_output: dict[str, Any],
+    recalled_materials: list | None = None,
 ) -> str:
     fw_outputs = json.dumps(framework_output, ensure_ascii=False)
+    recalled_block = ""
+    if recalled_materials:
+        lines = []
+        for h in recalled_materials:
+            tag = f" [{','.join(h.tags)}]" if h.tags else ""
+            lines.append(f"- ({h.kind}{tag}, score={h.score:.2f}) {h.text}")
+        recalled_block = "\n【历史参考素材（仅供参考，不是必用）】\n" + "\n".join(lines) + "\n"
     return f"""你是 mark 的内容蓝图设计师。基于追问产出 + 思想框架输出，输出蓝图字段 JSON。
 
 【追问产出（RefinedProposition）】
@@ -52,7 +60,7 @@ def _build_prompt(
 
 【框架执行产出】
 {fw_outputs}
-
+{recalled_block}
 【9 项基础字段】
 1. proposition: 命题陈述
 2. stance: 立场
@@ -78,8 +86,9 @@ class BlueprintDesigner:
         refined: RefinedProposition,
         framework_id: str,
         framework_output: dict[str, Any],
+        recalled_materials: list | None = None,
     ) -> Blueprint:
-        prompt = _build_prompt(refined, framework_id, framework_output)
+        prompt = _build_prompt(refined, framework_id, framework_output, recalled_materials)
         raw = self.llm_call(prompt)
         payload = _parse_blueprint_payload(raw)
 

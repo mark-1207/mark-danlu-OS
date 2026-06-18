@@ -4,11 +4,13 @@
 """
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from lu.blueprint.models import Blueprint, Section
 from lu.config.loader import StyleProfile
 from lu.draft.models import Draft
+from lu.embedding.hook import SimilarProposition
+from lu.embedding.recall import RecallHit
 from lu.polish.models import QualityReport
 from lu.sediment.models import Harvested
 from lu.socratic.engine import SocraticResult
@@ -19,11 +21,17 @@ from lu.state.machine import RunState
 class Context(BaseModel):
     """7 步流程上下文：每步产出挂载到对应字段"""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     run_id: str | None = None
     proposition_cleaned: str = ""
 
     socratic_session: SocraticResult | None = None
     refined_proposition: RefinedProposition | None = None
+
+    # v2 P0 embedding 注入
+    similar_propositions: list[SimilarProposition] = Field(default_factory=list)
+    recalled_materials: list[RecallHit] = Field(default_factory=list)
 
     blueprint: Blueprint | None = None
     selected_sections: list[Section] = Field(default_factory=list)
