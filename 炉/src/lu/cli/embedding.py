@@ -10,10 +10,18 @@ import json
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from lu.embedding.factory import EmbeddingFactory
 from lu.embedding.index import EmbeddingIndex
 from lu.embedding.recall import RecallHit
 from lu.llm.errors import LLMError
+
+# 从项目根目录 .env 加载环境变量
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_ENV_PATH = _PROJECT_ROOT / ".env"
+if _ENV_PATH.is_file():
+    load_dotenv(_ENV_PATH, override=True)
 
 
 DEFAULT_PROPOSITIONS = "config/embeddings/propositions.jsonl"

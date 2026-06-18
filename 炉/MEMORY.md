@@ -26,14 +26,18 @@ PYTHONPATH=src python -m pytest
 # v1 dry-run 烟雾测试
 PYTHONPATH=src python -m lu.cli.run "测试命题" --dry-run
 
-# v2 P0 embedding 烟雾测试（需配置 OPENAI_API_KEY）
+# v2 P0 embedding 烟雾测试（.env 已从兄弟项目同步真实 key，CLI 自动加载）
 PYTHONPATH=src python -m lu.cli.embedding embed "测试文本"
 PYTHONPATH=src python -m lu.cli.embedding recall "测试" --top-k 3
+
+# 如无 .env，复制 .env.example 后填入 key
+cp .env.example .env
 
 # 文档完整性
 ls docs/         # 应有 19+ 个 .md
 ls docs/decisions/  # 应有 9 个 ADR（D-001 ~ D-009）
 ls docs/development/  # v2 阶段方案
+ls .env.example  # 存在
 ```
 
 ---

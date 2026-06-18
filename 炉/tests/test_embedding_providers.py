@@ -22,7 +22,8 @@ class TestOpenAIEmbeddingProviderInit:
             OpenAIEmbeddingProvider(api_key="", model="text-embedding-3-small")
         assert exc.value.code == "AUTH"
 
-    def test_raises_when_api_key_none(self) -> None:
+    def test_raises_when_api_key_none_and_env_empty(self, monkeypatch) -> None:
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         with pytest.raises(LLMError) as exc:
             OpenAIEmbeddingProvider(api_key=None, model="text-embedding-3-small")
         assert exc.value.code == "AUTH"

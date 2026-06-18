@@ -35,7 +35,9 @@ class OpenAIEmbeddingProvider:
     name: str = "openai"
 
     def __post_init__(self) -> None:
-        key = self.api_key or os.environ.get("OPENAI_API_KEY", "")
+        key = self.api_key
+        if key is None:
+            key = os.environ.get("OPENAI_API_KEY", "")
         if not key:
             raise LLMError("OPENAI_API_KEY 未设置或为空", code="AUTH")
         self.api_key = key

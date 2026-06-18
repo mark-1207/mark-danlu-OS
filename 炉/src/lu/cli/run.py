@@ -16,8 +16,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 from lu.config.loader import StyleProfile, load_style_profile
 from lu.feedback.models import Feedback
@@ -30,6 +33,12 @@ from lu.sediment.obsidian_writer import ObsidianWriter
 from lu.state.machine import RunState
 from lu.store.file_store import FileStore
 from lu.thinking_models.registry import load_default_registries
+
+# 从项目根目录 .env 加载环境变量（覆盖已存在的同名变量）
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_ENV_PATH = _PROJECT_ROOT / ".env"
+if _ENV_PATH.is_file():
+    load_dotenv(_ENV_PATH, override=True)
 
 
 DEFAULT_STYLE_PATH = "config/style_profile.yaml"

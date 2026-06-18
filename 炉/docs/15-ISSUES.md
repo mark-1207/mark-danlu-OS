@@ -103,7 +103,7 @@
 
 ---
 
-## 🆕 I-006: .env.example 待创建
+## ✅ I-006: .env.example 待创建
 
 **类型**：基础设施
 
@@ -111,13 +111,18 @@
 - 部署文档（08）提到 .env.example
 - 但还没创建
 
-**状态**：🆕 待办
+**解决方案**：
+- 创建 `.env.example`，列出所有需要的 API key / 飞书表格 / 模型配置
+- 创建 `.env` 从兄弟项目同步真实 key
+- 在 `src/lu/cli/run.py` 和 `src/lu/cli/embedding.py` 用 `python-dotenv` 自动加载项目根 `.env`
+
+**状态**：✅ 已解决（2026-06-18）
 
 **优先级**：P0
 
 ---
 
-## 🆕 I-007: pyproject.toml 待创建
+## ✅ I-007: pyproject.toml 待创建
 
 **类型**：基础设施
 
@@ -128,7 +133,10 @@
 **倾向方案**：
 - uv（更快、现代）
 
-**状态**：🆕 待办
+**解决方案**：
+- `pyproject.toml` 已创建并维护（已添加 `numpy` / `python-dotenv` 依赖）
+
+**状态**：✅ 已解决（2026-06-16）
 
 **优先级**：P0
 

@@ -24,7 +24,9 @@ class OpenAIProvider:
         model: str = "gpt-4o-mini",
         timeout_sec: float = 60.0,
     ) -> None:
-        key = api_key or os.environ.get("OPENAI_API_KEY", "")
+        key = api_key
+        if key is None:
+            key = os.environ.get("OPENAI_API_KEY", "")
         if not key:
             raise LLMError(
                 "OPENAI_API_KEY 未设置或为空",
