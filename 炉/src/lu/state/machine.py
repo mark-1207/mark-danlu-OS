@@ -1,9 +1,11 @@
 """RunState 状态机
 
 参考 02-ARCHITECTURE.md 第 4 节：
-- CREATED → STEP1_DONE → ... → STEP6_DONE → COMPLETED
+- CREATED → STEP1_DONE → ... → STEP7_DONE → COMPLETED
 - 任意状态 → FAILED
 - COMPLETED / FAILED 是终态
+
+v3 P0 多模式：social 跳过部分步，recreate 跳更多步；create 走全 8 步。
 """
 from __future__ import annotations
 
@@ -18,6 +20,7 @@ class RunState(str, Enum):
     STEP4_DONE = "step4_done"
     STEP5_DONE = "step5_done"
     STEP6_DONE = "step6_done"
+    STEP7_DONE = "step7_done"
     COMPLETED = "completed"
     FAILED = "failed"
 
@@ -29,7 +32,8 @@ _SEQUENTIAL: dict[RunState, RunState] = {
     RunState.STEP3_DONE: RunState.STEP4_DONE,
     RunState.STEP4_DONE: RunState.STEP5_DONE,
     RunState.STEP5_DONE: RunState.STEP6_DONE,
-    RunState.STEP6_DONE: RunState.COMPLETED,
+    RunState.STEP6_DONE: RunState.STEP7_DONE,
+    RunState.STEP7_DONE: RunState.COMPLETED,
 }
 
 _TERMINAL: frozenset[RunState] = frozenset({RunState.COMPLETED, RunState.FAILED})

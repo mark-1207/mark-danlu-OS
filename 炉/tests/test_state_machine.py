@@ -1,9 +1,11 @@
 """RunState 状态机测试
 
 参考 02-ARCHITECTURE.md 第 4 节：
-- CREATED → STEP1_DONE → ... → STEP6_DONE → COMPLETED
+- CREATED → STEP1_DONE → ... → STEP7_DONE → COMPLETED
 - 任意状态 → FAILED
 - COMPLETED / FAILED 是终态
+
+v3 P0 多模式：social/create/recreate 各自只走部分状态，由 mode_config 决定。
 """
 from __future__ import annotations
 
@@ -13,8 +15,8 @@ from lu.state.machine import RunState, can_transition, next_state, validate_tran
 
 
 class TestRunStateEnum:
-    def test_has_9_states(self):
-        assert len(RunState) == 9
+    def test_has_10_states(self):
+        assert len(RunState) == 10
 
     def test_values_match_spec(self):
         assert RunState.CREATED.value == "created"
@@ -24,6 +26,7 @@ class TestRunStateEnum:
         assert RunState.STEP4_DONE.value == "step4_done"
         assert RunState.STEP5_DONE.value == "step5_done"
         assert RunState.STEP6_DONE.value == "step6_done"
+        assert RunState.STEP7_DONE.value == "step7_done"
         assert RunState.COMPLETED.value == "completed"
         assert RunState.FAILED.value == "failed"
 
@@ -36,12 +39,14 @@ class TestCanTransition:
         assert can_transition(RunState.STEP3_DONE, RunState.STEP4_DONE)
         assert can_transition(RunState.STEP4_DONE, RunState.STEP5_DONE)
         assert can_transition(RunState.STEP5_DONE, RunState.STEP6_DONE)
-        assert can_transition(RunState.STEP6_DONE, RunState.COMPLETED)
+        assert can_transition(RunState.STEP6_DONE, RunState.STEP7_DONE)
+        assert can_transition(RunState.STEP7_DONE, RunState.COMPLETED)
 
     def test_skip_step_blocked(self):
         assert not can_transition(RunState.CREATED, RunState.STEP2_DONE)
         assert not can_transition(RunState.STEP1_DONE, RunState.STEP3_DONE)
         assert not can_transition(RunState.STEP3_DONE, RunState.STEP5_DONE)
+        assert not can_transition(RunState.STEP5_DONE, RunState.STEP7_DONE)
 
     def test_any_to_failed_allowed(self):
         for state in RunState:
@@ -60,7 +65,7 @@ class TestCanTransition:
 
     def test_backward_blocked(self):
         assert not can_transition(RunState.STEP2_DONE, RunState.STEP1_DONE)
-        assert not can_transition(RunState.STEP6_DONE, RunState.CREATED)
+        assert not can_transition(RunState.STEP7_DONE, RunState.CREATED)
 
 
 class TestNextState:
@@ -68,7 +73,8 @@ class TestNextState:
         assert next_state(RunState.CREATED) == RunState.STEP1_DONE
         assert next_state(RunState.STEP1_DONE) == RunState.STEP2_DONE
         assert next_state(RunState.STEP5_DONE) == RunState.STEP6_DONE
-        assert next_state(RunState.STEP6_DONE) == RunState.COMPLETED
+        assert next_state(RunState.STEP6_DONE) == RunState.STEP7_DONE
+        assert next_state(RunState.STEP7_DONE) == RunState.COMPLETED
 
     def test_terminal_returns_none(self):
         assert next_state(RunState.COMPLETED) is None

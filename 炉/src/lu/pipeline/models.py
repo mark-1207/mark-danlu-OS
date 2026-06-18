@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from lu.blueprint.models import Blueprint, Section
@@ -19,12 +21,20 @@ from lu.state.machine import RunState
 
 
 class Context(BaseModel):
-    """7 步流程上下文：每步产出挂载到对应字段"""
+    """流程上下文：每步产出挂载到对应字段
+
+    mode 决定 8 步流程如何执行（social / create / recreate）。
+    旧 run 数据无 mode 字段，加载时自动补为 "create"（向后兼容）。
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     run_id: str | None = None
     proposition_cleaned: str = ""
+
+    # v3 P0 多模式
+    mode: Literal["social", "create", "recreate"] = "create"
+    source_run_id: str | None = None  # recreate 模式：指向原 run
 
     socratic_session: SocraticResult | None = None
     refined_proposition: RefinedProposition | None = None
@@ -32,6 +42,16 @@ class Context(BaseModel):
     # v2 P0 embedding 注入
     similar_propositions: list[SimilarProposition] = Field(default_factory=list)
     recalled_materials: list[RecallHit] = Field(default_factory=list)
+
+    # v3 P0 新增字段
+    candidate_titles: list[str] = Field(default_factory=list)
+    blueprint_title: str = ""
+    gaps: list[str] = Field(default_factory=list)
+    gaps_resolved: bool = False
+    recreate_source_text: str = ""
+    recreate_instruction: str = ""
+    social_platform: str = "weibo"
+    social_length: int = 300
 
     blueprint: Blueprint | None = None
     selected_sections: list[Section] = Field(default_factory=list)
