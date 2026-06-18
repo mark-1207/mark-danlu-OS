@@ -4,7 +4,8 @@
 - LU_EMBEDDING_API_KEY（覆盖 OPENAI_API_KEY）
 - LU_EMBEDDING_BASE_URL（默认 OpenAI 官方）
 - LU_EMBEDDING_MODEL（默认 text-embedding-3-small）
-- LU_EMBEDDING_FALLBACK_*：可选 fallback provider
+- LU_EMBEDDING_FALLBACK_API_KEY / _BASE_URL / _MODEL：单 fallback（兼容旧配置）
+- LU_EMBEDDING_FALLBACK_N_API_KEY / _BASE_URL / _MODEL：多 fallback（N=1,2,...）
 
 显式参数优先级高于环境变量。
 """
@@ -38,6 +39,11 @@ class EmbeddingFactory:
         """从环境变量 + 显式参数构造 EmbeddingChain
 
         优先级：显式参数 > LU_EMBEDDING_* > OPENAI_API_KEY
+
+        fallback 顺序：
+        1. 显式 fallback_* 参数（单 fallback，兼容旧配置）
+        2. LU_EMBEDDING_FALLBACK_* 环境变量（单 fallback，兼容旧配置）
+        3. LU_EMBEDDING_FALLBACK_N_* 环境变量（N=1,2,... 多 fallback）
         """
         key = (
             api_key
@@ -56,32 +62,84 @@ class EmbeddingFactory:
         primary = OpenAIEmbeddingProvider(api_key=key, base_url=url, model=m)
         providers = [primary]
 
-        fb_key = (
-            fallback_api_key
-            or os.environ.get("LU_EMBEDDING_FALLBACK_API_KEY")
-            or os.environ.get("OPENAI_API_KEY")
-        )
-        fb_url = (
-            fallback_base_url
-            or os.environ.get("LU_EMBEDDING_FALLBACK_BASE_URL", _DEFAULT_BASE_URL)
-        )
-        fb_m = (
-            fallback_model
-            or os.environ.get("LU_EMBEDDING_FALLBACK_MODEL", _DEFAULT_MODEL)
-        )
-
-        # 仅当 fallback 配置完整且与 primary 不同时才追加
-        if fb_key and (fb_key != key or fb_url != url or fb_m != m):
-            try:
-                fallback = OpenAIEmbeddingProvider(
-                    api_key=fb_key, base_url=fb_url, model=fb_m
+        # 1) 显式单 fallback 参数
+        if fallback_api_key:
+            providers.extend(
+                EmbeddingFactory._build_fallbacks(
+                    [(fallback_api_key, fallback_base_url, fallback_model)],
+                    key,
+                    url,
+                    m,
                 )
-                providers.append(fallback)
+            )
+
+        # 2) 旧版单 fallback 环境变量
+        fb_key = os.environ.get("LU_EMBEDDING_FALLBACK_API_KEY")
+        if fb_key:
+            providers.extend(
+                EmbeddingFactory._build_fallbacks(
+                    [
+                        (
+                            fb_key,
+                            os.environ.get("LU_EMBEDDING_FALLBACK_BASE_URL"),
+                            os.environ.get("LU_EMBEDDING_FALLBACK_MODEL"),
+                        )
+                    ],
+                    key,
+                    url,
+                    m,
+                )
+            )
+
+        # 3) 新版多 fallback 环境变量：FALLBACK_1_*, FALLBACK_2_*, ...
+        numbered: list[tuple[str, str | None, str | None]] = []
+        for n in range(1, 10):
+            fbk = os.environ.get(f"LU_EMBEDDING_FALLBACK_{n}_API_KEY")
+            if not fbk:
+                break
+            numbered.append(
+                (
+                    fbk,
+                    os.environ.get(f"LU_EMBEDDING_FALLBACK_{n}_BASE_URL"),
+                    os.environ.get(f"LU_EMBEDDING_FALLBACK_{n}_MODEL"),
+                )
+            )
+        if numbered:
+            providers.extend(
+                EmbeddingFactory._build_fallbacks(numbered, key, url, m)
+            )
+
+        return EmbeddingChain(providers, max_retries=max_retries)
+
+    @staticmethod
+    def _build_fallbacks(
+        configs: list[tuple[str, str | None, str | None]],
+        primary_key: str,
+        primary_url: str,
+        primary_model: str,
+    ) -> list[OpenAIEmbeddingProvider]:
+        """构造 fallback provider 列表，跳过与 primary 完全相同或无效的"""
+        result: list[OpenAIEmbeddingProvider] = []
+        for fb_key, fb_url, fb_m in configs:
+            fb_url = fb_url or _DEFAULT_BASE_URL
+            fb_m = fb_m or _DEFAULT_MODEL
+            # 跳过与 primary 完全相同的配置（避免重复调用）
+            if (
+                fb_key == primary_key
+                and fb_url == primary_url
+                and fb_m == primary_model
+            ):
+                continue
+            try:
+                result.append(
+                    OpenAIEmbeddingProvider(
+                        api_key=fb_key, base_url=fb_url, model=fb_m
+                    )
+                )
             except LLMError:
                 # fallback key 无效时静默跳过（不阻塞主链构造）
                 pass
-
-        return EmbeddingChain(providers, max_retries=max_retries)
+        return result
 
 
 __all__ = ["EmbeddingFactory"]
