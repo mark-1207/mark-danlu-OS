@@ -127,6 +127,149 @@ class TestParseLLMResponse:
         with pytest.raises((ValueError, ValidationError)):
             parse_llm_response(bad)
 
+    def test_parse_numbered_nested_json(self):
+        """真实 LLM 可能把 prompt 里的 '1. surface' 误解为 key '1'"""
+        raw = json.dumps(
+            {
+                "1": {
+                    "surface": "AI 对内容创作者的影响",
+                    "underlying": "算法经济下个体价值被稀释",
+                    "audience": "内容创作者、自媒体人",
+                    "style_recommendation": {
+                        "voice": "犀利一针见血",
+                        "tone": "批判性",
+                        "examples": [],
+                    },
+                    "contrarian_candidates": [],
+                    "framework_candidates": [],
+                    "risks": [],
+                    "falsifiability": "若 AI 工具让创作者收入翻倍，则命题失效",
+                }
+            },
+            ensure_ascii=False,
+        )
+        result = parse_llm_response(raw)
+        assert result.surface == "AI 对内容创作者的影响"
+        assert result.underlying == "算法经济下个体价值被稀释"
+
+    def test_parse_numbered_split_json(self):
+        """真实 LLM 可能把每个字段分别放在 '1'/'2'/... 下"""
+        raw = json.dumps(
+            {
+                "1": {"surface": "AI 对内容创作者的影响"},
+                "2": {"underlying": "算法经济下个体价值被稀释"},
+                "3": {"audience": "内容创作者"},
+                "4": {
+                    "style_recommendation": {
+                        "voice": "犀利",
+                        "tone": "批判性",
+                        "examples": [],
+                    }
+                },
+                "5": {"contrarian_candidates": []},
+                "6": {"framework_candidates": []},
+                "7": {"risks": []},
+                "8": {"falsifiability": "若 AI 工具让创作者收入翻倍，则命题失效"},
+            },
+            ensure_ascii=False,
+        )
+        result = parse_llm_response(raw)
+        assert result.surface == "AI 对内容创作者的影响"
+        assert result.underlying == "算法经济下个体价值被稀释"
+        assert result.falsifiability == "若 AI 工具让创作者收入翻倍，则命题失效"
+
+    def test_parse_audience_dict_coerced_to_string(self):
+        """audience 是 dict 时提取字符串"""
+        raw = json.dumps(
+            {
+                "surface": "x",
+                "underlying": "y",
+                "audience": {
+                    "target_readers": "内容创作者",
+                    "description": "对 AI 焦虑的自媒体人",
+                },
+                "style_recommendation": {"voice": "v", "tone": "t", "examples": []},
+                "contrarian_candidates": [],
+                "framework_candidates": [],
+                "risks": [],
+                "falsifiability": "f",
+            },
+            ensure_ascii=False,
+        )
+        result = parse_llm_response(raw)
+        assert result.audience == "内容创作者"
+
+    def test_parse_examples_string_coerced_to_list(self):
+        """style_recommendation.examples 是字符串时包装成 list"""
+        raw = json.dumps(
+            {
+                "surface": "x",
+                "underlying": "y",
+                "audience": "z",
+                "style_recommendation": {
+                    "voice": "v",
+                    "tone": "t",
+                    "examples": "可以引用具体行文",
+                },
+                "contrarian_candidates": [],
+                "framework_candidates": [],
+                "risks": [],
+                "falsifiability": "f",
+            },
+            ensure_ascii=False,
+        )
+        result = parse_llm_response(raw)
+        assert result.style_recommendation.examples == ["可以引用具体行文"]
+
+    def test_parse_framework_candidates_dict_coerced_to_list(self):
+        """framework_candidates 是 main/backup dict 时转成 list"""
+        raw = json.dumps(
+            {
+                "surface": "x",
+                "underlying": "y",
+                "audience": "z",
+                "style_recommendation": {"voice": "v", "tone": "t", "examples": []},
+                "contrarian_candidates": [],
+                "framework_candidates": {
+                    "main": {
+                        "framework_id": "problem_decomposition",
+                        "name": "问题解构",
+                        "rationale": "主选",
+                    },
+                    "backup": {
+                        "framework_id": "decision_analysis",
+                        "name": "决策分析",
+                        "rationale": "备选",
+                    },
+                },
+                "risks": [],
+                "falsifiability": "f",
+            },
+            ensure_ascii=False,
+        )
+        result = parse_llm_response(raw)
+        assert len(result.framework_candidates) == 2
+        assert result.framework_candidates[0].framework_id == "problem_decomposition"
+        assert result.framework_candidates[1].framework_id == "decision_analysis"
+
+    def test_parse_risks_string_coerced_to_list(self):
+        """risks 是字符串时包装成 list"""
+        raw = json.dumps(
+            {
+                "surface": "x",
+                "underlying": "y",
+                "audience": "z",
+                "style_recommendation": {"voice": "v", "tone": "t", "examples": []},
+                "contrarian_candidates": [],
+                "framework_candidates": [],
+                "risks": "话题敏感",
+                "falsifiability": "f",
+            },
+            ensure_ascii=False,
+        )
+        result = parse_llm_response(raw)
+        assert result.risks == ["话题敏感"]
+
 
 class TestBuildRefinedProposition:
     def test_uses_provided_llm_call(self):

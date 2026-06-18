@@ -36,7 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     emb_p = sub.add_parser("embed", help="对单文本算 embedding")
     emb_p.add_argument("text", help="要 embedding 的文本")
     emb_p.add_argument("--propositions", default=DEFAULT_PROPOSITIONS, help="命题索引路径")
-    emb_p.add_argument("--model", default="text-embedding-3-small", help="模型名")
+    emb_p.add_argument("--model", default=None, help="模型名（默认读 LU_EMBEDDING_MODEL）")
 
     # recall
     rec_p = sub.add_parser("recall", help="在素材索引中按 query 召回 top-k")
@@ -45,7 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     rec_p.add_argument("--top-k", type=int, default=3, help="召回数量")
     rec_p.add_argument("--kind", default=None, help="按 kind 过滤（case/quote/insight）")
     rec_p.add_argument("--threshold", type=float, default=0.7, help="相似度阈值")
-    rec_p.add_argument("--model", default="text-embedding-3-small", help="模型名")
+    rec_p.add_argument("--model", default=None, help="模型名（默认读 LU_EMBEDDING_MODEL）")
 
     return parser
 
