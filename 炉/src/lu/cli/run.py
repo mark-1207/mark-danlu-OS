@@ -123,6 +123,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_FEEDBACK_PATH,
         help="反馈文件路径（默认 config/feedback.jsonl）",
     )
+    run_p.add_argument(
+        "--quiet",
+        action="store_true",
+        help="只输出元数据摘要，不打印完整草稿（默认会打印）",
+    )
 
     # TUI 交互子命令
     from lu.cli.interactive import build_parser as build_interactive_parser
@@ -295,9 +300,12 @@ def make_echo_yes_no() -> "callable":
 
 
 def _build_openai_compatible_chain(model: str) -> LLMChain | None:
-    """构造 OpenAI-compatible LLM fallback 链：mimo → kimi → nvidia
+    """构造 OpenAI-compatible LLM fallback 链：mimo → kimi
 
-    按 #17 决策：mimo 主，kimi fallback，英伟达兜底。
+    按 #17 决策：mimo 主，kimi fallback。
+    英伟达 NIM chat 当前 key 无法访问常见 chat 模型，默认不加入 fallback；
+    如需启用，设置 NVIDIA_CHAT_MODEL 环境变量。
+
     任一 provider 因缺少 key 构造失败时自动跳过，不阻塞链构造。
     """
     providers: list[callable] = []
@@ -331,13 +339,19 @@ def _build_openai_compatible_chain(model: str) -> LLMChain | None:
     kimi_model = os.environ.get("KIMI_MODEL", "moonshot-v1-128k")
     _try_add("KIMI_API_KEY", "KIMI_BASE_URL", "https://api.moonshot.cn/v1", kimi_model)
 
-    # 3) NVIDIA NIM 兜底
-    nvidia_model = os.environ.get("NVIDIA_CHAT_MODEL", "nvidia/nemotron-4-340b-instruct")
-    _try_add("NVIDIA_API_KEY", "NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1", nvidia_model)
+    # 3) NVIDIA NIM 兜底（仅当显式配置了 NVIDIA_CHAT_MODEL 时启用）
+    nvidia_chat_model = os.environ.get("NVIDIA_CHAT_MODEL")
+    if nvidia_chat_model:
+        _try_add(
+            "NVIDIA_API_KEY",
+            "NVIDIA_BASE_URL",
+            "https://integrate.api.nvidia.com/v1",
+            nvidia_chat_model,
+        )
 
     if not providers:
         print(
-            "[ERROR] 没有可用的 OpenAI-compatible LLM provider（请检查 OPENAI_API_KEY / KIMI_API_KEY / NVIDIA_API_KEY）",
+            "[ERROR] 没有可用的 OpenAI-compatible LLM provider（请检查 OPENAI_API_KEY / KIMI_API_KEY）",
             file=sys.stderr,
         )
         return None
@@ -449,6 +463,21 @@ def cmd_run(args: argparse.Namespace) -> int:
             print(f"[WARN] 反馈记录失败: {e}", file=sys.stderr)
 
     print(_format_summary(ctx))
+
+    # 默认打印完整草稿到 stdout（除非 --quiet）
+    if not getattr(args, "quiet", False) and ctx.draft is not None:
+        print()
+        print("=" * 60)
+        print("【完整草稿】")
+        print("=" * 60)
+        if ctx.draft.title:
+            print(f"\n# {ctx.draft.title}\n")
+        for section in ctx.draft.sections:
+            print(f"\n## {section.role.value}\n")
+            if section.content:
+                print(section.content)
+        print()
+
     return 0 if ctx.state == RunState.COMPLETED else 1
 
 
