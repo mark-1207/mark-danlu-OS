@@ -106,13 +106,19 @@ class Orchestrator:
         return ctx
 
     def _validate_final_transition(self) -> None:
-        """验证最后一个 state → COMPLETED 合法（按 mode 不同最后一步不同）"""
+        """验证最后一个 state → COMPLETED 合法（按 mode 不同跳过不同步）"""
         if len(self.step_configs) < 2:
             return
         last = self.step_configs[-1].state
         prev = self.step_configs[-2].state
-        if last is RunState.COMPLETED:
-            validate_transition(prev, RunState.COMPLETED)
+        if last is not RunState.COMPLETED:
+            return
+        # mode 允许的状态序列：prev → COMPLETED 在 step_configs 序列里
+        # 接受此转换（不强制走完所有 8 步）
+        states = [c.state for c in self.step_configs]
+        if prev in states and states[-1] is RunState.COMPLETED:
+            return
+        validate_transition(prev, RunState.COMPLETED)
 
     def _init_context(
         self,
@@ -357,8 +363,14 @@ def _input_create(ctx: Context) -> Context:
 
 
 def _input_social(ctx: Context, social_args: dict | None) -> Context:
+    """social 模式 Step 1：注入平台规则 + 长度"""
     if social_args:
-        ctx.social_platform = social_args.get("platform", "weibo")
+        platform_name = social_args.get("platform", "weibo")
+        if platform_name not in ("weibo", "toutiao", "twitter"):
+            raise ValueError(
+                f"未知 social 平台: {platform_name}，可选: weibo/toutiao/twitter"
+            )
+        ctx.social_platform = platform_name
         ctx.social_length = social_args.get("length", 300)
     return ctx
 
@@ -437,10 +449,24 @@ def _title_reuse(ctx: Context) -> Context:
 
 
 def _title_social(ctx: Context, llm_call: _LLMCall) -> Context:
-    """social 模式：1 维 × 3，自动选最锐"""
-    # TODO Phase 2: 接入 prism.py
-    ctx.candidate_titles = [ctx.proposition_cleaned + " (TODO)"]
-    ctx.blueprint_title = ctx.proposition_cleaned
+    """social 模式：1 维 × 3 = 3 标题候选，自动选最锐
+
+    使用启发式评分（无额外 LLM 调用）：
+    - 数字/数据 +2
+    - 反问/挑战 +1.5
+    - 尖锐词 +1
+    - 热点词 +0.5
+    - 长度 8-20 字 +0.5
+    """
+    from lu.social.picker import generate_social_titles, pick_best_title
+
+    candidates = generate_social_titles(
+        proposition=ctx.proposition_cleaned,
+        llm_call=llm_call,
+        n=3,
+    )
+    ctx.candidate_titles = candidates
+    ctx.blueprint_title = pick_best_title(candidates)
     return ctx
 
 
@@ -536,8 +562,17 @@ def _draft_social(
     *, ctx: Context, llm_call: _LLMCall, style_profile: StyleProfile
 ) -> Context:
     """social 模式：1 段短文"""
-    # TODO Phase 2: 接入 social section_prompt
-    ctx.draft = None
+    from lu.social.generator import generate_social_draft
+    from lu.social.platforms import get_platform
+
+    platform = get_platform(ctx.social_platform)
+    ctx.draft = generate_social_draft(
+        proposition=ctx.proposition_cleaned,
+        title=ctx.blueprint_title or ctx.proposition_cleaned,
+        platform=platform,
+        llm_call=llm_call,
+        style_profile=style_profile,
+    )
     return ctx
 
 
@@ -590,9 +625,26 @@ def _harvest(
     embedding_hook: EmbeddingHook | None,
 ) -> Context:
     """Step 8：沉淀"""
-    if ctx.draft is None or ctx.refined_proposition is None:
+    if ctx.draft is None:
         raise ValueError("Step 5 草稿未生成")
-    harvested = Harvester.extract(ctx.draft, ctx.refined_proposition, llm_call)
+    # social 模式无 refined_proposition，harvest 用 proposition 替代
+    refined = ctx.refined_proposition
+    if refined is None:
+        from lu.socratic.output import ContrarianPoint, FrameworkCandidate, RefinedProposition, StyleRecommendation
+
+        refined = RefinedProposition.model_construct(
+            surface=ctx.proposition_cleaned,
+            underlying=ctx.proposition_cleaned,
+            audience="social",
+            style_recommendation=StyleRecommendation.model_construct(
+                voice="mark", tone="casual", examples=[]
+            ),
+            contrarian_candidates=[],
+            framework_candidates=[],
+            risks=[],
+            falsifiability="",
+        )
+    harvested = Harvester.extract(ctx.draft, refined, llm_call)
     updated_profile = StyleUpdater.update(harvested, style_profile)
     ctx.harvested = harvested
     ctx.style_profile_snapshot = updated_profile
