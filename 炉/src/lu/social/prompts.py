@@ -39,8 +39,9 @@ def build_draft_prompt(
     """生成单段草稿的 prompt"""
     style_text = ""
     if style_profile:
-        forbidden = style_profile.get("forbidden", [])
-        must_have = style_profile.get("must_have", [])
+        forbidden_raw = style_profile.get("forbidden", [])
+        forbidden = _normalize_terms(forbidden_raw)
+        must_have = _normalize_terms(style_profile.get("must_have", []))
         if forbidden:
             style_text += f"\n- 必避免：{', '.join(forbidden[:10])}"
         if must_have:
@@ -64,3 +65,21 @@ def build_draft_prompt(
 严格 JSON：{{"content": "...", "hashtags": ["tag1", "tag2"]}}
 content 是完整正文（1 段，不分多段），hashtags 建议 {platform.hashtag_count} 个。
 """
+
+
+def _normalize_terms(items: list) -> list[str]:
+    """把 ForbiddenTerm / dict / str 混合列表归一化成纯字符串列表"""
+    out: list[str] = []
+    for item in items:
+        if isinstance(item, str):
+            out.append(item)
+        elif isinstance(item, dict):
+            t = item.get("term") or item.get("text") or ""
+            if t:
+                out.append(t)
+        else:
+            # Pydantic 对象：有 .term 属性
+            t = getattr(item, "term", None) or str(item)
+            if t:
+                out.append(t)
+    return out

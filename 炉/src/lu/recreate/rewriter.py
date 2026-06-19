@@ -32,7 +32,7 @@ def _build_rewrite_prompt(
     """构造改写 prompt"""
     style_text = ""
     if style_profile:
-        forbidden = style_profile.forbidden or []
+        forbidden = _extract_terms(style_profile.forbidden or [])
         if forbidden:
             style_text += f"\n- 必避免：{', '.join(forbidden[:10])}"
 
@@ -69,6 +69,23 @@ def _build_rewrite_prompt(
 }}
 不要 markdown 代码块外的内容。
 """
+
+
+def _extract_terms(items: list) -> list[str]:
+    """把 ForbiddenTerm / dict / str 混合列表归一化成纯字符串列表"""
+    out: list[str] = []
+    for item in items:
+        if isinstance(item, str):
+            out.append(item)
+        elif isinstance(item, dict):
+            t = item.get("term") or item.get("text") or ""
+            if t:
+                out.append(t)
+        else:
+            t = getattr(item, "term", None) or str(item)
+            if t:
+                out.append(t)
+    return out
 
 
 def _parse_rewrite_response(raw: str) -> tuple[str, dict[str, str]]:
