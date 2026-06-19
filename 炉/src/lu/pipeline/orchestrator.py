@@ -538,11 +538,18 @@ def _title_create(
     embedding_hook: EmbeddingHook | None,
     decision: TUIDecision,
 ) -> Context:
-    """create 模式：4 维 × 3 = 12 标题"""
-    # TODO Phase 2: 接入 prism.py
-    ctx.candidate_titles = [ctx.proposition_cleaned + " (TODO 4x3)"]
-    input_result = decision.decide_step3_title(ctx.candidate_titles)
-    ctx.blueprint_title = input_result.modified_value or ctx.candidate_titles[0]
+    """create 模式：4 维 × 3 = 12 标题候选 + TUI 选 1"""
+    from lu.title.prism import generate_prism_titles
+
+    prism = generate_prism_titles(
+        proposition=ctx.proposition_cleaned,
+        llm_call=llm_call,
+        n_per_dim=3,
+    )
+    candidates = [c.text for c in prism.candidates]
+    ctx.candidate_titles = candidates
+    input_result = decision.decide_step3_title(candidates)
+    ctx.blueprint_title = input_result.modified_value or (candidates[0] if candidates else ctx.proposition_cleaned)
     return ctx
 
 
@@ -613,9 +620,20 @@ def _design_blueprint(
 def _gap_create(
     *, ctx: Context, llm_call: _LLMCall, decision: TUIDecision
 ) -> Context:
-    """create 模式 Step 5：素材缺口分析（Phase 5 接入）"""
-    # TODO Phase 5: 接入 gap analyzer
-    ctx.gaps = []
+    """create 模式 Step 5：素材缺口分析（启发式 + 可选 LLM 补充）"""
+    from lu.gap.analyzer import analyze_gaps
+
+    if ctx.refined_proposition is None or ctx.blueprint is None:
+        ctx.gaps = []
+        return ctx
+    gaps = analyze_gaps(
+        refined=ctx.refined_proposition,
+        blueprint=ctx.blueprint,
+        llm_call=llm_call,
+    )
+    ctx.gaps = [f"[{g.section}] {g.missing} → {g.suggestion}" for g in gaps]
+    decision_input = decision.decide_step5_gap(ctx.gaps)
+    ctx.gaps_resolved = decision_input.accepted
     return ctx
 
 

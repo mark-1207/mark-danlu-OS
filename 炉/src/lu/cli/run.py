@@ -210,6 +210,11 @@ def _add_common_args(parser, default_style_path: str) -> None:
         action="store_true",
         help="只输出元数据摘要，不打印完整草稿（默认会打印）",
     )
+    parser.add_argument(
+        "--tui",
+        action="store_true",
+        help="TUI 交互模式（rich.prompt 每步决策，仅 create 模式有效）",
+    )
 
 
 def _add_create_parser(sub, default_style_path: str) -> None:
@@ -570,6 +575,8 @@ def _run_pipeline(
         mode=mode,
     )
 
+    decision = _resolve_tui_decision(args)
+
     proposition = _resolve_proposition(args, mode)
     try:
         ctx = orch.run(
@@ -582,6 +589,7 @@ def _run_pipeline(
             from_step=from_step,
             recreate_args=recreate_args,
             social_args=social_args,
+            tui_decision=decision,
         )
     except LLMError as e:
         print(f"[ERROR] LLM 调用失败 [{e.code}]: {e.message}", file=sys.stderr)
@@ -593,6 +601,19 @@ def _run_pipeline(
     _persist_outputs(args, ctx)
     _print_results(args, ctx, mode)
     return 0 if ctx.state == RunState.COMPLETED else 1
+
+
+def _resolve_tui_decision(args: argparse.Namespace):
+    """根据 --tui 标志决定 TUI 决策器"""
+    from lu.pipeline.tui_decision import AutoTUIDecision
+
+    if getattr(args, "tui", False):
+        try:
+            from lu.cli.interactive_decision import InteractiveTUIDecision
+            return InteractiveTUIDecision()
+        except (RuntimeError, ImportError):
+            print("[WARN] TUI 不可用，回退到 AutoTUIDecision", file=sys.stderr)
+    return AutoTUIDecision()
 
 
 def _resolve_proposition(args: argparse.Namespace, mode: str) -> str:
