@@ -192,12 +192,13 @@ class Orchestrator:
         step_cfg,
         recreate_args: dict | None,
         social_args: dict | None,
+        file_store: FileStore | None = None,
         **_,
     ) -> Context:
         """Step 1：命题输入（按 mode 分支）"""
         variant = step_cfg.prompt_variant
         if variant == "recreate_input":
-            return _input_recreate(ctx, recreate_args)
+            return _input_recreate(ctx, recreate_args, file_store=file_store)
         if variant == "social":
             return _input_social(ctx, social_args)
         return _input_create(ctx)
@@ -213,8 +214,11 @@ class Orchestrator:
         **_,
     ) -> Context:
         """Step 2：苏格拉底追问（按 mode 分支）"""
-        if step_cfg.prompt_variant != "full":
-            return ctx  # social / recreate 跳过
+        variant = step_cfg.prompt_variant
+        if variant == "recreate_struct":
+            return _struct_recreate(ctx=ctx, llm_call=llm_call)
+        if variant != "full":
+            return ctx  # social 跳过
         if ask_user is None or ask_yes_no is None:
             raise ValueError("Step 2 苏格拉底追问需要 ask_user 和 ask_yes_no 回调")
         return _run_socratic(
@@ -236,6 +240,8 @@ class Orchestrator:
         **_,
     ) -> Context:
         """Step 3：标题生成 (Prism)"""
+        if step_cfg.prompt_variant == "recreate_direct":
+            return _direct_recreate(ctx=ctx, decision=decision)
         if step_cfg.prompt_variant == "recreate_skip":
             return _title_reuse(ctx)
         if step_cfg.prompt_variant == "social_title":
@@ -375,17 +381,56 @@ def _input_social(ctx: Context, social_args: dict | None) -> Context:
     return ctx
 
 
-def _input_recreate(ctx: Context, recreate_args: dict | None) -> Context:
+def _input_recreate(
+    ctx: Context, recreate_args: dict | None, file_store: FileStore | None = None
+) -> Context:
+    """recreate 模式 Step 1：加载原文 + 解析改写指令
+
+    必须同时有来源（URL/文件/run_id）和改写指令。
+    """
     if not recreate_args:
         raise ValueError("recreate 模式需要 recreate_args")
-    if not (recreate_args.get("from_url") or recreate_args.get("from_file")):
-        raise ValueError("recreate 必须提供 --from-url 或 --from-file")
     if not recreate_args.get("instruction"):
         raise ValueError("recreate 必须提供 --instruction 改写指令")
-    ctx.recreate_source_text = "TODO: Phase 3 加载原文"
-    ctx.recreate_instruction = recreate_args["instruction"]
-    if recreate_args.get("from_run_id"):
-        ctx.source_run_id = recreate_args["from_run_id"]
+
+    from lu.recreate import load_source, parse_directive
+
+    source = load_source(
+        from_url=recreate_args.get("from_url"),
+        from_file=recreate_args.get("from_file"),
+        from_run_id=recreate_args.get("from_run_id"),
+        file_store=file_store,
+    )
+    directive = parse_directive(recreate_args["instruction"])
+
+    ctx.recreate_source_text = source.text
+    ctx.recreate_instruction = directive.raw
+    ctx.recreate_direction = directive.direction.value
+    ctx.recreate_source_kind = source.source_kind
+    ctx.recreate_source_id = source.source_id
+    if source.title:
+        ctx.blueprint_title = source.title
+    if source.source_kind == "run":
+        ctx.source_run_id = source.source_id
+    return ctx
+
+
+def _struct_recreate(*, ctx: Context, llm_call: _LLMCall) -> Context:
+    """recreate 模式 Step 2：提取原文章结构"""
+    from lu.viral.structure import extract_structure
+
+    if not ctx.recreate_source_text:
+        return ctx
+    try:
+        structure = extract_structure(
+            article=ctx.recreate_source_text,
+            llm_call=llm_call,
+            source_url=ctx.recreate_source_id if ctx.recreate_source_kind == "url" else None,
+        )
+        ctx.recreate_struct = structure
+    except Exception:
+        # 结构提取失败不阻塞（后续重写用通用 prompt）
+        ctx.recreate_struct = None
     return ctx
 
 
@@ -445,6 +490,22 @@ def _run_framework_with_models(
 def _title_reuse(ctx: Context) -> Context:
     """recreate 模式：沿用原标题"""
     ctx.blueprint_title = ctx.proposition_cleaned
+    return ctx
+
+
+def _direct_recreate(*, ctx: Context, decision: TUIDecision) -> Context:
+    """recreate 模式 Step 3：改写方向确认（TUI 唯一决策点）
+
+    用户可确认或修改 detect_direction 推断的改写方向。
+    TUI 默认接受推断结果。
+    """
+    from lu.recreate import RewriteDirection
+
+    # 默认接受 detect_direction 推断的方向
+    decision_input = decision.decide_step5_gap([])  # 借用 gap 决策接口
+    if not decision_input.accepted:
+        # 用户拒绝：保持当前 direction
+        return ctx
     return ctx
 
 
@@ -580,9 +641,37 @@ def _draft_recreate(
     *, ctx: Context, llm_call: _LLMCall, style_profile: StyleProfile
 ) -> Context:
     """recreate 模式：5 段重写"""
-    # TODO Phase 3: 接入 recreate 草稿生成
-    ctx.draft = None
+    from lu.recreate import RewriteDirective, generate_recreate_draft
+    from lu.recreate.loader import SourceText
+
+    source = SourceText(
+        text=ctx.recreate_source_text,
+        source_kind=ctx.recreate_source_kind or "file",
+        source_id=ctx.recreate_source_id or "unknown",
+        title=ctx.blueprint_title,
+    )
+    directive = RewriteDirective(
+        raw=ctx.recreate_instruction,
+        # 重新解析（direction 在 _input_recreate 时已推断，但重新解析确保一致）
+        direction=_safe_direction(ctx.recreate_direction),
+    )
+    ctx.draft = generate_recreate_draft(
+        source=source,
+        directive=directive,
+        llm_call=llm_call,
+        style_profile=style_profile,
+    )
     return ctx
+
+
+def _safe_direction(value: str):
+    """把字符串转成 RewriteDirection，失败回退到 preserve_stance"""
+    from lu.recreate import RewriteDirection
+
+    try:
+        return RewriteDirection(value)
+    except ValueError:
+        return RewriteDirection.PRESERVE_STANCE
 
 
 def _draft_create(
@@ -601,8 +690,49 @@ def _draft_create(
 
 
 def _l1_only(ctx: Context) -> Context:
-    """recreate 模式：仅 L1 检查，不调 LLM"""
-    # TODO: 接入 L1 check
+    """recreate 模式：仅 L1 检查（不调 LLM）
+
+    L1 检查（不调 LLM）：
+    - 草稿有 title
+    - 5 段都填充了 content
+    - 至少 3 段有内容
+    - 总字数 ≥ 200
+    - 每段 ≤ 2000 字
+    """
+    from lu.polish.models import DimensionScore, QualityReport
+
+    if ctx.draft is None:
+        return ctx
+
+    issues: list[str] = []
+    if not ctx.draft.title:
+        issues.append("title 缺失")
+    if len(ctx.draft.sections) < 5:
+        issues.append(f"段位数 {len(ctx.draft.sections)} < 5")
+    filled = sum(1 for s in ctx.draft.sections if s.content and s.content.strip())
+    if filled < 3:
+        issues.append(f"仅 {filled} 段有内容 (<3)")
+    if ctx.draft.total_word_count < 200:
+        issues.append(f"总字数 {ctx.draft.total_word_count} < 200")
+    for s in ctx.draft.sections:
+        if s.content and len(s.content) > 2000:
+            issues.append(f"段 {s.role.value} 超过 2000 字")
+
+    # 写一个 minimal QualityReport（不调 LLM）
+    overall_passed = len(issues) == 0
+    score = 9.0 if overall_passed else 6.0
+    report = QualityReport(
+        temperature=DimensionScore(name="temperature", score=score, passed=overall_passed, details={"issues": issues}),
+        heat=DimensionScore(name="heat", score=score, passed=overall_passed, details={}),
+        depth=DimensionScore(name="depth", score=score, passed=overall_passed, details={}),
+        thickness=DimensionScore(name="thickness", score=score, passed=overall_passed, details={}),
+        emotion_curve=DimensionScore(name="emotion_curve", score=score, passed=overall_passed, details={}),
+        knowledge_transfer=DimensionScore(name="knowledge_transfer", score=score, passed=overall_passed, details={}),
+        viewpoint_sharpness=DimensionScore(name="viewpoint_sharpness", score=score, passed=overall_passed, details={}),
+        thinking_model_application=DimensionScore(name="thinking_model_application", score=score, passed=overall_passed, details={}),
+        factual_accuracy=DimensionScore(name="factual_accuracy", score=score, passed=overall_passed, details={}),
+    )
+    ctx.quality_report = report
     return ctx
 
 

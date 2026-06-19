@@ -50,6 +50,10 @@ class Context(BaseModel):
     gaps_resolved: bool = False
     recreate_source_text: str = ""
     recreate_instruction: str = ""
+    recreate_direction: str = "preserve_stance"
+    recreate_source_kind: str = ""
+    recreate_source_id: str = ""
+    recreate_struct: object | None = None  # ArticleStructure from viral.structure
     social_platform: str = "weibo"
     social_length: int = 300
 
