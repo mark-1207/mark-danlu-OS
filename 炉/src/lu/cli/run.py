@@ -215,6 +215,11 @@ def _add_common_args(parser, default_style_path: str) -> None:
         action="store_true",
         help="TUI 交互模式（rich.prompt 每步决策，仅 create 模式有效）",
     )
+    parser.add_argument(
+        "--feishu-feedback",
+        default=None,
+        help="飞书 Bitable 配置（YAML 路径）— 反馈同步到此表",
+    )
 
 
 def _add_create_parser(sub, default_style_path: str) -> None:
@@ -653,7 +658,7 @@ def _resolve_from_step(args: argparse.Namespace) -> RunState | None:
 
 
 def _persist_outputs(args: argparse.Namespace, ctx) -> None:
-    """Obsidian 写入 + 反馈记录"""
+    """Obsidian 写入 + 反馈记录 + 飞书同步"""
     if getattr(args, "obsidian_vault", None) and ctx.harvested:
         try:
             writer = ObsidianWriter(args.obsidian_vault)
@@ -681,9 +686,23 @@ def _persist_outputs(args: argparse.Namespace, ctx) -> None:
                 accepted=True,
                 note=args.feedback_note,
             )
+            # 本地 store（总是写）
             store = FeedbackStore(getattr(args, "feedback_path", DEFAULT_FEEDBACK_PATH))
             store.write(feedback)
             print(f"[INFO] 反馈已记录: {args.feedback_path}", file=sys.stderr)
+            # 飞书同步（如果 --feishu-feedback 指定）
+            feishu_cfg = getattr(args, "feishu_feedback", None)
+            if feishu_cfg:
+                from lu.feishu import FeishuFeedbackSink
+
+                sink = FeishuFeedbackSink(feishu_cfg)
+                if sink.send(feedback):
+                    print(f"[INFO] 反馈已同步到飞书: {feishu_cfg}", file=sys.stderr)
+                else:
+                    print(
+                        f"[WARN] 飞书同步失败（本地已保留）: {feishu_cfg}",
+                        file=sys.stderr,
+                    )
         except Exception as e:
             print(f"[WARN] 反馈记录失败: {e}", file=sys.stderr)
 
