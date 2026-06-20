@@ -142,6 +142,32 @@ def build_parser() -> argparse.ArgumentParser:
     rec_p.add_argument("--threshold", type=float, default=0.7)
     rec_p.add_argument("--model", default="text-embedding-3-small")
 
+    # v3 P0 自定义模型 CLI
+    from lu.cli.model import build_framework_parser
+    model_sub = sub.add_parser("model", help="管理 thinking models")
+    model_inner = model_sub.add_subparsers(dest="model_action", required=True)
+    # add
+    m_add = model_inner.add_parser("add", help="添加模型")
+    m_add.add_argument("--id", required=True)
+    m_add.add_argument("--name", required=True)
+    m_add.add_argument("--definition", required=True)
+    m_add.add_argument("--use-when", default="")
+    m_add.add_argument("--prompt-hint", default="")
+    m_add.add_argument("--avoid", default="")
+    m_add.add_argument("--custom-yaml", default="config/thinking_models/custom_models.yaml")
+    # list
+    m_list = model_inner.add_parser("list", help="列出 models")
+    m_list.add_argument("--only-custom", action="store_true")
+    m_list.add_argument("--custom-yaml", default="config/thinking_models/custom_models.yaml")
+    m_list.add_argument("--built-in-yaml", default="config/thinking_models/models.yaml")
+    # remove
+    m_rm = model_inner.add_parser("remove", help="删除模型")
+    m_rm.add_argument("--id", required=True)
+    m_rm.add_argument("--custom-yaml", default="config/thinking_models/custom_models.yaml")
+
+    # v3 P0 自定义 framework CLI（顶级子命令，argparse 不支持多 subparser）
+    build_framework_parser(sub)
+
     return parser
 
 
@@ -827,6 +853,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "recall":
         from lu.cli.embedding import cmd_recall
         return cmd_recall(args)
+    if args.command == "model":
+        from lu.cli.model import main as model_main
+        argv = [args.model_action]
+        for k, v in vars(args).items():
+            if k in ("command", "model_action"):
+                continue
+            if v is True:
+                argv.extend([f"--{k.replace('_', '-')}"])
+            elif v is not None and v != "":
+                argv.extend([f"--{k.replace('_', '-')}", str(v)])
+        return model_main(argv)
 
     parser.print_help()
     return 1
