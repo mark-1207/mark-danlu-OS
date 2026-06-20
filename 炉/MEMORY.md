@@ -5,39 +5,44 @@
 
 ---
 
-## 当前状态（2026-06-18）
+## 当前状态（2026-06-20）
 
-- **项目阶段**：v2 P0 Embedding 已完成，待 commit + push
-- **下一步**：commit → push origin main
+- **项目阶段**：**v3 P0 全部完成**，可正式使用
+- **下一步**：v3.x 扩展（跨设备同步 / 调度 / 飞书真实 API 完善）
 - **实施进度**：
   - v1.0 ✅ / v1.1 ✅ / v1.1 收尾 ✅ / v1.2 ✅ / v1.3 ✅ / v1.4 ✅
-  - v2 P0 飞书配置 ✅ / 阶段 2-3 学习 ✅ / **Embedding ✅**
+  - v2 P0 飞书配置 ✅ / 阶段 2-3 学习 ✅ / Embedding ✅
+  - **v3 P0 多模式（social / create / recreate）✅** 8 个 Phase 全部完成
 
 ---
 
 ## 快速验证命令
 
-> v1+v2 实施阶段。当前阶段：
+> v3 P0 完成。当前阶段：
 
 ```bash
-# 全量测试（465/465）
+# 全量测试（615+ passed, 1 xpassed）
 PYTHONPATH=src python -m pytest
 
-# v1 dry-run 烟雾测试
-PYTHONPATH=src python -m lu.cli.run "测试命题" --dry-run
+# v3 P0 三大模式烟雾测试（需配置 .env）
+PYTHONPATH=src python -m lu.cli.create "AI 杠杆者反思" --dry-run --quiet
+PYTHONPATH=src python -m lu.cli.social "AI 杠杆者反思" --platform weibo --dry-run
+PYTHONPATH=src python -m lu.cli.recreate --from-file article.md --instruction "改写得更犀利" --dry-run
 
-# v2 P0 embedding 烟雾测试（.env 已从兄弟项目同步真实 key，CLI 自动加载）
+# 真实 API（.env 已配好）
 PYTHONPATH=src python -m lu.cli.embedding embed "测试文本"
-PYTHONPATH=src python -m lu.cli.embedding recall "测试" --top-k 3
+PYTHONPATH=src python -m lu.cli.embedding recall "AI" --top-k 3
 
-# 如无 .env，复制 .env.example 后填入 key
-cp .env.example .env
+# 自定义模型
+lu model add --id my_m --name "我的模型" --definition "..."
+lu model list
+lu framework add --id my_f --name "..." --strategy chain --model-ids m1 m2
 
 # 文档完整性
-ls docs/         # 应有 19+ 个 .md
-ls docs/decisions/  # 应有 9 个 ADR（D-001 ~ D-009）
-ls docs/development/  # v2 阶段方案
-ls .env.example  # 存在
+ls docs/         # 19+ .md
+ls docs/decisions/  # 10 个 ADR（D-001 ~ D-010）
+ls docs/development/  # v2 / v3 阶段方案
+ls .env.example
 ```
 
 ---
@@ -45,15 +50,8 @@ ls .env.example  # 存在
 ## 当前进度
 
 ### 已完成
-- ✅ 炉 项目初始化（CLAUDE.md / .gitignore）
-- ✅ ContentForge + PRISM-OS 深度理解
-- ✅ 6 层面方案对齐（边界/目标/架构/模块/技术/文档）
-- ✅ 19 个文档清单敲定
-- ✅ 8 个核心日常更新文档确认
-- ✅ v2 / 长期规划拆分
-- ✅ 经验教训沉淀清单（F1-F11 + D1-D9 + P1-P14 + 规则 0）
-- ✅ 19 个项目文档全部完成
-- ✅ 9 个 ADR（D-001 ~ D-009）全部完成
+
+#### v1.x（v1.0 - v1.4）
 - ✅ 阶段 0：基础设施（pyproject + config/loader + store/file_store + state/machine）
 - ✅ 阶段 1：苏格拉底追问（questions + engine + output + learning）
 - ✅ 阶段 2：思想模型（12 模型 + 4 框架 + 5 策略 + 选择器）
@@ -66,13 +64,29 @@ ls .env.example  # 存在
 - ✅ v1.2（TUI + 飞书 config sync）
 - ✅ v1.3（爆款二创）
 - ✅ v1.4（复盘 / 雷达 / 周报）
-- ✅ v2 P0 飞书配置（v1.2 已覆盖）
-- ✅ v2 P0 阶段 2-3 学习（SampleStore + Learner + Engine 集成）
-- ✅ v2 P0 Embedding 语义匹配（91 新增测试，465/465 全量通过）
 
-### 待办
-- ⏳ commit + push v2 P0 Embedding
-- ⏳ v2.x：飞书真实 API / 自定义模型 / 高级策略模式 / 跨设备同步
+#### v2 P0
+- ✅ 飞书配置（v1.2 已覆盖）
+- ✅ 阶段 2-3 学习（SampleStore + Learner + Engine 集成）
+- ✅ Embedding 语义匹配（智谱 → 英伟达 → OpenRouter fallback）
+
+#### v3 P0（多模式架构）
+- ✅ **Phase 1**：Orchestrator 模式化（3 模式 + 8 步状态机）
+- ✅ **Phase 2**：social 模块（4 步全自动 + 微博/头条/推特）
+- ✅ **Phase 3**：recreate 模块（链接/文档 + 改写指令，2 条件必须并存）
+- ✅ **Phase 4**：CLI 整合（create/social/recreate + 旧命令 deprecation）
+- ✅ **Phase 5**：Prism 12 标题 + Gap 分析 + TUI 全程介入（InteractiveTUIDecision）
+- ✅ **Phase 6**：Critic 刺客/裂缝/分身 + 旧 run 数据迁移兼容
+- ✅ **Phase 7**：飞书真实 API 集成（FeishuFeedbackSink + --feishu-feedback）
+- ✅ **Phase 8**：自定义模型 CLI（lu model + lu framework add/list/remove）
+
+### 待办（v3.x 候选）
+
+- ⏳ 跨设备同步（飞书云文档备份 runs）
+- ⏳ 调度（cron 定时跑）/ Webhook 触发
+- ⏳ 飞书真实 API 完善（lark-cli 集成 + StyleProfile 实时同步）
+- ⏳ 思考策略高级模式（iterate / recursive）
+- ⏳ I-001 / I-002 / I-003 P1 规则细化（保留在 Issues，按需启动）
 
 详见 `docs/14-TASKS.md`
 
@@ -92,7 +106,8 @@ ls .env.example  # 存在
 | D-006 | 配置化（YAML/飞书表格） | ✅ 2026-06-15 |
 | D-007 | 4 内置框架 + 12 模型 | ✅ 2026-06-15 |
 | D-008 | 苏格拉底追问 3 阶段学习机制 | ✅ 2026-06-15 |
-| D-009 | Embedding 语义匹配选型（OpenAI-compatible + JSONL + warn-and-skip） | ✅ 2026-06-18 |
+| D-009 | Embedding 语义匹配选型 | ✅ 2026-06-18 |
+| **D-010** | **v3 P0 多模式架构**（3 模式 + prompt_variant 分支） | ✅ 2026-06-20 |
 
 ---
 
@@ -104,7 +119,7 @@ ls .env.example  # 存在
 
 ## 待用户决策
 
-无 — 继续按 DEV-PLAN 推进阶段 3-7。
+无 — v3 P0 收尾完成，可正式使用。
 
 ---
 
@@ -115,3 +130,5 @@ ls .env.example  # 存在
 - 决策记录：[12-DECISION-LOG](docs/12-DECISION-LOG.md)
 - ADR 索引：[docs/decisions/](docs/decisions/)
 - 任务分解：[14-TASKS](docs/14-TASKS.md)
+- v3 P0 架构：[D-010](docs/decisions/D-010-v3-p0-multi-mode.md)
+- v3 P0 方案：[v2-p0-embedding-plan.md](docs/development/v2-p0-embedding-plan.md)

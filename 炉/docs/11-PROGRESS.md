@@ -346,3 +346,115 @@
 - 真实 embedding API 未联调（仅 mock 测试）
 - 索引未配 TTL/清理（v2.x 评估）
 - 召回阈值 0.7 / 相似提示阈值 0.9 是初始值，需实际数据校准
+
+---
+
+## v3 P0 多模式架构（2026-06-18 ~ 2026-06-20）
+
+### 目标
+把"按命题跑出文章"的黑盒拆为 3 种模式：
+- **social**：短内容 4 步全自动（微博/头条/推特）
+- **create**：原创 8 步全流程（TUI 介入每步）
+- **recreate**：二创 5 步（链接/文档 + 改写指令）
+
+按 D1-D10 用户决策实施：8 Phase 全部完成。
+
+### Phase 1: Orchestrator 模式化（2026-06-18）
+- 新增 `src/lu/pipeline/mode_config.py`：StepConfig + MODE_CONFIGS
+- 新增 `src/lu/pipeline/tui_decision.py`：TUIDecision Protocol + AutoTUIDecision
+- Context 加 mode + source_run_id + 8 个新字段
+- RunState 加 STEP7_DONE（8 步支持）
+- Orchestrator.run() 拆成小函数（_step1.._step8，每个 ≤30 行）
+- step handler 内按 prompt_variant 分支
+- _STATE_ORDER 同步更新
+- 17 个新 mode 测试
+
+### Phase 2: social 模块（2026-06-18）
+- `src/lu/social/platforms.py`：微博/头条/推特规则（字数/格式/标签/语气/content_rules）
+- `src/lu/social/prompts.py`：标题生成 + 草稿生成 prompt 模板
+- `src/lu/social/picker.py`：1 维 × 3 标题 + 启发式锐度评分自动选最优
+- `src/lu/social/generator.py`：1 段草稿生成（含 hashtags 拼接）
+- orchestrator: _input_social / _title_social / _draft_social 接入真实实现
+- 25 个新测试
+
+### Phase 3: recreate 模块（2026-06-18）
+- `src/lu/recreate/loader.py`：SourceText + 3 来源加载（URL/file/run_id）
+- `src/lu/recreate/directive.py`：4 种改写方向（preserve_stance/switch_view/rewrite_struct/rewrite_free）
+- `src/lu/recreate/rewriter.py`：5 段重写（保留原结构换语言）
+- orchestrator: _input_recreate / _struct_recreate / _direct_recreate / _draft_recreate / _l1_only
+- 19 个新测试
+
+### Phase 4: CLI 整合（2026-06-18）
+- 新增 3 个子命令：lu create / lu social / lu recreate
+- 旧命令 deprecation 兼容：lu run → 转发到 create / lu viral 提示改用 create --reference
+- 16 个新测试
+- bug 修复：style_profile.forbidden 是 list[ForbiddenTerm]，social/prompts.py + recreate/rewriter.py 加 _extract_terms() 归一化
+
+### Phase 5: Prism + Gap + TUI（2026-06-20）
+- `src/lu/title/prism.py`：Prism 4 维 × 3 = 12 标题候选（view/data/case/contrarian）
+- `src/lu/gap/analyzer.py`：Gap 分析（启发式 + LLM 补充）
+- `src/lu/cli/interactive_decision.py`：InteractiveTUIDecision（rich.prompt）
+- orchestrator: 接入 Prism + Gap 真实实现
+- CLI --tui 标志启用 InteractiveTUIDecision
+- 18 个新测试
+
+### Phase 6: Critic + 数据迁移（2026-06-20）
+- `src/lu/critic/__init__.py`：3 种 critic（刺客/裂缝/数字分身）
+- orchestrator Step 7 接入 critic（3 次额外 LLM 调用）
+- 旧 run 数据兼容：Context v3 字段都有默认值，加载自动补
+- 18 个新测试
+
+### Phase 7: 飞书真实 API（2026-06-20）
+- `src/lu/feishu/feedback_sink.py`：FeishuFeedbackSink（替代 LocalJsonlSink）
+- CLI --feishu-feedback <config> 标志
+- 7 个新测试
+
+### Phase 8: 自定义模型 CLI（2026-06-20）
+- `src/lu/custom_model/__init__.py`：通用 YAML 增删改查（model + framework）
+- `src/lu/cli/model.py`：lu model add/list/remove + lu framework add/list/remove
+- argparse 不支持多 subparser：framework 作为顶级子命令
+- 20 个新测试
+
+### v3 P0 总结
+
+**测试**：615 passed + 1 xpassed（mimo API 行为变化）
+
+**8 个 commit 全部 push**：
+- Phase 1: `cfeb50b`
+- Phase 2: `49675e1`
+- Phase 3: `1d92036`
+- Phase 4: `eb231d1`
+- Phase 5: `112aaa3`
+- Phase 6: `77b960c`
+- Phase 7: `a590285`
+- Phase 8: `b419bf7`
+
+### 关键设计点
+- **prompt_variant 字符串分支**：避免 step handler 数量爆炸
+- **mode 化 orchestrator**：不传 mode 时行为完全不变（v1.x 兼容）
+- **续跑 mode 校验**：ctx.mode != self.mode 抛错
+- **TUI 自动 fallback**：非 TTY 环境用 AutoTUIDecision
+- **旧命令 deprecation**：仍可用，打印 warning，提示新命令
+- **数据迁移零成本**：旧 runs/ 自动补默认值
+
+### 风险 / 待办
+- 真实 mimo API 行为变化（接受 fake key），1 个测试标 xfail
+- L1/L2 检查在 recreate 模式是 0 LLM 调用（可能漏检）
+- TUI InteractiveTUIDecision 端到端验证还需要真实 TTY
+
+---
+
+## 状态总结
+
+**v3 P0 收尾完成。可正式使用。**
+
+CLI 主入口：
+```bash
+lu create "<命题>"        # 8 步全流程（TUI 介入）
+lu social "<命题>"        # 4 步全自动（微博/头条/推特）
+lu recreate --from-* ...  # 5 步二创
+lu embed / recall        # embedding 工具
+lu model / framework     # 自定义 thinking models
+lu config pull/push/sync # 飞书 StyleProfile
+lu report review/radar/weekly  # 复盘
+```

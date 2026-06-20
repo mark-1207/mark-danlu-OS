@@ -183,7 +183,77 @@
 - [x] ✅ Context 新增 `similar_propositions` / `recalled_materials` 字段
 - [x] ✅ CLI 新增 `lu embed` / `lu recall` 子命令
 - [x] ✅ 端到端测试（465/465 全量通过）
-- [ ] ⏳ 写 `docs/decisions/D-009-embedding-design.md`（待办）
+- [x] ✅ 写 `docs/decisions/D-009-embedding-design.md` ✅ 2026-06-18
+
+---
+
+## v3 P0 多模式架构（2026-06-18 ~ 2026-06-20）
+
+按用户决策 D1-D10 实施，8 个 Phase 全部完成。
+
+### Phase 1: Orchestrator 模式化
+- [x] ✅ 写 `src/lu/pipeline/mode_config.py`（StepConfig + MODE_CONFIGS）
+- [x] ✅ 写 `src/lu/pipeline/tui_decision.py`（TUIDecision Protocol + AutoTUIDecision）
+- [x] ✅ Context 加 mode 字段
+- [x] ✅ Orchestrator 拆 8 个小 step handler（每个 ≤30 行）
+- [x] ✅ 写 mode 测试（17 个）
+
+### Phase 2: social 模块
+- [x] ✅ 建 `src/lu/social/platforms.py`（微博/头条/推特）
+- [x] ✅ 建 `src/lu/social/prompts.py`
+- [x] ✅ 建 `src/lu/social/picker.py`（标题自动选最锐）
+- [x] ✅ 补 orchestrator social 分支
+- [x] ✅ 写 25 个 social 测试
+
+### Phase 3: recreate 模块
+- [x] ✅ 建 `src/lu/recreate/loader.py`（URL/file/run_id）
+- [x] ✅ 建 `src/lu/recreate/directive.py`（4 种改写方向）
+- [x] ✅ 建 `src/lu/recreate/rewriter.py`（5 段重写）
+- [x] ✅ 补 orchestrator recreate 分支
+- [x] ✅ 写 19 个 recreate 测试
+
+### Phase 4: CLI 整合
+- [x] ✅ CLI 新子命令 create/social/recreate
+- [x] ✅ cmd_create / cmd_social / cmd_recreate 实现
+- [x] ✅ 旧命令 deprecation 兼容（lu run / lu viral）
+- [x] ✅ 写 16 个 CLI 集成测试
+
+### Phase 5: Prism + Gap + TUI
+- [x] ✅ 建 `src/lu/title/prism.py`（4 维 × 3 = 12 标题）
+- [x] ✅ 建 `src/lu/gap/analyzer.py`（启发式 + LLM 补充）
+- [x] ✅ 建 `src/lu/cli/interactive_decision.py`（rich.prompt TUI）
+- [x] ✅ 补 orchestrator 真实实现
+- [x] ✅ 写 18 个 Phase 5 测试
+
+### Phase 6: Critic + 数据迁移
+- [x] ✅ 建 `src/lu/critic/`（刺客/裂缝/数字分身）
+- [x] ✅ 补 orchestrator Step 7 critic 调用
+- [x] ✅ 旧 run 数据迁移兼容（Context v3 字段默认值）
+- [x] ✅ 写 18 个测试
+
+### Phase 7: 飞书真实 API
+- [x] ✅ 建 `src/lu/feishu/feedback_sink.py`（FeishuFeedbackSink）
+- [x] ✅ CLI --feishu-feedback 标志
+- [x] ✅ 写 7 个测试
+
+### Phase 8: 自定义模型 CLI
+- [x] ✅ 建 `src/lu/custom_model/`（通用 YAML 增删改查）
+- [x] ✅ 写 `lu model add/list/remove` + `lu framework add/list/remove`
+- [x] ✅ CLI 集成（argparse 多 subparser 冲突用顶级子命令解决）
+- [x] ✅ 写 20 个测试
+
+### v3 P0 收尾
+- [x] ✅ MEMORY.md 更新到 v3 P0 收尾
+- [x] ✅ 11-PROGRESS.md 加 v3 P0 8 Phase 进度
+- [x] ✅ 14-TASKS.md 标记全部完成
+- [x] ✅ 写 D-010 ADR（v3 P0 多模式架构总览）
+- [x] ✅ 最终全量测试 615 passed + 1 xpassed
+
+### v3.x 候选（后续按需启动）
+- [ ] ⏳ 跨设备同步（飞书云文档备份 runs）
+- [ ] ⏳ 调度（cron 定时跑）/ Webhook 触发
+- [ ] ⏳ 思考策略高级模式（iterate / recursive）
+- [ ] ⏳ I-001 / I-002 / I-003 P1 规则细化（保留在 Issues）
 
 ---
 
