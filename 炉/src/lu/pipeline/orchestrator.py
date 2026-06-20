@@ -762,6 +762,31 @@ def _polish_create(*, ctx: Context, llm_call: _LLMCall) -> Context:
     report = scorer.score(ctx.draft, ctx.blueprint, llm_call)
     FixSuggester.suggest(report, llm_call)
     ctx.quality_report = report
+
+    # v3 P0 Critic：刺客/裂缝/分身 3 种批判
+    from lu.critic import run_all_critics
+
+    draft_text = "\n\n".join(
+        f"## {s.role.value}\n\n{s.content or ''}"
+        for s in ctx.draft.sections
+    )
+    audience = (
+        ctx.refined_proposition.audience if ctx.refined_proposition else "通用读者"
+    )
+    try:
+        issues = run_all_critics(
+            draft_title=ctx.draft.title,
+            draft_text=draft_text,
+            audience=audience,
+            llm_call=llm_call,
+        )
+        ctx.critique_issues = [
+            {"type": i.type, "section": i.target_section, "issue": i.issue, "suggestion": i.suggestion}
+            for i in issues
+        ]
+    except Exception:
+        # Critic 失败不阻塞
+        ctx.critique_issues = []
     return ctx
 
 

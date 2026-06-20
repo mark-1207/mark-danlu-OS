@@ -63,6 +63,7 @@ class Context(BaseModel):
     draft: Draft | None = None
 
     quality_report: QualityReport | None = None
+    critique_issues: list[object] = Field(default_factory=list)  # list[CritiqueIssue]
 
     harvested: Harvested | None = None
     style_profile_snapshot: StyleProfile | None = None
