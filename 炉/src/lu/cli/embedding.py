@@ -24,8 +24,8 @@ if _ENV_PATH.is_file():
     load_dotenv(_ENV_PATH, override=True)
 
 
-DEFAULT_PROPOSITIONS = "config/embeddings/propositions.jsonl"
-DEFAULT_MATERIALS = "config/embeddings/materials.jsonl"
+DEFAULT_PROPOSITIONS = "data/embeddings/propositions.jsonl"
+DEFAULT_MATERIALS = "data/embeddings/materials.jsonl"
 
 
 def build_parser() -> argparse.ArgumentParser:

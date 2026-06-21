@@ -14,3 +14,6 @@ logs/
 *.log
 *.tsbuildinfo
 coverage/
+
+# 运行时数据目录（embedding 索引追加写，不入库）
+data/embeddings/

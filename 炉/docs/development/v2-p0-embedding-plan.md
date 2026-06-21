@@ -33,7 +33,7 @@
 
 - `src/lu/embedding/` 模块：types / providers / chain / index / recall / factory
 - OpenAI-compatible embedding provider（覆盖 OpenAI / NVIDIA NIM / OpenRouter）
-- 本地 JSONL 索引（`config/embeddings/`）
+- 本地 JSONL 索引（`data/embeddings/`，运行时数据不入库）
 - Orchestrator 集成：Step 2 后记录 + 相似度提示，Step 3 前召回
 - CLI：`lu embed`（单文本 embedding）/ `lu recall`（top-k 召回）
 - 单元测试 + 端到端测试（mock httpx）
@@ -65,7 +65,7 @@ src/lu/embedding/
 ### 3.2 索引存储
 
 ```
-config/embeddings/
+data/embeddings/
 ├── materials.jsonl      # 素材库：{id, kind, text, source, tags, ts, embedding}
 │                        # kind: case | quote | insight | proposition
 └── propositions.jsonl   # 命题历史：{proposition, ts, run_id, embedding}

@@ -132,11 +132,11 @@ def build_parser() -> argparse.ArgumentParser:
     from lu.cli.embedding import build_parser as build_embedding_parser
     emb_p = sub.add_parser("embed", help="对单文本算 embedding")
     emb_p.add_argument("text", help="要 embedding 的文本")
-    emb_p.add_argument("--propositions", default="config/embeddings/propositions.jsonl")
+    emb_p.add_argument("--propositions", default="data/embeddings/propositions.jsonl")
     emb_p.add_argument("--model", default="text-embedding-3-small")
     rec_p = sub.add_parser("recall", help="在素材索引中按 query 召回 top-k")
     rec_p.add_argument("text", help="查询文本")
-    rec_p.add_argument("--materials", default="config/embeddings/materials.jsonl")
+    rec_p.add_argument("--materials", default="data/embeddings/materials.jsonl")
     rec_p.add_argument("--top-k", type=int, default=3)
     rec_p.add_argument("--kind", default=None)
     rec_p.add_argument("--threshold", type=float, default=0.7)

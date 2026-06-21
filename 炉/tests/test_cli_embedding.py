@@ -30,8 +30,8 @@ def _args(**kwargs) -> object:
         "text": "x",
         "top_k": 3,
         "kind": None,
-        "propositions": "config/embeddings/propositions.jsonl",
-        "materials": "config/embeddings/materials.jsonl",
+        "propositions": "data/embeddings/propositions.jsonl",
+        "materials": "data/embeddings/materials.jsonl",
         "threshold": 0.7,
         "model": "text-embedding-3-small",
     }
