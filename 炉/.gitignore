@@ -17,3 +17,6 @@ coverage/
 
 # 运行时数据目录（embedding 索引追加写，不入库）
 data/embeddings/
+
+# 运行时反馈日志（用户追加写，不入库）
+data/feedback.jsonl

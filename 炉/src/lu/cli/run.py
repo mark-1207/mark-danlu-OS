@@ -42,7 +42,7 @@ if _ENV_PATH.is_file():
 
 
 DEFAULT_STYLE_PATH = "config/style_profile.yaml"
-DEFAULT_FEEDBACK_PATH = "config/feedback.jsonl"
+DEFAULT_FEEDBACK_PATH = "data/feedback.jsonl"
 
 
 _STEP_STATE_MAP = {
@@ -112,7 +112,7 @@ def build_parser() -> argparse.ArgumentParser:
     # review
     rv = rpt_sub.add_parser("review", help="复盘")
     rv.add_argument("--runs-dir", default="runs")
-    rv.add_argument("--feedback", default="config/feedback.jsonl")
+    rv.add_argument("--feedback", default="data/feedback.jsonl")
     rv.add_argument("--period", default="all")
     rv.add_argument("--output", default=None)
     # radar
@@ -124,7 +124,7 @@ def build_parser() -> argparse.ArgumentParser:
     # weekly
     wk = rpt_sub.add_parser("weekly", help="周报")
     wk.add_argument("--runs-dir", default="runs")
-    wk.add_argument("--feedback", default="config/feedback.jsonl")
+    wk.add_argument("--feedback", default="data/feedback.jsonl")
     wk.add_argument("--period", default="本周")
     wk.add_argument("--output", default=None)
 
@@ -229,7 +229,7 @@ def _add_common_args(parser, default_style_path: str) -> None:
     parser.add_argument(
         "--feedback-path",
         default=DEFAULT_FEEDBACK_PATH,
-        help="反馈文件路径（默认 config/feedback.jsonl）",
+        help="反馈文件路径（默认 data/feedback.jsonl）",
     )
     parser.add_argument(
         "--quiet",

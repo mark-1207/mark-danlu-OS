@@ -23,7 +23,7 @@ from lu.store.file_store import FileStore
 
 
 DEFAULT_RUNS_DIR = "runs"
-DEFAULT_FEEDBACK_PATH = "config/feedback.jsonl"
+DEFAULT_FEEDBACK_PATH = "data/feedback.jsonl"
 
 
 def _echo_llm(_prompt: str = "") -> str:
